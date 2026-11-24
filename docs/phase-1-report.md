@@ -3,7 +3,8 @@
 Date: 2026-11-24
 Repository: `punix81/OpenCode-Buddy` (branch `main`, local commits only)
 Status: **Phase 1 complete — PASS WITH RESERVATIONS.**
-Device restored to the reference firmware and verified. Phase 2 is planned, not started.
+Rollback demonstrated and verified; Buddy is currently flashed again at the Product Owner's request.
+Phase 2 has started with protocol ratification (documentation only).
 
 ## 1. Executive summary
 
@@ -15,7 +16,8 @@ showed no reset and no heap growth.
 The build uses 354 982 B of flash (27.1 %) and 16 364 B of static RAM (5.0 %); the 220 × 220 8-bit
 canvas adds 52 596 B of heap. Rendering averages 31.9 ms with a 33.1 ms maximum, sustaining 25 FPS in
 active states. A 4 MB full-flash backup was taken and verified before flashing; afterwards the device
-was restored byte for byte and the reference bridge restarted.
+was restored byte for byte and the reference bridge restarted. The Product Owner then asked to
+re-flash Buddy, so the board currently runs Buddy again while the verified backup stays available.
 
 Two points keep this from a clean PASS. Only 2 of the 5 requested cold boots are evidenced in the
 kernel log, and several validations rely on human observation without a photograph. Both are recorded
@@ -55,7 +57,8 @@ immediately showed real gestures. That behaviour is now documented in `docs/trou
 9. Flashed the application at `0x10000` without rewriting the bootloader, partitions or NVS.
 10. Validated display, states, gestures, navigation, quiet mode and persistence on the hardware.
 11. Ran a 15-minute soak and 5 software restarts with flat heap and zero unexpected resets.
-12. Restored the full 4 MB image, verified the digest, and restarted the reference bridge.
+12. Restored the full 4 MB image, verified the digest, restarted the reference bridge, then re-flashed
+    Buddy at the Product Owner's request.
 
 ## 4. Files created or modified
 
@@ -137,7 +140,7 @@ Sanitized build evidence: `docs/evidence/phase-1-build-summary.txt`. Restore evi
 | 15-minute soak | 902 s, 0 resets, heap 252 088 → 252 088 B | VERIFIED |
 | 5 software restarts | boot 2→6, `reset=software`, `unexpected=0` | VERIFIED |
 | 5 cold boots | 2 kernel-evidenced (`reset=poweron`) | PARTIAL |
-| Restore | 4 MB written, digest matched; device re-enumerated and the bridge opened the port. Reference UI confirmation: pending. | VERIFIED (image) |
+| Restore | 4 MB written, digest matched; reference bridge opened the port. Buddy then re-flashed at the owner's request. | VERIFIED (image) |
 | Photo of the panel | not provided | NOT VERIFIED |
 
 ## 9. Security findings
@@ -183,7 +186,9 @@ for the current list. No remote operation was performed for this phase.
 
 The firmware meets the Phase 1 functional gate: it builds, drives the exact hardware, renders all
 states, navigates all screens, handles gestures without double actions, persists preferences, runs
-15 minutes without reset or leak, and the device is restored to its prior state.
+15 minutes without reset or leak, and the rollback to the reference image was demonstrated and
+verified. The board currently runs Buddy again at the Product Owner's request, with the reference
+backup retained.
 
 Recommendation: proceed to Phase 2 only after Product Owner approval. Phase 2 should start by
 ratifying protocol v1 and implementing the firmware parser plus a mock-driven bridge, so the protocol

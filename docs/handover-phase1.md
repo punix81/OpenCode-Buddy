@@ -35,10 +35,11 @@ Detailed evidence: `docs/evidence/phase-1-performance.md`,
 
 ## Device state
 
-- Restored to the reference Codex Quota Mini firmware from the verified 4 MB dump.
-- Reference bridge restarted with its original manual command; it owns `/dev/ttyACM0`.
-- The systemd unit `codex-quota-bridge.service` remains stopped and enabled, as it was before the
-  session.
+- The reference image was restored and verified byte for byte. The Product Owner then asked to
+  re-flash Buddy, so the board currently runs the Buddy application at `0x10000`; the bootloader,
+  partition table, otadata and NVS come from the restored reference image.
+- The reference bridge is stopped. The systemd unit `codex-quota-bridge.service` remains stopped and
+  enabled, as it was before the session.
 - Full backup hash: `9a83841f558517bd9eb4e6c67a0daa483b36fe3ed0e31de3b1e9e0735bd07479`.
 
 ## Pending work

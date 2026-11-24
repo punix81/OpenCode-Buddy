@@ -59,3 +59,13 @@ displays its pages and data is **pending**; it must not be reported as verified 
 
 A power loss during a full 4 MB write can leave the device unbootable. The verified dump remains
 available for another attempt. No full-chip erase was performed at any point.
+
+## Post-rollback state (same day)
+
+After the verified restore, the Product Owner reported a problem, then confirmed it was a mistake and
+asked to re-flash OpenCode Buddy. The application was written again at `0x10000` (385 984 B, SHA-256
+`35d69a86…100009da`, verified by esptool) and boots normally. The reference bridge remains stopped.
+
+The rollback was therefore **demonstrated and verified**, and Buddy was then re-applied at the
+Product Owner's request. The 4 MB dump and the restore script remain available; restoring the
+reference again is a single command.
