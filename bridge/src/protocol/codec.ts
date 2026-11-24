@@ -1,0 +1,139 @@
+import { MAX_LINE_BYTES, PROTOCOL_MAJOR, type AnyMessage } from './types.js';
+
+export class ProtocolEncodeError extends Error {}
+
+export function encodeMessage(message: AnyMessage): string {
+  const line = JSON.stringify(message);
+  if (Buffer.byteLength(line, 'utf8') + 1 > MAX_LINE_BYTES) {
+    throw new ProtocolEncodeError('message exceeds the line limit');
+  }
+  return line;
+}
+
+export interface FrameResult {
+  lines: string[];
+  overflows: number;
+}
+
+// Incremental NDJSON framer. Accepts arbitrary chunks, handles CRLF, several
+// messages per chunk and a fragmented message. An oversized line is discarded
+// up to the next newline and counted once.
+export class LineFramer {
+  private pending: Buffer = Buffer.alloc(0);
+  private discarding = false;
+  private overflows = 0;
+
+  push(chunk: Buffer | string): FrameResult {
+    const bytes = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+    this.pending = this.pending.length === 0 ? bytes : Buffer.concat([this.pending, bytes]);
+    const lines: string[] = [];
+
+    for (;;) {
+      const newline = this.pending.indexOf(0x0a);
+      if (newline < 0) {
+        break;
+      }
+      const raw = this.pending.subarray(0, newline);
+      this.pending = this.pending.subarray(newline + 1);
+
+      if (this.discarding) {
+        this.discarding = false;
+        continue;
+      }
+      const withoutCr = raw.length > 0 && raw[raw.length - 1] === 0x0d ? raw.subarray(0, -1) : raw;
+      if (withoutCr.length + 1 > MAX_LINE_BYTES) {
+        ++this.overflows;
+        continue;
+      }
+      if (withoutCr.length === 0) {
+        continue;
+      }
+      lines.push(withoutCr.toString('utf8'));
+    }
+
+    if (!this.discarding && this.pending.length + 1 > MAX_LINE_BYTES) {
+      this.pending = Buffer.alloc(0);
+      this.discarding = true;
+      ++this.overflows;
+    }
+
+    return { lines, overflows: this.overflows };
+  }
+
+  takeOverflows(): number {
+    const value = this.overflows;
+    this.overflows = 0;
+    return value;
+  }
+
+  reset(): void {
+    this.pending = Buffer.alloc(0);
+    this.discarding = false;
+    this.overflows = 0;
+  }
+}
+
+export type SequenceAction = 'apply' | 'duplicate' | 'stale' | 'gap';
+
+export class SequenceTracker {
+  private last = 0;
+
+  reset(): void {
+    this.last = 0;
+  }
+
+  get lastSeq(): number {
+    return this.last;
+  }
+
+  accept(seq: number): SequenceAction {
+    if (this.last === 0) {
+      if (seq === 1) {
+        this.last = 1;
+        return 'apply';
+      }
+      return 'gap';
+    }
+    if (seq === this.last + 1) {
+      this.last = seq;
+      return 'apply';
+    }
+    if (seq === this.last) {
+      return 'duplicate';
+    }
+    if (seq < this.last) {
+      return 'stale';
+    }
+    return 'gap';
+  }
+
+  // Accepts the first message after a resynchronisation, then enforces order.
+  acceptAfterResync(seq: number): void {
+    if (seq > this.last) {
+      this.last = seq - 1;
+    }
+  }
+}
+
+export class OutboundSequence {
+  private value = 0;
+
+  reset(): void {
+    this.value = 0;
+  }
+
+  next(): number {
+    ++this.value;
+    if (this.value > 0x7fffffff) {
+      this.value = 1;
+    }
+    return this.value;
+  }
+}
+
+export function negotiateMajor(deviceMajors: readonly number[], bridgeMajor = PROTOCOL_MAJOR): number | null {
+  if (!deviceMajors.includes(bridgeMajor)) {
+    return null;
+  }
+  return bridgeMajor;
+}

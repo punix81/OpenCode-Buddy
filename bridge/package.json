@@ -1,0 +1,28 @@
+{
+  "name": "opencode-buddy-bridge",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local bridge between OpenCode Buddy firmware and normalized state sources.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "validate:protocol": "tsx scripts/validate-protocol.ts",
+    "mock": "tsx src/cli/mock.ts",
+    "diagnose": "tsx src/cli/diagnose.ts",
+    "simulate": "tsx src/cli/simulate.ts"
+  },
+  "dependencies": {
+    "serialport": "13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.4.0",
+    "ajv": "8.20.0",
+    "tsx": "4.23.15",
+    "typescript": "5.8.3"
+  }
+}

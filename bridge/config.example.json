@@ -1,0 +1,12 @@
+{
+  "port": null,
+  "autoDetect": true,
+  "baudRate": 115200,
+  "heartbeatMs": 2000,
+  "linkTimeoutMs": 6000,
+  "stateIntervalMs": 1000,
+  "reconnectDelaysMs": [1000, 2000, 4000, 8000, 15000],
+  "logLevel": "info",
+  "allowRealMcpNames": false,
+  "source": "live"
+}
