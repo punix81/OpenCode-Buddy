@@ -36,6 +36,7 @@ Gesture TouchManager::poll(uint32_t now) {
   if (reading != raw_) {
     raw_ = reading;
     lastRawChange_ = now;
+    ++rawEdges_;
   }
 
   if (raw_ != stable_ && now - lastRawChange_ >= timings_.debounceMs) {

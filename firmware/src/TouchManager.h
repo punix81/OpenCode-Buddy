@@ -32,6 +32,12 @@ class TouchManager {
 
   uint32_t lastLatencyMs() const { return lastLatencyMs_; }
 
+  // Raw diagnostics: the electrical level and how many times it changed. This
+  // distinguishes "the sensor never moved" from "the gesture FSM ignored it".
+  bool rawLevel() const { return raw_; }
+  bool stableLevel() const { return stable_; }
+  uint32_t rawEdges() const { return rawEdges_; }
+
  private:
   GestureTimings timings_;
 
@@ -45,6 +51,7 @@ class TouchManager {
   uint32_t shortPendingAt_ = 0;
   uint32_t lastRelease_ = 0;
   uint32_t lastLatencyMs_ = 0;
+  uint32_t rawEdges_ = 0;
 };
 
 }  // namespace buddy

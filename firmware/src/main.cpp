@@ -88,7 +88,7 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
   Serial.printf(
       "BUDDY-DIAG boot=%lu reset=%s unexpected=%lu heap=%lu min=%lu maxblk=%lu "
       "fps=%lu push=%lu render_avg_us=%lu render_max_us=%lu gesture_ms=%lu "
-      "screen=%u state=%u\n",
+      "touch_raw=%u touch_stable=%u touch_edges=%lu screen=%u state=%u\n",
       static_cast<unsigned long>(gBootCount), resetReasonName(esp_reset_reason()),
       static_cast<unsigned long>(gUnexpectedBoots),
       static_cast<unsigned long>(ESP.getFreeHeap()),
@@ -99,6 +99,9 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
       static_cast<unsigned long>(gScreens.renderAvgUs()),
       static_cast<unsigned long>(gScreens.renderMaxUs()),
       static_cast<unsigned long>(gTouch.lastLatencyMs()),
+      static_cast<unsigned>(gTouch.rawLevel() ? 1 : 0),
+      static_cast<unsigned>(gTouch.stableLevel() ? 1 : 0),
+      static_cast<unsigned long>(gTouch.rawEdges()),
       static_cast<unsigned>(gScreens.screen()),
       static_cast<unsigned>(gState.state()));
 
