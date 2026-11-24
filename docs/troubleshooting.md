@@ -112,6 +112,22 @@ esptool.py --port /dev/ttyACM0 --no-stub --after hard_reset verify_flash 0x0 ful
 Then restart the reference bridge (`systemctl --user start codex-quota-bridge.service`, or the manual
 command documented in the phase report) and confirm the reference screen.
 
+### The board stays silent after a flash
+
+Verified on this board: `--after hard-reset` toggles RTS, and RTS is **not** wired to EN on the native
+USB path. The chip can therefore stay in the ROM bootloader after a flash, enumerating normally while
+the application never runs. Nothing is printed and the bridge waits in `handshaking` forever.
+
+Use a watchdog reset instead, which restarts the application deterministically:
+
+```sh
+esptool --chip esp32c3 --port /dev/ttyACM0 --no-stub --after watchdog-reset flash-id
+```
+
+The device re-enumerates (the USB device number changes) and `npm run diagnose` then receives `hello`.
+If it does not, unplug and replug USB once: that is the only way to be sure the chip left download
+mode.
+
 ## OpenCode integration
 
 ### Plugin does not load
@@ -160,7 +176,16 @@ it (`fuser -v /dev/ttyACM0`).
 
 - The device sends `hello` first; the bridge never writes before receiving it. If nothing arrives, the
   firmware may be the Phase 1 image (no protocol) — check `versions` on the screen or re-flash.
+- If the board was just flashed with `--after hard-reset`, it may still be in the ROM bootloader: use
+  `--after watchdog-reset` (see “Backup and flashing”).
 - A protocol major mismatch ends in `error` with an explicit message, not a silent timeout.
+
+### The device goes silent and the port re-enumerates
+
+Observed during a Phase 2 soak: the firmware wrote NDJSON to a CDC port that no host was reading, the
+TX buffer filled, `Serial.write` blocked the main loop, and the task watchdog rebooted the chip. The
+fix is in the firmware: every frame is checked against `Serial.availableForWrite()` and dropped (and
+counted) rather than blocked. If the symptom returns, capture the reset reason with a diagnostic build.
 
 ### The bridge reports `degraded` then `offline`
 

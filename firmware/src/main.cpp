@@ -40,7 +40,7 @@ char gOut[320];
 uint32_t gLastLinkCheck = 0;
 uint32_t gLastHeartbeat = 0;
 uint32_t gLastHello = 0;
-bool gHostAttached = false;
+uint32_t gDroppedFrames = 0;
 uint32_t gSetupStartUs = 0;
 uint32_t gHeapBeforeCanvas = 0;
 uint32_t gHeapAfterCanvas = 0;
@@ -71,6 +71,14 @@ const char* resetReasonName(esp_reset_reason_t reason) {
 
 void sendEncoded(size_t length) {
   if (length == 0) {
+    return;
+  }
+  // Never block the loop on USB: a CDC write with no reader can stall the main
+  // loop, which also stops heartbeats (observed after an esptool reset left the
+  // port "connected" with no reader). Every frame is either retried or
+  // superseded, so dropping one is safe and is counted.
+  if (static_cast<size_t>(Serial.availableForWrite()) < length + 1) {
+    ++gDroppedFrames;
     return;
   }
   Serial.write(reinterpret_cast<const uint8_t*>(gOut), length);
@@ -198,7 +206,8 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
   }
   Serial.printf(
       "BUDDY-DIAG boot=%lu reset=%s heap=%lu min=%lu maxblk=%lu fps=%lu push=%lu "
-      "render_avg_us=%lu render_max_us=%lu gesture_ms=%lu touch_edges=%lu screen=%u state=%u\n",
+      "render_avg_us=%lu render_max_us=%lu gesture_ms=%lu touch_edges=%lu screen=%u state=%u "
+      "dropped=%lu\n",
       static_cast<unsigned long>(gBootCount), resetReasonName(esp_reset_reason()),
       static_cast<unsigned long>(ESP.getFreeHeap()),
       static_cast<unsigned long>(ESP.getMinFreeHeap()),
@@ -208,7 +217,8 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
       static_cast<unsigned long>(gScreens.renderMaxUs()),
       static_cast<unsigned long>(gTouch.lastLatencyMs()),
       static_cast<unsigned long>(gTouch.rawEdges()),
-      static_cast<unsigned>(gScreens.screen()), static_cast<unsigned>(gState.state()));
+      static_cast<unsigned>(gScreens.screen()), static_cast<unsigned>(gState.state()),
+      static_cast<unsigned long>(gDroppedFrames));
   if (boot) {
     Serial.printf("BUDDY-DIAG stage=canvas heap_before=%lu heap_after=%lu canvas_delta=%lu boot_us=%lu\n",
                   static_cast<unsigned long>(gHeapBeforeCanvas),
@@ -267,10 +277,7 @@ void setup() {
   gState.setState(buddy::BuddyState::Offline, now);
 
   gProtocol.begin(gBootCount, buddy::kFirmwareVersion);
-  gHostAttached = bool(Serial);
-  if (gHostAttached) {
-    sendHello(now);
-  }
+  sendHello(now);
 
 #if defined(BUDDY_MOCK_MODE) && BUDDY_MOCK_MODE
   gMock.begin(now, gState);
@@ -337,20 +344,9 @@ void loop() {
     sendError(now, "E_TOO_LONG", false, "line too long");
   }
 
-  // Re-announce while no bridge session is established. Opening the USB port
-  // does not reliably reset the board, so a bridge started after boot would
-  // otherwise never receive `hello` (protocol v1 §6).
-  //
-  // Only announce while a host is attached: writing to a CDC port with no host
-  // buffers frames that are then flushed in a burst at open, which overran the
-  // peer buffers (observed on hardware as E_PARSE + resync).
-  const bool hostAttached = bool(Serial);
-  const bool justAttached = hostAttached && !gHostAttached;
-  gHostAttached = hostAttached;
   const bool bridgeAbsent =
       !gProtocol.linkReady() || now - gProtocol.lastRxMs() > buddy::kLinkTimeoutMs;
-  if (hostAttached &&
-      (justAttached || (bridgeAbsent && now - gLastHello >= buddy::kHelloIntervalMs))) {
+  if (bridgeAbsent && now - gLastHello >= buddy::kHelloIntervalMs) {
     sendHello(now);
   }
 

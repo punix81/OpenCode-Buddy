@@ -84,15 +84,18 @@ Until §3 is complete, neither firmware nor bridge code should consume the draft
 
 ## 6. Amendments found during hardware validation (2026-11-24)
 
-These four points were discovered only when the Phase 2 image ran on the real board. They are
-normative and are applied to `protocol-v1.md`, the firmware and the bridge.
+These points were discovered only when the Phase 2 image ran on the real board. They are normative and
+are applied to `protocol-v1.md`, the firmware and the bridge.
 
 | ID | Finding | Decision |
 | --- | --- | --- |
 | D-11 | Opening the USB port does not reliably reset the ESP32-C3, so a bridge started after boot never received `hello` and stayed in `handshaking` forever | The device re-announces `hello` every 3 s while no bridge session is established, and `resetSession()` restarts its sequence |
-| D-12 | `hello` frames written while no host was reading were buffered in the CDC driver and replayed as a burst at open, overflowing peer buffers | The device announces only while a USB host is attached (`bool(Serial)`) |
-| D-13 | Even with D-12, the burst of four full snapshots produced one truncated line in each direction (`E_PARSE`) before a resync recovered | The bridge ignores a repeated `hello` with the same `boot` within 2 s of the handshake |
+| D-12 | `hello` frames written while no host was reading were buffered in the CDC driver and replayed as a burst at open, overflowing peer buffers | Addressed by D-13 and D-15. Gating the announcement on `bool(Serial)` was implemented and then reverted (D-17) |
+| D-13 | The burst of four full snapshots produced one truncated line in each direction (`E_PARSE`) before a resync recovered | The bridge ignores a repeated `hello` with the same `boot` within 2 s of the handshake |
 | D-14 | Setting `dtr`/`rts` on this native USB CDC port fails with "Operation not supported" and emits a port error that the bridge read as fatal | The bridge never touches modem control lines; a port error is a link loss that triggers backoff, not a permanent error |
+| D-15 | Writing NDJSON to a CDC port that no host reads filled the TX buffer, blocked the main loop and the watchdog rebooted the board (observed once in an 11-minute soak) | A peer must never block on a full transport buffer: the firmware checks `Serial.availableForWrite()` and drops (and counts) the frame. Every message is retried or superseded |
+| D-16 | `--after hard-reset` toggles RTS, which is not wired to EN here, so the chip can remain in the ROM bootloader after a flash and never run the application | Operational only, not on the wire: a watchdog reset (`--after watchdog-reset`) is required to start the flashed application |
+| D-17 | Gating the announcement on `bool(Serial)` (the D-12 mitigation) left the device permanently mute after an esptool reset: the host had already asserted DTR, so the firmware believed a reader was attached and dropped every frame | Reverted. The device announces on a fixed 3 s period whenever no bridge session exists, and never blocks or depends on host-attachment state |
 
 The resync path proved itself: the single truncated message in each direction was detected, reported
 and recovered with a full snapshot, without a visible inconsistency and without a restart.
