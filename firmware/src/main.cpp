@@ -241,6 +241,12 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
 void setup() {
   gSetupStartUs = micros();
 
+  // The core allocates a 256-byte USB CDC RX queue. A full-screen render blocks
+  // the loop for tens of milliseconds, which overflows that queue and loses
+  // bytes mid-frame (observed on hardware as E_PARSE + resync). Enlarge it before
+  // anything else runs.
+  Serial.setRxBufferSize(4096);
+
   const esp_reset_reason_t reason = esp_reset_reason();
   if (gBootMagic != kBootMagicValue) {
     gBootMagic = kBootMagicValue;

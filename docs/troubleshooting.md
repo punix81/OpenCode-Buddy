@@ -187,6 +187,14 @@ TX buffer filled, `Serial.write` blocked the main loop, and the task watchdog re
 fix is in the firmware: every frame is checked against `Serial.availableForWrite()` and dropped (and
 counted) rather than blocked. If the symptom returns, capture the reset reason with a diagnostic build.
 
+### `E_PARSE` and `resync` at every connection
+
+Observed on one unit right after the handshake: the core's 256-byte USB CDC RX queue overflows while a
+full-screen render blocks the loop for tens of milliseconds, so bytes are lost mid-frame. The firmware
+now calls `Serial.setRxBufferSize(4096)` first in `setup()`; the reference firmware did the same with
+1024. If this reappears, check that call before suspecting the protocol. The `resync` path recovers on
+its own, so the symptom is a lost snapshot, not a dead link.
+
 ### The bridge reports `degraded` then `offline`
 
 - `degraded` means no valid message within `linkTimeoutMs` (default 6 s). Heartbeats are sent every 2 s;

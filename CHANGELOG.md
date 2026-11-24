@@ -19,6 +19,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 - A serial port error is now handled as a link loss with backoff instead of a permanent `error`
   state, and an intentional `stop()` no longer logs a reconnect.
 - `--log-level` is available on the bridge CLIs for hardware diagnosis.
+- The USB CDC RX queue is enlarged to 4096 bytes in `setup()`: the core default of 256 bytes overflowed
+  while a full-screen render blocked the loop, losing bytes mid-frame (`E_PARSE` + `resync`).
+
+### Changed — Phase 2 board swap
+
+- A second ESP32-C3 (rev v0.4, 4 MB XMC flash) replaced the validation unit. It was flashed with the
+  complete image (bootloader, partition table, `boot_app0`, application), verified region by region.
+- The Phase 1 4 MB dump belongs to the previous unit and must not be restored to the new one.
+- `--after hard-reset` does not start the application on this board (RTS is not wired to EN); use
+  `--after watchdog-reset`.
 
 ### Added — Phase 2 (USB protocol, bridge and simulator)
 

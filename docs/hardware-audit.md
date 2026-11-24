@@ -186,3 +186,28 @@ Those items are Phase 1 acceptance work and require physical access plus explici
   still require the hardware session and have not been observed.
 - **Still not flashed.** The board continues to run the reference firmware, and its serial port is
   still owned by the reference bridge. Flashing needs explicit approval and an agreed restore path.
+
+## 7. Board swap (2026-11-24, Phase 2 validation)
+
+The Product Owner replaced the ESP32-C3 during Phase 2 hardware validation. The new unit is a
+separate physical board; the Phase 1 4 MB dump belongs to the previous unit and **must not** be
+restored to this one.
+
+| Property | Observed value |
+| --- | --- |
+| Chip | ESP32-C3 (QFN32), revision v0.4, single core, 160 MHz |
+| Flash | 4 MB embedded (XMC), detected by esptool |
+| USB | Espressif `303a:1001`, native USB JTAG/serial debug unit |
+| MAC | recorded locally for identification; deliberately not committed |
+
+Because the flash contents of a new board are unknown, the application alone is not sufficient: the
+bootloader (`0x0`), partition table (`0x8000`), `boot_app0` (`0xe000`) and the application
+(`0x10000`) are written together, then verified region by region.
+
+Two hardware facts were confirmed on this unit:
+
+- `--after hard-reset` toggles RTS, which is **not** wired to EN; the chip can stay in the ROM
+  bootloader and run nothing. Use `--after watchdog-reset` to start the application.
+- The default 256-byte USB CDC RX queue overflows while a full-screen render blocks the loop, losing
+  bytes mid-frame. The reference firmware also enlarged it (`Serial.setRxBufferSize(1024)`); Buddy
+  uses 4096. With that value the handshake is error-free on this board.
