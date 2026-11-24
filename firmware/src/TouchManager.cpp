@@ -16,7 +16,12 @@ uint32_t clampValue(uint32_t value, uint32_t low, uint32_t high) {
 
 void TouchManager::begin() {
   // Verified in the reference firmware: GPIO6, active HIGH, internal pulldown.
+  // BUDDY_TOUCH_ACTIVE_LOW is a diagnostic variant for modules wired active-low.
+#if defined(BUDDY_TOUCH_ACTIVE_LOW) && BUDDY_TOUCH_ACTIVE_LOW
+  pinMode(kTouchPin, INPUT_PULLUP);
+#else
   pinMode(kTouchPin, INPUT_PULLDOWN);
+#endif
 }
 
 void TouchManager::setTimings(const GestureTimings& value) {
@@ -31,7 +36,11 @@ void TouchManager::setTimings(const GestureTimings& value) {
 }
 
 Gesture TouchManager::poll(uint32_t now) {
+#if defined(BUDDY_TOUCH_ACTIVE_LOW) && BUDDY_TOUCH_ACTIVE_LOW
+  const bool reading = digitalRead(kTouchPin) == LOW;
+#else
   const bool reading = digitalRead(kTouchPin) == HIGH;
+#endif
 
   if (reading != raw_) {
     raw_ = reading;
