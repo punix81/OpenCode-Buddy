@@ -1,0 +1,29 @@
+# Normalize text, protect binary artefacts.
+* text=auto eol=lf
+
+*.md   text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sh   text eol=lf
+*.cpp  text eol=lf
+*.h    text eol=lf
+*.ino  text eol=lf
+
+# Windows-only helper scripts must keep CRLF.
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Binary artefacts
+*.bin  binary
+*.elf  binary
+*.hex  binary
+*.png  binary
+*.jpg  binary
+*.step binary
+*.stl  binary
+*.3mf  binary

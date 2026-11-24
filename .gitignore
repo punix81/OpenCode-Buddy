@@ -1,26 +1,54 @@
-# Angular specific
-/dist/
-/out-tsc/
-/tmp/
-/coverage/
-/e2e/test-output/
-/.angular/
-.angular/
+# Operating system
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# Node modules and dependency files
-/node_modules/
+# Editors and IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
 
-# Environment files
-/.env
-
-# Angular CLI and build artefacts
-/.angular-cli.json
-/.ng/
-
-# TypeScript cache
+# Node.js
+node_modules/
+dist/
+out-tsc/
+coverage/
 *.tsbuildinfo
-
-# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+
+# Secrets and local configuration (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+config.local.json
+
+# Bridge runtime output and diagnostics
+logs/
+*.log
+diagnostics/*.jsonl
+
+# PlatformIO / firmware build output
+.pio/
+.pioenvs/
+.piolibdeps/
+firmware/.pio/
+*.bin
+*.elf
+*.map
+
+# Protocol capture files may contain device data; keep them out of history
+*.ndjson
+captures/
+
+# Temporary and OS artefacts
+tmp/
+*.tmp

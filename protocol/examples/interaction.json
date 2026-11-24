@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "type": "interaction",
+  "seq": 10,
+  "data": {
+    "gesture": "double",
+    "screen": 3
+  }
+}

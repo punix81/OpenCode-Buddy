@@ -1,0 +1,39 @@
+{
+  "$comment": "Example configuration for the OpenCode Buddy bridge. Copy to config.local.json (gitignored). Design draft: keys are ratified in Phase 2 together with the protocol.",
+
+  "bridge": {
+    "host": "127.0.0.1",
+    "port": 47821,
+    "logLevel": "info",
+    "diagnosticMode": false,
+    "persistMetrics": false
+  },
+
+  "serial": {
+    "port": "auto",
+    "baudRate": 115200,
+    "maxMessageBytes": 2048,
+    "heartbeatIntervalMs": 2000,
+    "connectionTimeoutMs": 6000,
+    "autoReconnect": true
+  },
+
+  "device": {
+    "language": "en",
+    "quietMode": false,
+    "autoReturnSeconds": 60,
+    "gestures": {
+      "debounceMs": 35,
+      "doublePressWindowMs": 350,
+      "longPressMs": 1500,
+      "veryLongPressMs": 5000
+    }
+  },
+
+  "privacy": {
+    "mcpNameMode": "alias",
+    "includeModelName": true,
+    "includeAgentName": true,
+    "includeProjectName": false
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "mcp_status",
+  "seq": 43,
+  "data": {
+    "online": 10,
+    "total": 12,
+    "servers": [
+      { "alias": "MCP-1", "status": "connected" },
+      { "alias": "MCP-2", "status": "connected" },
+      { "alias": "MCP-7", "status": "needs_auth" },
+      { "alias": "MCP-9", "status": "failed" }
+    ]
+  }
+}

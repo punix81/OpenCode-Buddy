@@ -1,0 +1,44 @@
+{
+  "v": 1,
+  "type": "state",
+  "seq": 42,
+  "ts": 1795514489854,
+  "data": {
+    "status": "thinking",
+    "model": "deepseek-v4.1-flash",
+    "agent": "build",
+    "activeSessions": 2,
+    "elapsedSeconds": 272,
+    "pendingPermissions": 0,
+    "pendingQuestions": 0,
+    "notifications": 0,
+    "tokens": {
+      "input": 15200,
+      "output": 3200,
+      "total": 18400,
+      "contextPct": null
+    },
+    "tools": {
+      "success": 21,
+      "failed": 1,
+      "running": 1,
+      "categories": {
+        "read": 9,
+        "edit": 4,
+        "shell": 3,
+        "search": 2,
+        "mcp": 2,
+        "other": 1
+      }
+    },
+    "mcp": {
+      "online": 10,
+      "total": 12
+    },
+    "connection": {
+      "usb": "connected",
+      "bridge": "ready",
+      "opencode": "connected"
+    }
+  }
+}

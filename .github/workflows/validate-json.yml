@@ -1,0 +1,27 @@
+name: Validate JSON
+
+on:
+  push:
+    paths:
+      - "protocol/**"
+      - "config.example.json"
+      - ".github/workflows/validate-json.yml"
+  pull_request:
+    paths:
+      - "protocol/**"
+      - "config.example.json"
+
+permissions:
+  contents: read
+
+jobs:
+  json:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse every JSON file
+        run: |
+          set -euo pipefail
+          find protocol -name '*.json' -print0 | xargs -0 -n1 python3 -m json.tool > /dev/null
+          python3 -m json.tool config.example.json > /dev/null
+          echo "All JSON files parsed successfully."
