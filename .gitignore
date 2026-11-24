@@ -57,3 +57,4 @@ captures/
 # Temporary and OS artefacts
 tmp/
 *.tmp
+.venv-tools/

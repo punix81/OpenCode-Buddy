@@ -29,6 +29,8 @@ buddy::MockScenario gMock;
 uint32_t gLastLinkCheck = 0;
 uint32_t gSetupStartUs = 0;
 uint32_t gHeapBeforeCanvas = 0;
+uint32_t gHeapAfterCanvas = 0;
+uint32_t gBootUs = 0;
 uint32_t gLastDiagnosticMs = 0;
 uint32_t gLastPushCount = 0;
 
@@ -105,8 +107,8 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
         "BUDDY-DIAG stage=canvas heap_before=%lu heap_after=%lu canvas_delta=%lu "
         "boot_us=%lu\n",
         static_cast<unsigned long>(gHeapBeforeCanvas),
-        static_cast<unsigned long>(ESP.getFreeHeap()),
-        static_cast<unsigned long>(gHeapBeforeCanvas - ESP.getFreeHeap()),
+        static_cast<unsigned long>(gHeapAfterCanvas),
+        static_cast<unsigned long>(gHeapBeforeCanvas - gHeapAfterCanvas),
         static_cast<unsigned long>(bootUs));
   }
 
@@ -154,12 +156,14 @@ void setup() {
   gPreferences.begin();
 
   gHeapBeforeCanvas = ESP.getFreeHeap();
-  if (!gDisplay.begin()) {
+  const bool displayReady = gDisplay.begin();
+  gHeapAfterCanvas = ESP.getFreeHeap();
+  if (!displayReady) {
     // Without a canvas there is nothing safe to draw. The board stays alive and
     // reports the failure on the next diagnostic line.
     gState.begin(millis());
     gState.setDiagnostic("E_INTERNAL");
-    emitDiagnostic(millis(), true, micros() - gSetupStartUs);
+    emitDiagnostic(millis(), true, 0);
     return;
   }
 
@@ -182,7 +186,8 @@ void setup() {
   refreshLink(now);
   gScreens.update(now);
 
-  emitDiagnostic(millis(), true, micros() - gSetupStartUs);
+  gBootUs = micros() - gSetupStartUs;
+  emitDiagnostic(millis(), true, gBootUs);
 }
 
 void loop() {
@@ -204,7 +209,7 @@ void loop() {
     ESP.restart();
   }
   if (gSerial.takeDiagnosticRequest()) {
-    emitDiagnostic(now, false, 0);
+    emitDiagnostic(now, true, gBootUs);
   }
 #endif
 

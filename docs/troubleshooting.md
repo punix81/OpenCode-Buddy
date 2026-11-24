@@ -18,9 +18,13 @@ Anything else is marked as a hypothesis to validate in the phase that touches it
 
 - Expect an Espressif USB JTAG/serial debug unit (vendor `303a`). If it is absent, the cable may be
   power-only or the board may be in a bad state.
-- Linux: `lsusb`, `dmesg | tail` after plugging.
+- Linux: `lsusb`, `journalctl -k` after plugging (look for `cdc_acm ... ttyACM`).
 - Windows: Device Manager → Ports. A missing CDC driver shows as an unknown device.
-- `arduino-cli` discovery is not installed on the audit machine; use the OS tools instead.
+- **Virtual machine (verified):** after a USB disconnect, VMware may keep the device on the host. Use
+  VM → Removable Devices → *Espressif USB JTAG/serial debug unit* → **Connect (Disconnect from Host)**.
+  Re-plugging alone may produce no kernel event inside the guest.
+- The port number can change (`ttyACM0` → `ttyACM1`) after a re-enumeration. Identify it by udev
+  vendor/model and serial, never by assuming `ttyACM0`.
 
 ### Upload enters download mode unexpectedly
 
@@ -31,16 +35,65 @@ Anything else is marked as a hypothesis to validate in the phase that touches it
 
 ### `pio: command not found`
 
-Verified: PlatformIO Core is not installed on the audit machine, even though
-`~/.platformio/platforms/espressif32` (6.5.0) and the toolchains are cached. Installing it requires
-network access and approval. `arduino-cli` is not a substitute: it has no index for this platform and
-cannot reach its download host on the audited network.
+Verified: PlatformIO Core is installed **project-locally** in the repository-root `.venv`, not on
+`PATH`. Run `.venv/bin/pio` from the repository, or activate the environment. `arduino-cli` is not a
+substitute: it has no index for this platform on the audited network.
 
 ### Library resolution fails offline
 
-The reference project already contains resolved libraries (LovyanGFX 1.2.21, ArduinoJson 7.4.3) under
-its own `.pio/libdeps`. Build offline only after those dependencies are available to the Buddy project;
-never copy them silently from another checkout without recording versions.
+Verified: `pio run` reached the PlatformIO registry and failed with `HTTPClientError`, then stalled.
+Two separate causes must be handled:
+
+1. **TLS interception.** `uv` reports `invalid peer certificate: UnknownIssuer`. Install with
+   `uv pip install --system-certs ...` and, if needed, point Python at the system bundle with
+   `REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt`. Never disable verification.
+2. **Registry reachability.** If the registry still does not respond, use the git-ignored
+   `firmware/platformio.local.ini`, which links the already-cached LovyanGFX 1.2.21 through
+   `symlink://../../Codex-Quota-Mini/.pio/libdeps/supermini/LovyanGFX`. The committed
+   `firmware/platformio.ini` stays registry-based and is the distributed definition.
+
+Record the library version used; never copy a library silently without pinning it.
+
+## Backup and flashing
+
+### `read_flash` aborts with “device reports readiness to read but returned no data”
+
+Verified: with the esptool **stub** (`esptool.py read_flash`), the ESP32-C3 USB CDC re-enumerated and
+the tool lost the port. The stub itself is the trigger, not the baud rate: it failed before any baud
+change. Use the ROM loader:
+
+```sh
+esptool.py --port /dev/ttyACM0 --no-stub --after no_reset read_flash 0x0 0x10000 head.bin
+```
+
+`--no-stub` read 64 KB in 1.6 s with a valid image magic (`e9`). It also avoids re-enumeration, so the
+device stays reachable between commands.
+
+### A full 4 MB read ends with “CRC or checksum was invalid”
+
+Verified: one 4 MB ROM read failed mid-transfer with a CRC error on this USB path. Read in 64 KB
+blocks and retry each block; esptool validates every block, so a concatenation of successful blocks is
+trustworthy. The local helper used during Phase 1 validation is
+`.backups/phase1-2026-11-24/read-chunked.sh` (not committed).
+
+### Before flashing: prove the backup
+
+1. `sha256sum full-flash.bin` and record it.
+2. Extract and compare the bootloader (`0x0`, 13 200 B), partition table (`0x8000`, 3 072 B) and app
+   (`0x10000`, 860 304 B for the reference build) against the reference build artefacts.
+3. Only if all three match, the dump is a faithful copy of the running firmware.
+
+### Restore
+
+Restore the **whole** dump, not only the app, so NVS and otadata return to their prior state:
+
+```sh
+esptool.py --port /dev/ttyACM0 --no-stub --after no_reset write_flash 0x0 full-flash.bin
+esptool.py --port /dev/ttyACM0 --no-stub --after hard_reset verify_flash 0x0 full-flash.bin
+```
+
+Then restart the reference bridge (`systemctl --user start codex-quota-bridge.service`, or the manual
+command documented in the phase report) and confirm the reference screen.
 
 ## OpenCode integration
 
