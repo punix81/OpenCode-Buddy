@@ -239,8 +239,8 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 
 ## 12. Git and issue references
 
-- Commit: `f3ea9eb` (`docs: add Phase 0 audit and project baseline`) on `main`, **local only — not
-  pushed** because no write credential is available (B-01).
+- Commit: Phase 0 baseline `f7bc964` (`docs: add Phase 0 audit and project baseline`) on `main`,
+  **local only — not pushed** because no write credential is available (B-01).
 - Issues: **none created**. Zero issues exist remotely; seven bodies are ready. No issue number is
   claimed because no remote write succeeded.
 
