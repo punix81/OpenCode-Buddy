@@ -202,9 +202,11 @@ review before Phase 3. No OpenCode integration work is allowed before that gate.
 | --- | --- |
 | P2-01 protocol ratification | Done; schema, examples and vectors validated |
 | P2-02 firmware parser | Done; host tests pass |
-| P2-03 bridge | Done; 33 TypeScript tests pass |
-| P2-04 USB robustness | Implemented; persistent connection, backoff, handshake gate |
+| P2-03 bridge | Done; 36 TypeScript tests pass |
+| P2-04 USB robustness | Done and hardware-verified; re-announcement, bounded writes, paced snapshot, backoff |
 | P2-05 simulator | Done; `npm run simulate` smoke test passes |
 | P2-06 tests | Done for protocol, bridge, reducer, metrics, privacy, firmware parser |
-| Hardware smoke / 1-hour soak | **Pending flash approval** |
+| Hardware smoke | **Done** on three boards; see `docs/evidence/phase-2-hardware-validation.md` |
+| 1-hour soak and heap/FPS | **Open** |
 | Phase 2 report | `docs/phase-2-report.md` |
+| Hardware evidence | `docs/evidence/phase-2-hardware-validation.md` |

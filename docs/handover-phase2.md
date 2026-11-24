@@ -6,27 +6,28 @@ Audience: a developer or agent resuming the work without this session's context.
 
 ## Status in one paragraph
 
-Phase 2 is **implemented and tested in software, but not validated on hardware**. The NDJSON v1
-protocol is ratified, the firmware parser compiles and passes host tests, the TypeScript bridge
-completes a real handshake against a device simulator, and 33 automated tests pass. The release
-image (**372 100 B flash, 20 412 B static RAM**, SHA-256 `880f1444…09553cc4`) has **not** been
-flashed. Phase 3 must not start before the hardware validation in `docs/phase-2-report.md` §10 and
-the Product Owner's review.
+Phase 2 is **implemented and verified on hardware for the link**. The NDJSON v1 protocol is ratified,
+the firmware parser compiles and passes host tests, the bridge completes real handshakes, and 36
+automated tests pass. The image (**372 250 B flash, 20 420 B static RAM**, SHA-256
+`76e85421…1c0f470c`) has been flashed and exercised on three ESP32-C3 boards, including the full-image
+flash of two unknown units and the 90° rotation for the printed enclosure. The **1-hour soak and the
+heap/FPS measurement are still open**; Phase 3 must not start before them and the Product Owner's
+review.
 
 ## Verified facts
 
 | Item | Evidence |
 | --- | --- |
-| Firmware clean build | SUCCESS, 19.14 s, 0 warnings from Buddy sources |
-| Flash / RAM | 372 100 B (28.4 %) / 20 412 B (6.2 %) |
-| Image | 406 368 B, SHA-256 `880f144449208c59a7779c561d4c1822dd41f5809d04825a0d65a26309553cc4` |
+| Firmware clean build | SUCCESS, 0 warnings from Buddy sources |
+| Flash / RAM | 372 250 B (28.4 %) / 20 420 B (6.2 %) |
+| Image | 406 576 B, SHA-256 `76e854213f22a16332b65a43d6e5b63f2a63de9515950c3b39037be61c0f470c` |
 | Source warnings | 0 from `firmware/src` and `firmware/include` |
 | TypeScript typecheck | 0 diagnostics |
-| TypeScript tests | 33/33 pass |
+| TypeScript tests | 36/36 pass |
 | Protocol validation | 11 valid, 13 invalid, 11 examples |
 | Firmware host tests | PASS |
-| Simulator | handshake + snapshots + state progression over 9 s |
-| Hardware | **NOT VERIFIED** — release image never flashed |
+| Hardware link | **VERIFIED** on three boards — handshake, ACK, heartbeats, five scenarios, 0 error |
+| 1-hour soak / heap / FPS | **OPEN** |
 
 ## What exists now
 
@@ -88,15 +89,21 @@ through `$ARDUINOJSON`, defaulting to the reference project's libdeps; override 
 
 ## Next steps
 
-1. Obtain explicit approval for the validation session in `docs/phase-2-report.md` §10.
-2. Flash the release image at `0x10000` with esptool 5.7.0 `--no-stub`; confirm the image hash.
-3. Run `npm run diagnose` (handshake, ACKs, heartbeats), then `npm run mock -- --scenario …`.
-4. Exercise the touch gestures and a USB unplug/replug.
-5. Measure heap and FPS with the diagnostic build, then restore the release image.
-6. Write the Phase 2 hardware addendum and close the phase.
-7. Only then start Phase 3 (OpenCode plugin), which consumes the same normalized event contract.
+1. Run a one-hour soak on the current board (`npm run mock -- --scenario full-session --duration
+   3600000`) and record resets, errors and ACK counts.
+2. Build and flash a diagnostic image (`-DBUDDY_DIAGNOSTICS=1`), record heap high-water, minimum free
+   heap, FPS and render time, then restore the release image.
+3. Check all six screens and the four gestures through the enclosure.
+4. Close Phase 2 with the measurement addendum.
+5. Only then start Phase 3 (OpenCode plugin), which consumes the same normalized event contract.
+
+Validated so far: handshake, ACK per applied message, heartbeats, reconnection, five mock scenarios,
+duplicate-hello handling, recovery after a lost byte and the 90° rotation. See
+`docs/evidence/phase-2-hardware-validation.md`.
 
 ## Device state
 
-The board currently runs the Phase 1 Buddy application. The verified 4 MB reference backup is in
-`.backups/phase1-2026-11-24/` (git-ignored, SHA-256 `9a83841f…bd07479`) and is the rollback path.
+The current unit runs the Phase 2 release image (rotation 1). Two other boards were used during the
+validation and replaced. The verified 4 MB dump in `.backups/phase1-2026-11-24/` (git-ignored,
+SHA-256 `9a83841f…bd07479`) belongs to the **original** board and must not be restored to another
+unit; the pre-Phase-2 application of that board is in `.backups/phase2-preflash/`.

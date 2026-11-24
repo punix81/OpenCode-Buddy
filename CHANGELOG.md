@@ -63,10 +63,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
   writes behind a valid `hello`, and reconnects with 1/2/4/8/15 s backoff.
 - Free-form serial diagnostics are disabled in the release build to protect the NDJSON stream.
 
-### Pending — Phase 2 hardware validation
+### Verified — Phase 2 hardware validation
 
-- The release image has **not** been flashed. Handshake, 1-hour soak, heap and FPS measurements are
-  **not verified**; the procedure and approval request are in `docs/phase-2-report.md` §10.
+- The image ran on three ESP32-C3 boards: handshake, ACK per applied message, heartbeats, reconnection
+  and all five mock scenarios with zero protocol error after the fixes.
+- The 90° rotation was confirmed correct by the Product Owner for the printed PLA enclosure.
+- Still open: a one-hour soak on the final image, and heap/FPS measurement with the diagnostic build.
+  See `docs/evidence/phase-2-hardware-validation.md`.
 
 ### Added — Phase 1 validation, rollback and Phase 2 plan
 
