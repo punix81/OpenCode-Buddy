@@ -47,6 +47,9 @@ export class Bridge {
   private readonly bridgeVersion: string;
   private readonly autoTimers: boolean;
 
+  private readonly sentCounts: Record<string, number> = {};
+  private readonly receivedCounts: Record<string, number> = {};
+
   private statusValue: BridgeStatus = 'idle';
   private lastRxMs = 0;
   private lastHeartbeatMs = 0;
@@ -72,6 +75,12 @@ export class Bridge {
 
   get status(): BridgeStatus {
     return this.statusValue;
+  }
+
+  // Per-type counters for the soak report. They count frames that left the
+  // process and frames that passed validation, not frames the device applied.
+  get stats(): { sent: Record<string, number>; received: Record<string, number> } {
+    return { sent: { ...this.sentCounts }, received: { ...this.receivedCounts } };
   }
 
   private setStatus(status: BridgeStatus): void {
@@ -176,6 +185,7 @@ export class Bridge {
         continue;
       }
       this.options.logger.protocol('in', result.message.type, result.message.seq, Buffer.byteLength(line));
+      this.receivedCounts[result.message.type] = (this.receivedCounts[result.message.type] ?? 0) + 1;
       this.handleMessage(result.message);
     }
   }
@@ -254,6 +264,7 @@ export class Bridge {
         this.sendAck(message.seq);
         return;
       case 'resync':
+        this.options.logger.warn(`device resync reason=${message.data.reason}`);
         this.sendConfig();
         this.snapshotPending = true;
         this.dirty = true;
@@ -264,6 +275,7 @@ export class Bridge {
         this.sendAck(message.seq);
         return;
       case 'ack':
+        this.options.logger.debug(`ack received ack=${message.data.ack} warning=${message.data.warning ?? 'none'}`);
         return;
       default:
         this.options.logger.warn(`unexpected message type=${message.type}`);
@@ -300,6 +312,7 @@ export class Bridge {
       return;
     }
     this.options.logger.protocol('out', message.type, message.seq, Buffer.byteLength(line));
+    this.sentCounts[message.type] = (this.sentCounts[message.type] ?? 0) + 1;
     void this.options.transport.write(`${line}\n`).catch((error: Error) => {
       this.options.logger.error(`write failed: ${error.message}`);
     });

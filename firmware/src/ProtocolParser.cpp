@@ -438,18 +438,29 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
       return ParseCode::BoundsError;
     }
 
+    // Documented maxima: model 40 chars, agent 24 (protocol v1 §9). A value that
+    // is not a string is a parse error; a string that is too long is out of
+    // bounds, which is what the bridge validator reports as well.
     if (!data["model"].isUnbound()) {
       if (data["model"].isNull()) {
         snprintf(parsed.model, sizeof(parsed.model), "--");
-      } else if (!readString(data["model"], parsed.model, sizeof(parsed.model))) {
+      } else if (!data["model"].is<const char*>()) {
         return ParseCode::ParseError;
+      } else if (strlen(data["model"].as<const char*>()) >= sizeof(parsed.model)) {
+        return ParseCode::BoundsError;
+      } else {
+        snprintf(parsed.model, sizeof(parsed.model), "%s", data["model"].as<const char*>());
       }
     }
     if (!data["agent"].isUnbound()) {
       if (data["agent"].isNull()) {
         snprintf(parsed.agent, sizeof(parsed.agent), "--");
-      } else if (!readString(data["agent"], parsed.agent, sizeof(parsed.agent))) {
+      } else if (!data["agent"].is<const char*>()) {
         return ParseCode::ParseError;
+      } else if (strlen(data["agent"].as<const char*>()) >= sizeof(parsed.agent)) {
+        return ParseCode::BoundsError;
+      } else {
+        snprintf(parsed.agent, sizeof(parsed.agent), "%s", data["agent"].as<const char*>());
       }
     }
 

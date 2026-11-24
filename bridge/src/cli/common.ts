@@ -7,7 +7,7 @@ import type { Transport } from '../transport/types.js';
 
 export interface CliOptions {
   port?: string;
-  scenario: 'full-session' | 'permission' | 'multi-session' | 'error' | 'all-states';
+  scenario: 'full-session' | 'permission' | 'multi-session' | 'error' | 'all-states' | 'stress';
   durationMs?: number;
   logLevel?: BridgeConfig['logLevel'];
 }
@@ -27,7 +27,7 @@ export function parseCli(argv: string[]): CliOptions {
       options.port = next;
       ++i;
     } else if (arg === '--scenario' && next !== undefined) {
-      if (['full-session', 'permission', 'multi-session', 'error', 'all-states'].includes(next)) {
+      if (['full-session', 'permission', 'multi-session', 'error', 'all-states', 'stress'].includes(next)) {
         options.scenario = next as CliOptions['scenario'];
       }
       ++i;

@@ -63,6 +63,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
   writes behind a valid `hello`, and reconnects with 1/2/4/8/15 s backoff.
 - Free-form serial diagnostics are disabled in the release build to protect the NDJSON stream.
 
+### Changed — Phase 2 USB write path and validation tooling
+
+- The firmware now writes each NDJSON frame and its newline in a single call through `FrameWriter`,
+  checks the return value, and counts short writes, so a partial frame can never be glued to the next
+  one. Host tests cover exact fit, one byte short, short write and oversized frame.
+- `Serial.setRxBufferSize(1024)` stays; 4096 is documented as unvalidated and unsafe.
+- Over-long `model` (40) and `agent` (24) values now return `E_BOUNDS`, matching the bridge validator;
+  wrong types stay `E_PARSE`.
+- The bridge records per-type send/receive counters (`bridge.stats`) and warns on `resync`, so a soak
+  can compare what was sent with what the device acknowledged.
+- New `stress` mock scenario: three sessions, continuous transitions, permissions, questions, retries,
+  compaction, MCP changes and maximum-length text, used for the one-hour soak.
+- `docs/evidence/phase-2-usb-validation.md` records what the core really does, including that the loop
+  watchdog is disabled and that the cause of the earlier reset is NOT VERIFIED.
+- `docs/phase-3-ipc-design.md` compares Unix socket, named pipe and TCP loopback for the future plugin
+  transport and recommends a peer-credential-verified socket per platform.
+
 ### Verified — Phase 2 hardware validation
 
 - The image ran on three ESP32-C3 boards: handshake, ACK per applied message, heartbeats, reconnection

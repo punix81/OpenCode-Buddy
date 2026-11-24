@@ -12,7 +12,10 @@ const [bridgeSide, deviceSide] = MemoryTransport.pair();
 
 const bridge = new Bridge({ transport: bridgeSide, config, logger });
 const simulator = new Simulator({ transport: deviceSide, logger });
-const adapter = new MockAdapter(bridge, options.scenario);
+// The simulator has no device-side stress mode; fall back to the richest mock
+// scenario instead of pretending to run it.
+const scenario = options.scenario === 'stress' ? 'all-states' : options.scenario;
+const adapter = new MockAdapter(bridge, scenario);
 
 bridge.onStatus = (status) => logger.info(`bridge ${status}`);
 bridge.onState = (state) => logger.info(`state ${describeState(state)}`);

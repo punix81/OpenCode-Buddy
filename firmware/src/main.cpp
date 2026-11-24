@@ -7,6 +7,7 @@
 #include "BuddyFace.h"
 #include "Config.h"
 #include "DisplayManager.h"
+#include "FrameWriter.h"
 #include "PreferencesManager.h"
 #include "ProtocolParser.h"
 #include "ScreenManager.h"
@@ -37,10 +38,21 @@ buddy::MockScenario gMock;
 char gLine[buddy::kSerialLineMax + 1];
 char gOut[320];
 
+// One complete NDJSON frame per write, never split, never blocking.
+class SerialSink : public buddy::FrameSink {
+ public:
+  int availableForWrite() override { return Serial.availableForWrite(); }
+  size_t write(const char* data, size_t length) override {
+    return Serial.write(reinterpret_cast<const uint8_t*>(data), length);
+  }
+};
+
+SerialSink gSink;
+buddy::FrameWriter gWriter(gSink);
+
 uint32_t gLastLinkCheck = 0;
 uint32_t gLastHeartbeat = 0;
 uint32_t gLastHello = 0;
-uint32_t gDroppedFrames = 0;
 uint32_t gSetupStartUs = 0;
 uint32_t gHeapBeforeCanvas = 0;
 uint32_t gHeapAfterCanvas = 0;
@@ -70,19 +82,9 @@ const char* resetReasonName(esp_reset_reason_t reason) {
 }
 
 void sendEncoded(size_t length) {
-  if (length == 0) {
-    return;
-  }
-  // Never block the loop on USB: a CDC write with no reader can stall the main
-  // loop, which also stops heartbeats (observed after an esptool reset left the
-  // port "connected" with no reader). Every frame is either retried or
-  // superseded, so dropping one is safe and is counted.
-  if (static_cast<size_t>(Serial.availableForWrite()) < length + 1) {
-    ++gDroppedFrames;
-    return;
-  }
-  Serial.write(reinterpret_cast<const uint8_t*>(gOut), length);
-  Serial.write('\n');
+  // The newline is appended inside the writer and both go out in one call, so a
+  // short write can never leave a partial frame on the wire.
+  gWriter.send(gOut, length, sizeof(gOut));
 }
 
 void sendHello(uint32_t now) {
@@ -207,7 +209,7 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
   Serial.printf(
       "BUDDY-DIAG boot=%lu reset=%s heap=%lu min=%lu maxblk=%lu fps=%lu push=%lu "
       "render_avg_us=%lu render_max_us=%lu gesture_ms=%lu touch_edges=%lu screen=%u state=%u "
-      "dropped=%lu\n",
+      "dropped=%lu sent=%lu maxframe=%lu txfree=%d rxavail=%d\n",
       static_cast<unsigned long>(gBootCount), resetReasonName(esp_reset_reason()),
       static_cast<unsigned long>(ESP.getFreeHeap()),
       static_cast<unsigned long>(ESP.getMinFreeHeap()),
@@ -218,7 +220,10 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
       static_cast<unsigned long>(gTouch.lastLatencyMs()),
       static_cast<unsigned long>(gTouch.rawEdges()),
       static_cast<unsigned>(gScreens.screen()), static_cast<unsigned>(gState.state()),
-      static_cast<unsigned long>(gDroppedFrames));
+      static_cast<unsigned long>(gWriter.droppedNoSpace() + gWriter.droppedPartial() +
+                                   gWriter.droppedTooLong()),
+      static_cast<unsigned long>(gWriter.sent()), static_cast<unsigned long>(gWriter.maxFrame()),
+      Serial.availableForWrite(), Serial.available());
   if (boot) {
     Serial.printf("BUDDY-DIAG stage=canvas heap_before=%lu heap_after=%lu canvas_delta=%lu boot_us=%lu\n",
                   static_cast<unsigned long>(gHeapBeforeCanvas),

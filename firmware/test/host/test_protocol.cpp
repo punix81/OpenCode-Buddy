@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 
+#include "FrameWriter.h"
 #include "ProtocolParser.h"
 #include "StateManager.h"
 
@@ -280,6 +281,71 @@ int main(int argc, char** argv) {
     check(feed(parser, state, ready) == buddy::ParseCode::Ok, "fresh session accepts seq 1");
     uint32_t ack = 0;
     check(parser.takeAck(ack) && ack == 1, "fresh session ack");
+  }
+
+  // FrameWriter: one call, newline included, never a partial frame.
+  {
+    class FakeSink : public buddy::FrameSink {
+     public:
+      int free = 0;
+      int reported = 0;
+      size_t limit = 0;
+      size_t written = 0;
+      char captured[2048] = {0};
+      int availableForWrite() override { return free; }
+      size_t write(const char* data, size_t length) override {
+        const size_t allowed = limit == 0 ? length : (length < limit ? length : limit);
+        memcpy(captured + written, data, allowed);
+        written += allowed;
+        return allowed;
+      }
+    };
+
+    char buffer[64];
+    const char* frame = "{\"v\":1,\"type\":\"heartbeat\",\"seq\":1}";
+    const size_t length = strlen(frame);
+    memcpy(buffer, frame, length);
+
+    FakeSink sink;
+    buddy::FrameWriter writer(sink);
+
+    sink.free = static_cast<int>(length + 1);
+    check(writer.send(buffer, length, sizeof(buffer)) == buddy::SendResult::Sent, "frame exact fit");
+    check(sink.written == length + 1, "frame includes newline");
+    check(sink.captured[length] == '\n', "frame newline last");
+
+    sink.free = static_cast<int>(length);
+    check(writer.send(buffer, length, sizeof(buffer)) == buddy::SendResult::DroppedNoSpace,
+          "frame one byte short is dropped");
+    check(writer.droppedNoSpace() == 1, "drop counted");
+
+    sink.free = 4096;
+    sink.limit = length;
+    check(writer.send(buffer, length, sizeof(buffer)) == buddy::SendResult::DroppedPartial,
+          "short write reported");
+    check(writer.droppedPartial() == 1, "partial counted");
+
+    check(writer.send(buffer, 64, sizeof(buffer)) == buddy::SendResult::DroppedTooLong,
+          "frame larger than the buffer rejected");
+  }
+
+  // Over-long text fields are out of bounds, not parse errors.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string working =
+        "{\"v\":1,\"type\":\"state\",\"seq\":1,\"data\":{\"status\":\"working\",\"activeSessions\":1,"
+        "\"connection\":{\"bridge\":\"ready\",\"opencode\":\"connected\"},"
+        "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1},\"source\":\"live\"}}";
+    check(feed(parser, state, working) == buddy::ParseCode::Ok, "bounds baseline state");
+    const std::string longAgent =
+        "{\"v\":1,\"type\":\"state\",\"seq\":2,\"data\":{\"status\":\"idle\",\"agent\":\"abcdefghijklmnopqrstuvwxyz\","
+        "\"activeSessions\":0,\"connection\":{\"bridge\":\"ready\",\"opencode\":\"unknown\"},"
+        "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1},\"source\":\"live\"}}";
+    check(feed(parser, state, longAgent) == buddy::ParseCode::BoundsError, "long agent is bounds error");
+    check(state.state() == buddy::BuddyState::Working, "state preserved after long agent");
   }
 
   if (failures == 0) {

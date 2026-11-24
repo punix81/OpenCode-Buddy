@@ -1,4 +1,5 @@
 import { MockAdapter } from '../adapters/mock.js';
+import { StressAdapter } from '../adapters/stress.js';
 import { Bridge } from '../bridge.js';
 import { loadConfig } from '../config.js';
 import { describeState, installShutdown, makeLogger, openSerial, parseCli } from './common.js';
@@ -17,7 +18,10 @@ try {
   const { transport, path } = await openSerial(config);
   logger.info(`mock session on ${path} scenario=${options.scenario}`);
   const bridge = new Bridge({ transport, config, logger });
-  const adapter = new MockAdapter(bridge, options.scenario);
+  const adapter =
+    options.scenario === 'stress'
+      ? new StressAdapter(bridge)
+      : new MockAdapter(bridge, options.scenario);
 
   bridge.onStatus = (status) => logger.info(`bridge ${status}`);
   bridge.onState = (state) => logger.info(`state ${describeState(state)}`);
@@ -29,6 +33,9 @@ try {
   const stop = async (): Promise<void> => {
     adapter.stop();
     await bridge.stop();
+    const stats = bridge.stats;
+    logger.info(`summary sent=${JSON.stringify(stats.sent)}`);
+    logger.info(`summary received=${JSON.stringify(stats.received)}`);
   };
   installShutdown(stop);
   if (options.durationMs !== undefined) {
