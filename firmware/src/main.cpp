@@ -39,6 +39,8 @@ char gOut[320];
 
 uint32_t gLastLinkCheck = 0;
 uint32_t gLastHeartbeat = 0;
+uint32_t gLastHello = 0;
+bool gHostAttached = false;
 uint32_t gSetupStartUs = 0;
 uint32_t gHeapBeforeCanvas = 0;
 uint32_t gHeapAfterCanvas = 0;
@@ -76,9 +78,10 @@ void sendEncoded(size_t length) {
 }
 
 void sendHello(uint32_t now) {
-  gProtocol.resetOutbound();
+  gProtocol.resetSession();
   sendEncoded(gProtocol.encodeHello(gOut, sizeof(gOut)));
   gLastHeartbeat = now;
+  gLastHello = now;
 }
 
 void sendHeartbeat(uint32_t now) {
@@ -264,7 +267,10 @@ void setup() {
   gState.setState(buddy::BuddyState::Offline, now);
 
   gProtocol.begin(gBootCount, buddy::kFirmwareVersion);
-  sendHello(now);
+  gHostAttached = bool(Serial);
+  if (gHostAttached) {
+    sendHello(now);
+  }
 
 #if defined(BUDDY_MOCK_MODE) && BUDDY_MOCK_MODE
   gMock.begin(now, gState);
@@ -329,6 +335,23 @@ void loop() {
 
   if (gSerial.takeOverflow()) {
     sendError(now, "E_TOO_LONG", false, "line too long");
+  }
+
+  // Re-announce while no bridge session is established. Opening the USB port
+  // does not reliably reset the board, so a bridge started after boot would
+  // otherwise never receive `hello` (protocol v1 §6).
+  //
+  // Only announce while a host is attached: writing to a CDC port with no host
+  // buffers frames that are then flushed in a burst at open, which overran the
+  // peer buffers (observed on hardware as E_PARSE + resync).
+  const bool hostAttached = bool(Serial);
+  const bool justAttached = hostAttached && !gHostAttached;
+  gHostAttached = hostAttached;
+  const bool bridgeAbsent =
+      !gProtocol.linkReady() || now - gProtocol.lastRxMs() > buddy::kLinkTimeoutMs;
+  if (hostAttached &&
+      (justAttached || (bridgeAbsent && now - gLastHello >= buddy::kHelloIntervalMs))) {
+    sendHello(now);
   }
 
   if (now - gLastHeartbeat >= buddy::kHeartbeatMs) {

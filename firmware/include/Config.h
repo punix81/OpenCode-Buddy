@@ -38,6 +38,9 @@ constexpr char kFirmwareVersion[] = "0.2.0";
 constexpr uint8_t kProtocolMajor = 1;
 constexpr uint32_t kHeartbeatMs = 2000;
 constexpr uint32_t kLinkTimeoutMs = 6000;
+// While no bridge session is established the device re-announces itself with
+// `hello`, so a bridge started after the device boot can still handshake.
+constexpr uint32_t kHelloIntervalMs = 3000;
 constexpr size_t kTextMax = 32;
 
 // Terminal-state visibility — docs/architecture.md §4.

@@ -46,6 +46,9 @@ class ProtocolParser {
  public:
   void begin(uint32_t bootCount, const char* firmwareVersion);
   void resetOutbound();
+  // Starts a new bridge-link session from the device side: the outbound
+  // sequence restarts at 1 and the next peer message may legitimately be 1.
+  void resetSession();
 
   ParseCode handleLine(const char* line, size_t length, uint32_t now, StateManager& state);
 

@@ -50,12 +50,10 @@ export class SerialTransport implements Transport {
       });
     });
 
-    // Match the Phase 1 finding: do not toggle DTR/RTS per message.
-    try {
-      await port.set({ dtr: false, rts: false });
-    } catch {
-      // Some platforms do not expose modem control lines; ignore.
-    }
+    // Do not touch DTR/RTS. The Phase 1 finding was "never toggle per message",
+    // and on this native USB CDC port `set({dtr,rts})` is not supported at all:
+    // it rejects and emits an error event (observed on hardware), which the
+    // bridge would otherwise read as a link failure.
   }
 
   close(): Promise<void> {

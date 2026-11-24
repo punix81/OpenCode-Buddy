@@ -6,6 +6,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Fixed — Phase 2 hardware validation findings
+
+- The device now re-announces `hello` while no bridge session is established, so a bridge started
+  after the device boot can handshake; opening the USB port does not reliably reset the board.
+- The device announces only while a USB host is attached, preventing buffered `hello` frames from
+  being replayed as a burst that overflowed peer buffers.
+- The bridge ignores a repeated `hello` with the same `boot` counter within 2 s of the handshake,
+  which removes the redundant snapshot burst.
+- The bridge no longer sets `dtr`/`rts`: this native USB CDC port rejects it with "Operation not
+  supported" and the resulting port event was read as a fatal error.
+- A serial port error is now handled as a link loss with backoff instead of a permanent `error`
+  state, and an intentional `stop()` no longer logs a reconnect.
+- `--log-level` is available on the bridge CLIs for hardware diagnosis.
+
 ### Added — Phase 2 (USB protocol, bridge and simulator)
 
 - Ratified NDJSON protocol v1: envelope, ten message types, field ownership, sequencing, ACK,

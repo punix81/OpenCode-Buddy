@@ -9,6 +9,7 @@ const config = {
   ...base,
   source: 'mock' as const,
   ...(options.port !== undefined ? { port: options.port } : {}),
+  ...(options.logLevel !== undefined ? { logLevel: options.logLevel } : {}),
 };
 const logger = makeLogger(config.logLevel);
 

@@ -9,14 +9,21 @@ export interface CliOptions {
   port?: string;
   scenario: 'full-session' | 'permission' | 'multi-session' | 'error' | 'all-states';
   durationMs?: number;
+  logLevel?: BridgeConfig['logLevel'];
 }
 
 export function parseCli(argv: string[]): CliOptions {
   const options: CliOptions = { scenario: 'full-session' };
+  const levels: BridgeConfig['logLevel'][] = ['error', 'warn', 'info', 'debug'];
   for (let i = 0; i < argv.length; ++i) {
     const arg = argv[i];
     const next = argv[i + 1];
-    if (arg === '--port' && next !== undefined) {
+    if (arg === '--log-level' && next !== undefined) {
+      if (levels.includes(next as BridgeConfig['logLevel'])) {
+        options.logLevel = next as BridgeConfig['logLevel'];
+      }
+      ++i;
+    } else if (arg === '--port' && next !== undefined) {
       options.port = next;
       ++i;
     } else if (arg === '--scenario' && next !== undefined) {

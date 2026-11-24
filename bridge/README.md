@@ -48,6 +48,9 @@ npm run mock -- --scenario all-states
 npm run diagnose -- --port /dev/ttyACM0
 npm run diagnose -- --port /dev/ttyACM0 --duration 60000
 
+# Every command accepts --log-level error|warn|info|debug
+npm run mock -- --scenario permission --port /dev/ttyACM0 --log-level debug
+
 # No hardware: device simulator + bridge over an in-memory transport
 npm run simulate -- --scenario full-session --duration 20000
 ```
@@ -92,10 +95,14 @@ Copy `config.example.json` to `config.local.json` (git-ignored) and adjust:
 
 ## Link behaviour (Phase 1 findings applied)
 
-- Opening `/dev/ttyACM0` resets the ESP32-C3. The bridge opens **one persistent connection** and
-  never opens the port per message.
-- It waits for a valid `hello` before sending `ready`, `config`, `state` or `mcp_status`.
-- DTR/RTS are explicitly set low after open and never toggled per message.
+- Opening `/dev/ttyACM0` does not reliably reset the ESP32-C3, so the bridge never depends on a
+  reboot: the device re-announces `hello` while it has no session. The bridge opens **one persistent
+  connection** and never opens the port per message.
+- It waits for a valid `hello` before sending `ready`, `config`, `state` or `mcp_status`, and ignores a
+  duplicate `hello` with the same `boot` counter within 2 s (buffered replay).
+- Modem control lines are never touched: `set({dtr,rts})` fails with "Operation not supported" on this
+  native USB CDC port and surfaces as a spurious port error (verified on hardware).
+- A port error is treated as a link loss and reopened with backoff, not as a fatal state.
 - Reconnect uses exponential backoff 1, 2, 4, 8, 15 s and a full snapshot after handshake.
 - A missing device, a busy port, a permission error, an incompatible protocol and a heartbeat
   timeout are distinct states in the logs.

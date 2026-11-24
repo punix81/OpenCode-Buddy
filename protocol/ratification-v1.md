@@ -81,3 +81,18 @@ None block P2-02. The following can be decided during implementation without cha
 3. Only then start P2-02 (firmware `ProtocolParser`).
 
 Until §3 is complete, neither firmware nor bridge code should consume the draft.
+
+## 6. Amendments found during hardware validation (2026-11-24)
+
+These four points were discovered only when the Phase 2 image ran on the real board. They are
+normative and are applied to `protocol-v1.md`, the firmware and the bridge.
+
+| ID | Finding | Decision |
+| --- | --- | --- |
+| D-11 | Opening the USB port does not reliably reset the ESP32-C3, so a bridge started after boot never received `hello` and stayed in `handshaking` forever | The device re-announces `hello` every 3 s while no bridge session is established, and `resetSession()` restarts its sequence |
+| D-12 | `hello` frames written while no host was reading were buffered in the CDC driver and replayed as a burst at open, overflowing peer buffers | The device announces only while a USB host is attached (`bool(Serial)`) |
+| D-13 | Even with D-12, the burst of four full snapshots produced one truncated line in each direction (`E_PARSE`) before a resync recovered | The bridge ignores a repeated `hello` with the same `boot` within 2 s of the handshake |
+| D-14 | Setting `dtr`/`rts` on this native USB CDC port fails with "Operation not supported" and emits a port error that the bridge read as fatal | The bridge never touches modem control lines; a port error is a link loss that triggers backoff, not a permanent error |
+
+The resync path proved itself: the single truncated message in each direction was detected, reported
+and recovered with a full snapshot, without a visible inconsistency and without a restart.

@@ -44,8 +44,10 @@ vectors as the TypeScript side.
 
 ## Protocol behaviour
 
-- The device sends `hello` (seq 1) on boot, `heartbeat` every 2 s, `ack` for applied snapshots,
-  `interaction` on gestures, `resync` on gaps and `error` on invalid input.
+- The device sends `hello` (seq 1) on boot, and re-announces every 3 s while no bridge session is
+  established and a USB host is attached — opening the port does not reliably reset the board. It also
+  sends `heartbeat` every 2 s, `ack` for applied snapshots, `interaction` on gestures, `resync` on gaps
+  and `error` on invalid input.
 - It accepts `ready`, `config`, `state`, `mcp_status`, `heartbeat`, `ack` and `error`.
 - A message is validated into a temporary structure and applied only if every field is valid; an
   invalid message never corrupts the previous state.
@@ -91,10 +93,12 @@ for memory/FPS measurement; it must not be used with the bridge.
 
 ## Verification status
 
-- Build: **372 100 B flash (28.4 %)**, **20 412 B static RAM (6.2 %)**, image 406 368 B,
-  SHA-256 `880f1444…09553cc4`; clean build in 20.17 s, no warnings from Buddy sources.
-- Host parser tests: **PASS**.
-- Hardware: **NOT VERIFIED for Phase 2**; the release image has not been flashed.
+- Build: **372 264 B flash (28.4 %)**, **20 420 B static RAM (6.2 %)**, image 406 576 B,
+  SHA-256 `0e25cfed…5d033783`; clean build with no warnings from Buddy sources.
+- Host parser tests: **PASS** (includes a re-announcement/reset-session case).
+- Hardware: **VERIFIED for the link** — the image was flashed (verified by esptool), the handshake,
+  ACKs, heartbeats and all mock scenarios ran with no protocol error. See
+  `docs/evidence/phase-2-hardware-validation.md`.
 - Phase 1 runtime baseline for comparison: 25 FPS active, render average 31.9 ms, heap 252 088 B.
 
 ## What this firmware deliberately does not do

@@ -157,6 +157,13 @@ void ProtocolParser::begin(uint32_t bootCount, const char* firmwareVersion) {
 
 void ProtocolParser::resetOutbound() { outSeq_ = 0; }
 
+void ProtocolParser::resetSession() {
+  outSeq_ = 0;
+  lastPeerSeq_ = 0;
+  awaitingSnapshot_ = false;
+  ready_ = false;
+}
+
 uint32_t ProtocolParser::nextSeq() {
   ++outSeq_;
   if (outSeq_ == 0) {

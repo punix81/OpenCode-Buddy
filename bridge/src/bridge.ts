@@ -51,6 +51,8 @@ export class Bridge {
   private lastRxMs = 0;
   private lastHeartbeatMs = 0;
   private lastStateMs = 0;
+  private lastHandshakeMs = 0;
+  private deviceBoot = -1;
   private dirty = true;
   private tickTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -95,6 +97,8 @@ export class Bridge {
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
     this.tickTimer = null;
     this.reconnectTimer = null;
+    // An intentional stop must not look like a link loss in the logs.
+    this.setStatus('idle');
     await this.options.transport.close();
   }
 
@@ -116,12 +120,14 @@ export class Bridge {
       this.framer.reset();
       this.seqOut.reset();
       this.deviceSeq.reset();
+      this.deviceBoot = -1;
+      this.lastHandshakeMs = 0;
       this.lastRxMs = this.now();
       this.reconnectAttempt = 0;
       this.setStatus('handshaking');
     } catch (error) {
       this.options.logger.error(`transport open failed: ${(error as Error).message}`);
-      this.setStatus('error');
+      this.setStatus('reconnecting');
       this.scheduleReconnect();
     }
   }
@@ -133,8 +139,13 @@ export class Bridge {
   }
 
   private onError(error: Error): void {
+    // A port-level error (cable unplugged, EIO, driver reset) is a link loss, not
+    // a fatal condition: close and let the backoff schedule reopen it.
     this.options.logger.error(`transport error: ${error.message}`);
-    this.setStatus('error');
+    if (this.statusValue === 'idle') return;
+    this.setStatus('reconnecting');
+    void this.options.transport.close();
+    this.scheduleReconnect();
   }
 
   private scheduleReconnect(): void {
@@ -179,6 +190,21 @@ export class Bridge {
         this.setStatus('error');
         return;
       }
+      // The device re-announces while it has no bridge session, so a port opened
+      // late can flush several buffered `hello` frames at once. Answering each
+      // with a full snapshot produced a burst that overran the device RX buffer
+      // (seen on hardware as E_PARSE + resync). Same boot counter right after
+      // the handshake means the same session: acknowledge nothing and skip it.
+      if (
+        (this.statusValue === 'ready' || this.statusValue === 'degraded') &&
+        message.data.boot === this.deviceBoot &&
+        now - this.lastHandshakeMs < 2000
+      ) {
+        this.options.logger.debug(`duplicate hello boot=${message.data.boot} ignored`);
+        return;
+      }
+      this.deviceBoot = message.data.boot;
+      this.lastHandshakeMs = now;
       this.seqOut.reset();
       this.deviceSeq.reset();
       this.deviceSeq.accept(message.seq);

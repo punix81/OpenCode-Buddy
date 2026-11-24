@@ -259,6 +259,29 @@ int main(int argc, char** argv) {
     check(feed(parser, state, overLine) == buddy::ParseCode::TooLong, "2048-byte line rejected");
   }
 
+  // Re-announcement: a device that restarts its bridge session must accept a
+  // fresh peer sequence starting at 1.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string ready =
+        "{\"v\":1,\"type\":\"ready\",\"seq\":1,\"data\":{\"bridge\":\"0.2.0\",\"proto\":1,\"run\":\"abcd1234\"}}";
+    const std::string config =
+        "{\"v\":1,\"type\":\"config\",\"seq\":2,\"data\":{\"language\":\"en\",\"quietMode\":false,"
+        "\"autoReturnSeconds\":60,\"gestures\":{\"debounceMs\":35,\"doublePressWindowMs\":350,"
+        "\"longPressMs\":1500,\"veryLongPressMs\":5000},\"source\":\"live\"}}";
+    check(feed(parser, state, ready) == buddy::ParseCode::Ok, "reannounce ready");
+    check(feed(parser, state, config) == buddy::ParseCode::Ok, "reannounce config");
+
+    parser.resetSession();
+    check(!parser.linkReady(), "resetSession clears link");
+    check(feed(parser, state, ready) == buddy::ParseCode::Ok, "fresh session accepts seq 1");
+    uint32_t ack = 0;
+    check(parser.takeAck(ack) && ack == 1, "fresh session ack");
+  }
+
   if (failures == 0) {
     std::cout << "firmware protocol tests: PASS\n";
     return 0;

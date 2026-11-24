@@ -46,7 +46,14 @@ Direction: **D→B** device to bridge, **B→D** bridge to device.
 
 ### `hello` (D→B, seq = 1)
 
-Sent on boot and after any detected restart.
+Sent on boot, after any detected restart, and repeatedly while no bridge session is established.
+Opening the USB port does not reliably reset the board, so a bridge started after the device boot
+would otherwise never see a handshake. While the bridge link is `unknown`, or after 6 s without a
+valid bridge message, the device re-announces every 3 s and restarts its own sequence at 1. It only
+announces while a USB host is attached, so no frames are buffered for a host that is not reading.
+
+A bridge may ignore a `hello` that repeats the current `boot` counter within 2 s of the previous
+handshake: that is a buffered duplicate, not a new session. A different `boot` always means a restart.
 
 ```json
 { "v": 1, "type": "hello", "seq": 1, "data": {
@@ -232,8 +239,12 @@ heartbeats every 2 s in both directions
 ```
 
 - The device sends `hello` on every boot, including resets caused by a crash.
+- The device also re-announces `hello` every 3 s while no bridge session is established and a USB
+  host is attached, because connecting the USB port does not always reset the board. Each `hello`
+  restarts the device-side sequence at 1.
 - The bridge treats any `hello` as a new session: it resets its own `seq`, recomputes aliases and sends
-  a full snapshot.
+  a full snapshot. A repeated `hello` with the same `boot` within 2 s is a buffered duplicate and is
+  ignored without a new snapshot.
 - The device never assumes state survives a reconnect; it shows `OFFLINE` after the timeout.
 
 ## 7. Sequence, ACK, duplicates and gaps
