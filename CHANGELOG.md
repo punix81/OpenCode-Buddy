@@ -6,6 +6,38 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Added — Phase 2 (USB protocol, bridge and simulator)
+
+- Ratified NDJSON protocol v1: envelope, ten message types, field ownership, sequencing, ACK,
+  resync, bounds, error codes, plus a normative JSON Schema, eleven examples and shared test vectors.
+- Firmware `ProtocolParser` (no Arduino dependency) with bounded parsing, atomic state application,
+  sequence/ACK/resync handling and encoders; host tests consume the same vectors.
+- `SerialManager` refactored to non-blocking framing with a 2048-byte bound including the newline and
+  overflow recovery.
+- `bridge/`: TypeScript/Node.js bridge with validator, codec, transports, Espressif USB discovery,
+  per-session registry, deterministic reducer, metrics deduplication, privacy projection, normalizer,
+  mock adapter, device simulator and `mock` / `diagnose` / `simulate` CLIs.
+- 33 automated TypeScript tests, firmware host tests and a protocol validation script.
+- `bridge/README.md`, `simulator/README.md`, `docs/phase-2-report.md`, `docs/handover-phase2.md` and
+  Phase 2 build/test evidence.
+- Phase 2 build: **372 100 B flash (28.4 %)**, **20 412 B static RAM (6.2 %)**, image 406 368 B,
+  SHA-256 `880f1444…09553cc4`, clean build 19.14 s, no warnings from Buddy sources.
+
+### Changed — Phase 2 decisions
+
+- The device owns the USB link and the firmware version; the bridge never sends `connection.usb` or
+  `versions.fw`, and both are rejected if present.
+- A missing required field maps to `E_PARSE`; a present out-of-range value is clamped and reported as
+  `E_BOUNDS`.
+- The bridge keeps one persistent serial connection (opening the port resets the ESP32-C3), gates
+  writes behind a valid `hello`, and reconnects with 1/2/4/8/15 s backoff.
+- Free-form serial diagnostics are disabled in the release build to protect the NDJSON stream.
+
+### Pending — Phase 2 hardware validation
+
+- The release image has **not** been flashed. Handshake, 1-hour soak, heap and FPS measurements are
+  **not verified**; the procedure and approval request are in `docs/phase-2-report.md` §10.
+
 ### Added — Phase 1 validation, rollback and Phase 2 plan
 
 - Hardware validation evidence: build, heap, render timing, FPS, 15-minute soak, five software

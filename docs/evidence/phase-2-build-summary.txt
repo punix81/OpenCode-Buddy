@@ -1,0 +1,36 @@
+Phase 2 build evidence — OpenCode Buddy firmware
+================================================
+Date: 2026-11-24
+Command:
+  PLATFORMIO_SETTING_ENABLE_TELEMETRY=false PLATFORMIO_DISABLE_PROGRESSBAR=true \
+    .venv/bin/pio run -d firmware -c firmware/platformio.local.ini -t clean
+  PLATFORMIO_SETTING_ENABLE_TELEMETRY=false PLATFORMIO_DISABLE_PROGRESSBAR=true \
+    .venv/bin/pio run -d firmware -c firmware/platformio.local.ini
+
+Result: SUCCESS
+Toolchain: platformio (project-local .venv), platform espressif32@6.5.0, board esp32-c3-devkitm-1
+Libraries: LovyanGFX 1.2.21, ArduinoJson 7.4.3
+
+Memory (from the linker report):
+  RAM:   20 412 / 327 680 bytes (6.2 %)
+  Flash: 372 100 / 1 310 720 bytes (28.4 %)
+
+Artefact:
+  firmware/.pio/build/supermini/firmware.bin
+  size:    406 368 bytes
+  sha256:  880f144449208c59a7779c561d4c1822dd41f5809d04825a0d65a26309553cc4
+
+Warnings/errors originating from firmware/src or firmware/include: 0
+(The only diagnostics in the log come from third-party headers.)
+
+Clean build duration: 19.14 s
+
+Delta against the Phase 1 baseline (354 982 B flash, 16 364 B static RAM):
+  flash: +17 118 B
+  static RAM: +4 048 B
+  image: +20 384 B
+
+Interpretation of the static RAM delta:
+  - the serial line buffer grew from 512 to 2047 payload bytes: +1 536 B
+  - the parser, codec tables and ArduinoJson-related statics: +2 512 B
+  - the 48 400-byte canvas is unchanged and remains a runtime allocation

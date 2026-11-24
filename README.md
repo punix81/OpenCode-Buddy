@@ -7,12 +7,12 @@ waiting for a permission, failing, compacting its context, or finishing successf
 animated virtual companion with a compact developer dashboard on a 1.28" round display, driven by an
 ESP32-C3 over USB.
 
-> **Project status: Phase 0 approved. Phase 1 complete — PASS WITH RESERVATIONS: firmware validated
-> on the panel, device restored to the reference firmware. Phase 2 is planned and awaits approval;
-> no bridge or plugin is implemented yet.**
+> **Project status: Phase 0 approved. Phase 1 complete — PASS WITH RESERVATIONS. Phase 2
+> implemented (ratified protocol, firmware parser, bridge, simulator, 33 tests); the Phase 2
+> firmware has not been flashed, so hardware validation is pending. No OpenCode plugin exists yet.**
 > See [docs/phase-0-report.md](docs/phase-0-report.md),
 > [docs/phase-1-report.md](docs/phase-1-report.md) and
-> [docs/phase-2-plan.md](docs/phase-2-plan.md).
+> [docs/phase-2-report.md](docs/phase-2-report.md).
 
 ## Why
 
@@ -58,12 +58,12 @@ transmitted. See [docs/architecture.md](docs/architecture.md).
 
 | Path | Purpose | Status |
 | --- | --- | --- |
-| `docs/` | Requirements, architecture, audits, reports | Phase 0 |
-| `protocol/` | NDJSON protocol v1 specification and schemas | Design draft |
-| `firmware/` | ESP32-C3 firmware (PlatformIO, Arduino, C++) | Phase 1 |
-| `bridge/` | TypeScript/Node.js local bridge | Phase 2 |
-| `plugin/` | OpenCode v2 server plugin | Phase 3 |
-| `simulator/` | Hardware-free device simulator | Phase 2 |
+| `docs/` | Requirements, architecture, audits, reports | Phase 0 → 2 |
+| `protocol/` | NDJSON protocol v1 specification, schema, examples, vectors | Ratified |
+| `firmware/` | ESP32-C3 firmware (PlatformIO, Arduino, C++) | Phase 1 + Phase 2 parser |
+| `bridge/` | TypeScript/Node.js local bridge, mock adapter and simulator CLI | Phase 2 |
+| `plugin/` | OpenCode v2 server plugin | Phase 3 — not started |
+| `simulator/` | Hardware-free device simulator (implemented in `bridge/`) | Phase 2 |
 | `hardware/` | Wiring, bill of materials, enclosure notes | Phase 0 |
 | `scripts/` | Reproducible maintenance scripts | Phase 0 |
 
@@ -75,10 +75,12 @@ transmitted. See [docs/architecture.md](docs/architecture.md).
 - [Security and privacy](docs/security.md)
 - [Hardware audit](docs/hardware-audit.md)
 - [OpenCode v2 API audit](docs/opencode-api-audit.md)
-- [Protocol v1 (draft)](protocol/protocol-v1.md) · [Ratification review](protocol/ratification-v1.md)
+- [Protocol v1 (ratified)](protocol/protocol-v1.md) · [Ratification review](protocol/ratification-v1.md)
+- [Bridge guide](bridge/README.md) · [Simulator guide](simulator/README.md)
 - [Roadmap](docs/roadmap.md)
 - [Installation](docs/installation.md) · [Troubleshooting](docs/troubleshooting.md)
-- [Phase 0 report](docs/phase-0-report.md)
+- [Phase 0 report](docs/phase-0-report.md) · [Phase 1 report](docs/phase-1-report.md) ·
+  [Phase 2 report](docs/phase-2-report.md)
 
 ## Contributing
 

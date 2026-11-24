@@ -1,7 +1,8 @@
 # Phase 2 plan — USB protocol, bridge and simulator
 
-Status: **planned; not started.** Implementation begins only after explicit Product Owner approval.
-Phase 2 does not integrate OpenCode (Phase 3) and does not change the dashboard (Phase 4).
+Status: **implemented; hardware validation pending approval.** Protocol ratification, firmware parser,
+bridge, mock adapter, simulator and automated tests are complete. The new firmware has not been
+flashed; the physical validation procedure is in `docs/phase-2-report.md`.
 
 ## 1. Goal
 
@@ -194,3 +195,16 @@ reconnect on the real device.
 
 Phase 2 starts only on explicit Product Owner approval. At the end, the report is presented for
 review before Phase 3. No OpenCode integration work is allowed before that gate.
+
+## 10. Implementation status
+
+| Task | Status |
+| --- | --- |
+| P2-01 protocol ratification | Done; schema, examples and vectors validated |
+| P2-02 firmware parser | Done; host tests pass |
+| P2-03 bridge | Done; 33 TypeScript tests pass |
+| P2-04 USB robustness | Implemented; persistent connection, backoff, handshake gate |
+| P2-05 simulator | Done; `npm run simulate` smoke test passes |
+| P2-06 tests | Done for protocol, bridge, reducer, metrics, privacy, firmware parser |
+| Hardware smoke / 1-hour soak | **Pending flash approval** |
+| Phase 2 report | `docs/phase-2-report.md` |

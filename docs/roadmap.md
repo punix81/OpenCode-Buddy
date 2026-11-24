@@ -55,7 +55,10 @@ firmware serial + parser with hostile-input handling; TypeScript bridge with the
 Exit criteria: handshake, snapshot on reconnect, sequence-gap resync, oversized/malformed rejection,
 1-hour link soak with simulated resets, zero unbounded growth.
 
-**Status: planned, awaiting Product Owner approval. See `docs/phase-2-plan.md`.**
+**Status: implemented; hardware validation pending.** Protocol ratified, firmware parser and bridge
+complete, 33 automated tests and the firmware host suite passing. The release image (372 100 B flash,
+20 412 B RAM) has not been flashed, so the hardware handshake, the 1-hour soak and the heap/FPS
+measurements remain open. See `docs/phase-2-report.md` and `docs/handover-phase2.md`.
 
 ## Phase 3 — OpenCode v2 integration
 

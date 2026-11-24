@@ -58,3 +58,6 @@ captures/
 tmp/
 *.tmp
 .venv-tools/
+
+bridge/node_modules/
+bridge/dist/

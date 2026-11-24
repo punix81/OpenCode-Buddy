@@ -64,6 +64,10 @@ Full evidence and open electrical risks: [docs/hardware-audit.md](docs/hardware-
 If 1–3 disagree with this repository, the repository is wrong: update it and record the change.
 Never guess an event name, field name or status value.
 
+For the USB link, the single source of truth is [protocol/protocol-v1.md](protocol/protocol-v1.md)
+(ratified), its JSON Schema and the shared vectors in `protocol/test-vectors/`. The firmware and the
+bridge must both pass those vectors before a change is considered correct.
+
 ## 5. Development rules
 
 - SOLID where it applies, one clear responsibility per component, small testable units.

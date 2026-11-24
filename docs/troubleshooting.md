@@ -140,6 +140,45 @@ Observed: the CLI listing starts/refreshes servers, so an initial listing can sh
 running server's `/api/mcp` reports `connected`. Trust the server-reported status for the MCP Radar,
 not a one-shot CLI listing.
 
+## Bridge
+
+### `npm run diagnose` reports `no Espressif USB device found`
+
+- Enumerate manually: `lsusb | grep 303a` (Linux) or check Device Manager (Windows). The bridge only
+  auto-selects Espressif `303a:1001` and refuses to write to anything else.
+- Pass the port explicitly: `npm run diagnose -- --port /dev/ttyACM0`.
+- On Linux, confirm the user is in the `dialout` group; a permission error is reported distinctly.
+- `no serial port configured` means `port` is `null` and `autoDetect` is disabled in the config.
+
+### The device resets every time the bridge starts
+
+Expected: opening the USB CDC port reboots the ESP32-C3. The bridge therefore opens the port once and
+keeps it open. A reset loop means the port is being reopened — another process is likely competing for
+it (`fuser -v /dev/ttyACM0`).
+
+### The bridge stays in `handshaking`
+
+- The device sends `hello` first; the bridge never writes before receiving it. If nothing arrives, the
+  firmware may be the Phase 1 image (no protocol) — check `versions` on the screen or re-flash.
+- A protocol major mismatch ends in `error` with an explicit message, not a silent timeout.
+
+### The bridge reports `degraded` then `offline`
+
+- `degraded` means no valid message within `linkTimeoutMs` (default 6 s). Heartbeats are sent every 2 s;
+  a `degraded` link usually means the device stopped answering (reset, crash, cable).
+- After a reconnect the bridge sends a full state snapshot, so no data is lost from the display's
+  point of view; only the elapsed counters restart.
+
+### The screen shows `MOCK`
+
+Correct behaviour for `npm run mock` and `npm run simulate`: every simulated state carries
+`source: "mock"` and must be visibly labelled. Live data uses `source: "live"`.
+
+### Serial output looks like garbage or the parser reports `E_PARSE` everywhere
+
+Free-form diagnostics must be off. The release build compiles out `BUDDY_DIAGNOSTICS` and
+`BUDDY_BENCH_COMMANDS`; a diagnostic build must not be connected to the bridge at the same time.
+
 ## Device behaviour
 
 ### Screen is blank but backlight is on
