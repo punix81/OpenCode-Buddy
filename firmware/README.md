@@ -21,7 +21,9 @@ and are verified in [`../docs/hardware-audit.md`](../docs/hardware-audit.md) §1
 | Display RST | 0 |
 | TTP223 output | 6 (active HIGH, internal pulldown) |
 
-Panel: `Panel_GC9A01`, `SPI2_HOST`, 27 MHz, inverted colours, BGR order, rotation 0.
+Panel: `Panel_GC9A01`, `SPI2_HOST`, 27 MHz, inverted colours, BGR order, rotation **1** (90°, set by
+`kDisplayRotation` in `Config.h` for the printed enclosure; the canvas is square and centred, so the
+layout is identical in every rotation).
 Toolchain: PlatformIO, `espressif32@6.5.0`, `esp32-c3-devkitm-1`, Arduino, C++17, USB CDC on boot.
 Libraries: LovyanGFX 1.2.21, ArduinoJson 7.4.3.
 
@@ -50,8 +52,9 @@ vectors as the TypeScript side.
   input.
 - Writes never block: a frame that does not fit the USB TX buffer is dropped and counted. Every message
   is either retried (hello, heartbeat), coalesced (ack) or superseded (state, mcp_status).
-- Reads never lose bytes: the USB CDC RX queue is enlarged to 4096 bytes in `setup()`, because the
-  core default (256 B) overflows while a full-screen render blocks the loop.
+- Reads never lose bytes: the USB CDC RX queue is enlarged to 1024 bytes in `setup()` (the value the
+  reference firmware uses), because the core default (256 B) overflows while a full-screen render
+  blocks the loop. 4096 was tried on one unit and left it unable to receive; 1024 works.
 - It accepts `ready`, `config`, `state`, `mcp_status`, `heartbeat`, `ack` and `error`.
 - A message is validated into a temporary structure and applied only if every field is valid; an
   invalid message never corrupts the previous state.
@@ -97,8 +100,8 @@ for memory/FPS measurement; it must not be used with the bridge.
 
 ## Verification status
 
-- Build: **372 248 B flash (28.4 %)**, **20 420 B static RAM (6.2 %)**, image 406 576 B,
-  SHA-256 `526498ef…f9ec9816`; clean build with no warnings from Buddy sources.
+- Build: **372 250 B flash (28.4 %)**, **20 420 B static RAM (6.2 %)**, image 406 576 B,
+  SHA-256 `76e85421…1c0f470c`; clean build with no warnings from Buddy sources.
 - Host parser tests: **PASS** (includes a re-announcement/reset-session case).
 - Hardware: **VERIFIED for the link** — the image was flashed (verified by esptool), the handshake,
   ACKs, heartbeats and all mock scenarios ran with no protocol error. See

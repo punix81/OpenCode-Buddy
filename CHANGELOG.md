@@ -19,8 +19,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 - A serial port error is now handled as a link loss with backoff instead of a permanent `error`
   state, and an intentional `stop()` no longer logs a reconnect.
 - `--log-level` is available on the bridge CLIs for hardware diagnosis.
-- The USB CDC RX queue is enlarged to 4096 bytes in `setup()`: the core default of 256 bytes overflowed
-  while a full-screen render blocked the loop, losing bytes mid-frame (`E_PARSE` + `resync`).
+- The USB CDC RX queue is enlarged to 1024 bytes in `setup()`: the core default of 256 bytes overflowed
+  while a full-screen render blocked the loop, losing bytes mid-frame (`E_PARSE` + `resync`). 4096 was
+  tried and left one unit unable to receive; 1024 is the validated value.
+
+### Changed — display orientation and enclosure
+
+- Panel rotation is now `kDisplayRotation` (`Config.h`), set to **1** (90°) for the printed PLA
+  enclosure. The canvas is square and centred, so the layout does not change with rotation.
 
 ### Changed — Phase 2 board swap
 

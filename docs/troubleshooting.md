@@ -191,9 +191,10 @@ counted) rather than blocked. If the symptom returns, capture the reset reason w
 
 Observed on one unit right after the handshake: the core's 256-byte USB CDC RX queue overflows while a
 full-screen render blocks the loop for tens of milliseconds, so bytes are lost mid-frame. The firmware
-now calls `Serial.setRxBufferSize(4096)` first in `setup()`; the reference firmware did the same with
-1024. If this reappears, check that call before suspecting the protocol. The `resync` path recovers on
-its own, so the symptom is a lost snapshot, not a dead link.
+now calls `Serial.setRxBufferSize(1024)` first in `setup()`; the reference firmware uses the same
+value. A larger value (4096) was tried and left that unit unable to receive anything at all, so do not
+raise it without re-testing the link. If this reappears, check that call before suspecting the
+protocol. The `resync` path recovers on its own, so the symptom is a lost snapshot, not a dead link.
 
 ### The bridge reports `degraded` then `offline`
 

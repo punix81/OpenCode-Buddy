@@ -25,6 +25,11 @@ constexpr int kCanvasX = (kScreenWidth - kCanvasSize) / 2;
 constexpr int kCanvasY = (kScreenHeight - kCanvasSize) / 2;
 constexpr int kCanvasCenter = kCanvasSize / 2;
 
+// Panel orientation. 0 = native, 1 = 90°, 2 = 180°, 3 = 270°. The enclosure
+// mounts the display rotated, so this is the single place to change it; the
+// canvas is square and centred, so the layout is identical in every rotation.
+constexpr uint8_t kDisplayRotation = 1;
+
 // Frame budgets. 25 FPS active, 15 FPS idle; dashboards refresh slowly because
 // only the radar and tool bars animate there.
 constexpr uint32_t kFrameIntervalActiveMs = 40;

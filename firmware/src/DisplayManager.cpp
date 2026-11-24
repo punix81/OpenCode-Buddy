@@ -4,7 +4,7 @@ namespace buddy {
 
 bool DisplayManager::begin() {
   panel_.init();
-  panel_.setRotation(0);
+  panel_.setRotation(kDisplayRotation);
   panel_.fillScreen(0);
 
   canvas_.setColorDepth(8);

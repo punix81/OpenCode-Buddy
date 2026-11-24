@@ -245,7 +245,7 @@ void setup() {
   // the loop for tens of milliseconds, which overflows that queue and loses
   // bytes mid-frame (observed on hardware as E_PARSE + resync). Enlarge it before
   // anything else runs.
-  Serial.setRxBufferSize(4096);
+  Serial.setRxBufferSize(1024);
 
   const esp_reset_reason_t reason = esp_reset_reason();
   if (gBootMagic != kBootMagicValue) {
