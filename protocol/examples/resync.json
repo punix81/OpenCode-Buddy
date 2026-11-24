@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "resync",
+  "seq": 11,
+  "data": {
+    "reason": "seq_gap",
+    "expected": 50,
+    "received": 57
+  }
+}

@@ -4,8 +4,9 @@
   "seq": 1,
   "data": {
     "device": "opencode-buddy",
-    "fw": "0.1.0",
+    "fw": "0.2.0",
     "proto": [1],
-    "maxLine": 2048
+    "maxLine": 2048,
+    "boot": 7
   }
 }

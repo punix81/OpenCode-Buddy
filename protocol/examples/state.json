@@ -36,15 +36,14 @@
       "total": 12
     },
     "connection": {
-      "usb": "connected",
       "bridge": "ready",
       "opencode": "connected"
     },
     "versions": {
-      "fw": "0.1.0",
-      "bridge": "0.1.0",
+      "bridge": "0.2.0",
       "protocol": 1
     },
+    "source": "live",
     "diagnostic": {
       "code": "E_PARSE"
     }

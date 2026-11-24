@@ -1,7 +1,9 @@
 # Protocol v1 ratification review
 
-Status: **review complete; specification edits pending.** No firmware or bridge code depends on these
-decisions yet. This document is the decision log required by Phase 2 task P2-01.
+Status: **APPLIED — protocol v1 is ratified.** The ten defects below were applied to
+`protocol-v1.md`, the JSON Schema, the examples and the test vectors. `npm run validate:protocol`
+passes (11 valid vectors, 13 invalid vectors, 11 examples) and the firmware host tests pass with the
+same vectors. No firmware or bridge code consumes the draft any more.
 
 Inputs: `protocol/protocol-v1.md` (Phase 0 draft), `protocol/schemas/protocol-v1.schema.json`,
 `docs/phase-2-plan.md`, and the Phase 1 implementation experience.

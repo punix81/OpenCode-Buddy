@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "maxLine": 2048,
+  "cases": [
+    { "name": "max_minus_one", "length": 2046, "valid": true },
+    { "name": "max", "length": 2047, "valid": true },
+    { "name": "over_max", "length": 2048, "valid": false }
+  ],
+  "fragmentation": [
+    {
+      "name": "split_in_two",
+      "chunks": ["{\"v\":1,", "\"type\":\"heartbeat\",\"seq\":1}\n"],
+      "messages": 1
+    },
+    {
+      "name": "concatenated",
+      "chunks": ["{\"v\":1,\"type\":\"heartbeat\",\"seq\":1}\n{\"v\":1,\"type\":\"heartbeat\",\"seq\":2}\n"],
+      "messages": 2
+    },
+    {
+      "name": "crlf",
+      "chunks": ["{\"v\":1,\"type\":\"heartbeat\",\"seq\":1}\r\n"],
+      "messages": 1
+    }
+  ]
+}

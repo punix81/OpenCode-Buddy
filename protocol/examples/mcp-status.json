@@ -5,6 +5,7 @@
   "data": {
     "online": 10,
     "total": 12,
+    "source": "live",
     "servers": [
       { "alias": "MCP-1", "status": "connected" },
       { "alias": "MCP-2", "status": "connected" },

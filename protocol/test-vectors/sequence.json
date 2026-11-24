@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "cases": [
+    { "name": "first_message", "last": 0, "incoming": 1, "action": "apply" },
+    { "name": "in_order", "last": 3, "incoming": 4, "action": "apply" },
+    { "name": "duplicate", "last": 4, "incoming": 4, "action": "duplicate" },
+    { "name": "stale", "last": 4, "incoming": 3, "action": "stale" },
+    { "name": "gap", "last": 4, "incoming": 6, "action": "gap" },
+    { "name": "new_session", "last": 9, "incoming": 1, "action": "new_session" }
+  ]
+}

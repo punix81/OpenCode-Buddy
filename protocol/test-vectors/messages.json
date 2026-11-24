@@ -1,0 +1,280 @@
+{
+  "version": 1,
+  "valid": [
+    {
+      "name": "hello",
+      "message": {
+        "v": 1,
+        "type": "hello",
+        "seq": 1,
+        "data": {
+          "device": "opencode-buddy",
+          "fw": "0.2.0",
+          "proto": [1],
+          "maxLine": 2048,
+          "boot": 7
+        }
+      }
+    },
+    {
+      "name": "ready",
+      "message": {
+        "v": 1,
+        "type": "ready",
+        "seq": 1,
+        "data": { "bridge": "0.2.0", "proto": 1, "run": "8f2c1a4b" }
+      }
+    },
+    {
+      "name": "config",
+      "message": {
+        "v": 1,
+        "type": "config",
+        "seq": 2,
+        "data": {
+          "language": "en",
+          "quietMode": false,
+          "autoReturnSeconds": 60,
+          "gestures": {
+            "debounceMs": 35,
+            "doublePressWindowMs": 350,
+            "longPressMs": 1500,
+            "veryLongPressMs": 5000
+          },
+          "source": "live"
+        }
+      }
+    },
+    {
+      "name": "state_minimal",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 3,
+        "data": {
+          "status": "idle",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "unknown" },
+          "versions": { "bridge": "0.2.0", "protocol": 1 },
+          "source": "live"
+        }
+      }
+    },
+    {
+      "name": "state_unavailable_tokens",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 4,
+        "data": {
+          "status": "thinking",
+          "model": null,
+          "agent": null,
+          "activeSessions": 2,
+          "elapsedSeconds": 272,
+          "pendingPermissions": 0,
+          "pendingQuestions": 0,
+          "notifications": 0,
+          "tokens": { "input": null, "output": null, "total": null, "contextPct": null },
+          "tools": { "success": 0, "failed": 0, "running": 0 },
+          "connection": { "bridge": "ready", "opencode": "connected" },
+          "versions": { "bridge": "0.2.0", "protocol": 1 },
+          "source": "live"
+        }
+      }
+    },
+    {
+      "name": "mcp_status",
+      "message": {
+        "v": 1,
+        "type": "mcp_status",
+        "seq": 5,
+        "data": {
+          "online": 1,
+          "total": 2,
+          "source": "live",
+          "servers": [
+            { "alias": "MCP-1", "status": "connected" },
+            { "alias": "MCP-2", "status": "needs_auth" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "heartbeat",
+      "message": { "v": 1, "type": "heartbeat", "seq": 6 }
+    },
+    {
+      "name": "ack",
+      "message": { "v": 1, "type": "ack", "seq": 7, "data": { "ack": 5, "warning": null } }
+    },
+    {
+      "name": "interaction",
+      "message": {
+        "v": 1,
+        "type": "interaction",
+        "seq": 8,
+        "data": { "gesture": "short", "screen": 3 }
+      }
+    },
+    {
+      "name": "resync",
+      "message": {
+        "v": 1,
+        "type": "resync",
+        "seq": 9,
+        "data": { "reason": "seq_gap", "expected": 5, "received": 9 }
+      }
+    },
+    {
+      "name": "error",
+      "message": {
+        "v": 1,
+        "type": "error",
+        "seq": 10,
+        "data": { "code": "E_PARSE", "fatal": false, "detail": "invalid json" }
+      }
+    }
+  ],
+  "invalid": [
+    { "name": "truncated_json", "line": "{", "error": "E_PARSE" },
+    { "name": "not_json", "line": "not json", "error": "E_PARSE" },
+    {
+      "name": "version_2",
+      "message": {
+        "v": 2,
+        "type": "state",
+        "seq": 1,
+        "data": {
+          "status": "idle",
+          "activeSessions": 0,
+          "connection": { "bridge": "ready", "opencode": "unknown" },
+          "versions": { "bridge": "0.2.0", "protocol": 2 },
+          "source": "live"
+        }
+      },
+      "error": "E_VERSION"
+    },
+    {
+      "name": "unknown_type",
+      "message": { "v": 1, "type": "bogus", "seq": 1, "data": {} },
+      "error": "E_UNKNOWN_TYPE"
+    },
+    { "name": "missing_data", "message": { "v": 1, "type": "state", "seq": 3 }, "error": "E_PARSE" },
+    {
+      "name": "missing_status",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 3,
+        "data": {
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "unknown" },
+          "versions": { "bridge": "0.2.0", "protocol": 1 },
+          "source": "live"
+        }
+      },
+      "error": "E_PARSE"
+    },
+    {
+      "name": "bad_status",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 3,
+        "data": {
+          "status": "nope",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "unknown" },
+          "versions": { "bridge": "0.2.0", "protocol": 1 },
+          "source": "live"
+        }
+      },
+      "error": "E_BOUNDS"
+    },
+    {
+      "name": "screen_out_of_range",
+      "message": {
+        "v": 1,
+        "type": "interaction",
+        "seq": 2,
+        "data": { "gesture": "short", "screen": 9 }
+      },
+      "error": "E_BOUNDS"
+    },
+    {
+      "name": "unknown_data_field",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 3,
+        "data": {
+          "status": "idle",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "unknown" },
+          "versions": { "bridge": "0.2.0", "protocol": 1 },
+          "source": "live",
+          "extra": 1
+        }
+      },
+      "error": "E_PARSE"
+    },
+    {
+      "name": "seq_zero",
+      "message": {
+        "v": 1,
+        "type": "heartbeat",
+        "seq": 0
+      },
+      "error": "E_BOUNDS"
+    },
+    {
+      "name": "bad_source",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 3,
+        "data": {
+          "status": "idle",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "unknown" },
+          "versions": { "bridge": "0.2.0", "protocol": 1 },
+          "source": "test"
+        }
+      },
+      "error": "E_BOUNDS"
+    },
+    {
+      "name": "bridge_sends_usb",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 3,
+        "data": {
+          "status": "idle",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "unknown", "usb": "connected" },
+          "versions": { "bridge": "0.2.0", "protocol": 1 },
+          "source": "live"
+        }
+      },
+      "error": "E_PARSE"
+    },
+    {
+      "name": "bridge_sends_fw_version",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 3,
+        "data": {
+          "status": "idle",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "unknown" },
+          "versions": { "bridge": "0.2.0", "protocol": 1, "fw": "0.2.0" },
+          "source": "live"
+        }
+      },
+      "error": "E_PARSE"
+    }
+  ]
+}

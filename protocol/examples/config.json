@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "type": "config",
+  "seq": 2,
+  "data": {
+    "language": "en",
+    "quietMode": false,
+    "autoReturnSeconds": 60,
+    "gestures": {
+      "debounceMs": 35,
+      "doublePressWindowMs": 350,
+      "longPressMs": 1500,
+      "veryLongPressMs": 5000
+    },
+    "source": "live"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "ready",
+  "seq": 1,
+  "data": {
+    "bridge": "0.2.0",
+    "proto": 1,
+    "run": "8f2c1a4b"
+  }
+}

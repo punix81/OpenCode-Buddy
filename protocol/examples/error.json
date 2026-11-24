@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "type": "error",
+  "seq": 12,
+  "data": {
+    "code": "E_PARSE",
+    "fatal": false,
+    "detail": "invalid json"
+  }
+}
