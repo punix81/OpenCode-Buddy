@@ -41,6 +41,10 @@ diagnostics/*.jsonl
 .pioenvs/
 .piolibdeps/
 firmware/.pio/
+.venv/
+venv/
+firmware/platformio.local.ini
+firmware/.pio/
 *.bin
 *.elf
 *.map

@@ -1,34 +1,81 @@
-# Firmware (ESP32-C3)
+# Firmware — ESP32-C3
 
-Status: **not implemented** — Phase 1.
+Phase 1 scope: the display core, the animated companion, the touch gesture machine, the six
+screens and a clearly labelled mock data source. The USB protocol parser and the bridge arrive in
+Phase 2; until then the firmware never claims a bridge or OpenCode connection.
 
-## Planned layout
+## Hardware
 
-```text
-firmware/
-├── platformio.ini          pinned platform and libraries
-├── include/
-│   └── BoardConfig.h       verified GPIO map (see ../docs/hardware-audit.md)
-├── src/
-│   ├── main.cpp            setup/loop, wiring of components
-│   ├── SerialManager.*     USB CDC, bounded line buffer
-│   ├── ProtocolParser.*    NDJSON parse, version/type dispatch
-│   ├── StateManager.*      normalized device state, staleness
-│   ├── DisplayManager.*    LovyanGFX device, partial refresh
-│   ├── ScreenManager.*     six screens, layout helpers
-│   ├── BuddyFace.*         procedural expressions
-│   ├── AnimationEngine.*   frame scheduling, clips
-│   ├── TouchManager.*      gesture state machine
-│   └── PreferencesManager.* NVS persistence
-└── test/                   native unit tests for pure logic
+The wiring and panel configuration are identical to the working `Codex-Quota-Mini` reference build
+and are verified in [`../docs/hardware-audit.md`](../docs/hardware-audit.md) §1.
+
+| Signal | GPIO |
+| --- | --- |
+| SPI SCLK | 2 |
+| SPI MOSI | 4 |
+| SPI MISO | not connected |
+| Display DC | 1 |
+| Display CS | 5 |
+| Display RST | 0 |
+| TTP223 output | 6 (active HIGH, internal pulldown) |
+
+Panel: `Panel_GC9A01`, `SPI2_HOST`, 27 MHz, inverted colours, BGR order, rotation 0.
+Toolchain: PlatformIO, `espressif32@6.5.0`, `esp32-c3-devkitm-1`, Arduino, USB CDC on boot.
+
+## Components
+
+| Component | Responsibility |
+| --- | --- |
+| `DisplayManager` | Panel init and the single 220 × 220 8-bit canvas. |
+| `ScreenManager` | Six screens, layout, auto-return, quiet-mode behaviour. |
+| `BuddyFace` | Procedural eyes, mouth, ring, particles and badges for all 12 states. |
+| `AnimationEngine` | Time-derived blink, pulse and frame scheduling. |
+| `StateManager` | Normalized state, metrics, link state, terminal-state expiry. |
+| `TouchManager` | Debounced, exclusive gesture recognition. |
+| `PreferencesManager` | NVS persistence: quiet mode, last screen, language slot. |
+| `SerialManager` | Bounded, non-blocking USB CDC line framing. |
+| `MockScenario` | Bench state cycler, compiled only with `BUDDY_MOCK_MODE`. |
+
+## Rendering strategy
+
+One 220 × 220 8-bit canvas (48 400 bytes) covers the whole visible disc. A frame is a single
+contiguous `pushSprite`, so there is no tearing and no 16-bit double buffer (which would cost
+115 200 bytes). The animated Buddy screen pushes at 25 FPS active / 15 FPS idle; the five dashboard
+screens push only when their content changes (≤ 8 FPS) and are static otherwise.
+
+Animations are procedural: shapes, text and motion, never stored image sequences. Every state also
+carries a text label, so no state depends on colour alone.
+
+## Build
+
+```sh
+uv venv .venv
+uv pip install --system-certs --python .venv/bin/python platformio
+PLATFORMIO_SETTING_ENABLE_TELEMETRY=false .venv/bin/pio run -d firmware
 ```
 
-## Constraints
+`firmware/platformio.ini` is the reproducible definition. On a machine where the PlatformIO
+registry is unreachable, a git-ignored `firmware/platformio.local.ini` can point at an already
+cached LovyanGFX copy; it is a local convenience, never the distributed configuration.
 
-- `esp32-c3-devkitm-1`, `framework = arduino`, `espressif32@6.5.0`, USB CDC on boot.
-- Pins exactly as in `docs/hardware-audit.md`; no Wi-Fi, no Bluetooth, no OTA.
-- Non-blocking loop; 20–30 FPS target; bounded memory; no per-frame allocation.
-- Cannot be built on the audited machine until PlatformIO Core is installed (see
-  `docs/hardware-audit.md` F-07).
+## What this firmware deliberately does not do
 
-Flashing requires explicit user approval and a restore plan for the current reference firmware.
+- It does not parse the NDJSON protocol yet. `SerialManager` frames and counts lines and discards
+  them; no handler pretends to understand them.
+- It does not report a bridge or OpenCode connection. Those fields stay `UNKNOWN` until the bridge
+  exists and the protocol is implemented.
+- It does not enable Wi-Fi or Bluetooth, and it has no OTA path.
+- It cannot approve permissions, run commands or modify files. The touch pad has four navigation
+  actions and nothing else.
+
+## Verification status
+
+- **Build VERIFIED (2026-11-24):** clean rebuild in 17.59 s; flash 349 154 B (26.6 % of 1 310 720),
+  static RAM 16 316 B (5.0 % of 327 680), image 378 336 B; no warnings from Buddy sources.
+- **Hardware NOT VERIFIED:** nothing was flashed. Display output, touch behaviour, frame rate and
+  heap high-water are unmeasured, and the 25 FPS target is a design budget.
+
+Full evidence, including the registry-proxy caveat, is in
+[`../docs/phase-1-report.md`](../docs/phase-1-report.md). A build is only reported as successful when
+the command actually completed; hardware behaviour is only reported when it was observed on the
+panel.

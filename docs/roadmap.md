@@ -23,21 +23,25 @@ this repository scaffold, Phase 0 report.
 Exit criteria: every required signal either has a verified event source or a documented gap; hardware
 map is traced to source; blockers are named with an owner; user approves the architecture.
 
-**Status: complete, awaiting approval.**
+**Status: complete and approved (2026-11-24).**
 
 ## Phase 1 — Firmware core and animated Buddy
 
 **Goal:** a buildable firmware that drives the exact hardware and shows the companion.
 
 Scope: PlatformIO project with the verified pins; `SerialManager` skeleton; `DisplayManager` with
-partial refresh; `BuddyFace` + `AnimationEngine`; all eleven states rendered from a local mock state
-machine; `TouchManager` gestures; `ScreenManager` with the six screens (placeholder metrics allowed
-only if visibly marked); `PreferencesManager` in NVS; Wi-Fi and Bluetooth disabled.
+temporal dirty refresh (spatial partial regions deferred until measured); `BuddyFace` +
+`AnimationEngine`; all twelve states including OFFLINE rendered from a local mock state machine;
+`TouchManager` gestures; `ScreenManager` with the six screens (mock metrics visibly marked);
+`PreferencesManager` in NVS; Wi-Fi and Bluetooth disabled.
 
 Deliverables: `firmware/`, build log, frame-time measurement, memory report, gesture test procedure.
 
 Exit criteria: builds cleanly with pinned dependencies; display and touch verified on the real unit
 with approval; 20 FPS floor measured; no flicker; all states distinguishable without colour.
+
+**Status: implemented; build verified (17.59 s clean, 349 154 B flash, 16 316 B static RAM).
+Hardware verification is pending explicit approval to flash.**
 
 ## Phase 2 — USB protocol, bridge and simulator
 

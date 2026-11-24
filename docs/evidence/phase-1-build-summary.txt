@@ -1,0 +1,39 @@
+Phase 1 build evidence — OpenCode Buddy
+Date: 2026-11-24
+Repository: punix81/OpenCode-Buddy
+
+Toolchain
+  PlatformIO Core: 6.2.0 (project-local .venv)
+  Platform:        espressif32@6.5.0 (cached)
+  Board:           esp32-c3-devkitm-1
+  Framework:       arduino, C++17
+  Library:         LovyanGFX 1.2.21 (cached copy, via git-ignored local override)
+
+Commands
+  1) .venv/bin/pio run -d firmware -c firmware/platformio.local.ini
+     -> SUCCESS in 20.95 s (incremental state)
+  2) .venv/bin/pio run -d firmware -c firmware/platformio.local.ini -t clean
+  3) .venv/bin/pio run -d firmware -c firmware/platformio.local.ini
+     -> SUCCESS in 17.59 s (clean rebuild)
+
+Observed PlatformIO summary
+  RAM:   [          ]   5.0% (used 16316 bytes from 327680 bytes)
+  Flash: [===       ]  26.6% (used 349154 bytes from 1310720 bytes)
+  ========================= [SUCCESS] Took 17.59 seconds =========================
+
+Artefact
+  firmware.bin: 378336 bytes
+
+Diagnostics
+  Errors from Buddy sources: 0
+  Warnings from Buddy sources: 0
+  Framework warning observed: one pre-existing warning in esp32-hal-uart.c (not this project)
+
+Not performed
+  No flash, no port open, no display observation, no frame-rate measurement.
+
+Reproduction note
+  The committed firmware/platformio.ini resolves LovyanGFX from the PlatformIO registry.
+  That path did not complete on the audit machine (HTTPClientError, then a stall behind the
+  proxy). The build above used the git-ignored firmware/platformio.local.ini, which links the
+  already-cached library. TLS verification was never disabled.

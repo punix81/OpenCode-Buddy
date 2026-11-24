@@ -66,6 +66,7 @@ Never guess an event name, field name or status value.
 
 ## 5. Development rules
 
+- SOLID where it applies, one clear responsibility per component, small testable units.
 - TypeScript: strict mode, no `any` in public contracts, explicit error handling, small modules.
 - Firmware: C++17, non-blocking loop, no `delay()` in animation or serial paths, bounded buffers,
   no unbounded dynamic allocation in steady state, no `String` growth loops.
@@ -76,6 +77,13 @@ Never guess an event name, field name or status value.
 - Privacy: allowlist filtering twice (plugin → bridge, bridge → device). Default-deny unknown fields.
 - Dependencies: justify each one, check license and security, pin versions, prefer the standard
   library. No dependency that phones home.
+- Errors: handle them explicitly at every boundary; never swallow a failure silently, and never
+  replace a real error with a plausible-looking default.
+- Builds: reproducible from a pinned configuration. A build is only "passing" when the command
+  actually completed in this session.
+- Tests: meaningful and reproducible; a test that cannot fail proves nothing.
+- Mocks: any simulated data path must be labelled in code, in logs and on screen. No placeholder may
+  silently stand in for production behaviour.
 - Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`), small and
   reviewable. Semantic Versioning for releases.
 - Documentation changes ship in the same commit as the behaviour they describe.
@@ -95,8 +103,10 @@ Never claim a build, a flash or a hardware test succeeded without evidence produ
 
 - `/dev/ttyACM0` is a single-owner resource. The pre-existing Codex Quota Mini bridge may hold it;
   two processes must never share it. Check before opening the port.
-- PlatformIO CLI is not currently installed although platform and package caches exist. Install
-  requires network access and approval; report the blocker instead of improvising with `arduino-cli`.
+- PlatformIO Core is installed **project-locally** in the repository-root `.venv` (see
+  `docs/phase-1-report.md`), not system-wide. The PlatformIO registry may be unreachable behind the
+  corporate proxy: use the system trust store (`--system-certs` for `uv`, `REQUESTS_CA_BUNDLE`) and
+  the git-ignored `firmware/platformio.local.ini` fallback. Never disable TLS verification.
 - The GitHub remote is public for reading, but write credentials are not configured: verify
   authentication before claiming a push or an issue was created.
 - Do not print environment variables, credentials or full configuration files into logs or reports.

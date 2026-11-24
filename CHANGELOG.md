@@ -6,6 +6,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Added — Phase 1 (firmware core and animated Buddy)
+
+- `firmware/`: PlatformIO project pinned to `espressif32@6.5.0` and LovyanGFX 1.2.21, with the
+  verified pin map, a 220 × 220 8-bit canvas and USB CDC on boot.
+- Procedural `BuddyFace` covering all twelve states, with shared eye geometry, text labels, ring and
+  particle motion, and no stored image sequences.
+- Non-blocking exclusive `TouchManager` gesture machine (short, double, long, very long).
+- Six screens in `ScreenManager`, including the conditional context gauge and the MCP radar.
+- `StateManager` with separate connection and execution state and terminal-state expiry.
+- `PreferencesManager` in NVS and a clearly labelled `MockScenario` bench driver.
+- Phase 1 build verified: 349 154 B flash (26.6 %), 16 316 B static RAM (5.0 %), clean rebuild in
+  17.59 s with no warnings from Buddy sources.
+
 ### Added — Phase 0 (technical audit and initialization)
 
 - Repository documentation scaffold: README, AGENTS, CONTRIBUTING, SECURITY, changelog, editor and

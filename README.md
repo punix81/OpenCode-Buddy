@@ -7,8 +7,10 @@ waiting for a permission, failing, compacting its context, or finishing successf
 animated virtual companion with a compact developer dashboard on a 1.28" round display, driven by an
 ESP32-C3 over USB.
 
-> **Project status: Phase 0 (technical audit) complete. No firmware, bridge or plugin is implemented yet.**
-> See [docs/phase-0-report.md](docs/phase-0-report.md) for the audit result and the approval gate.
+> **Project status: Phase 0 approved. Phase 1 firmware implemented and compiling; hardware
+> verification pending approval to flash. No bridge or plugin is implemented yet.**
+> See [docs/phase-0-report.md](docs/phase-0-report.md) and
+> [docs/phase-1-report.md](docs/phase-1-report.md).
 
 ## Why
 

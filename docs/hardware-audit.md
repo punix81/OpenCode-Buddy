@@ -174,3 +174,15 @@ modified during this audit.
 - It did not verify a second physical unit.
 
 Those items are Phase 1 acceptance work and require physical access plus explicit approval.
+
+## 6. Phase 1 update (2026-11-24)
+
+- **F-07 resolved for builds.** PlatformIO Core 6.2.0 was installed into a project-local `.venv`
+  using the system trust store, and the cached `espressif32@6.5.0` platform was used. LovyanGFX
+  1.2.21 was linked from the reference project's cache because the PlatformIO registry did not
+  complete behind the proxy. TLS verification stayed enabled. The Buddy firmware compiled cleanly;
+  see `docs/phase-1-report.md` §7.
+- **F-03, F-04, F-05 remain open.** Boot strapping on GPIO0/GPIO2, and supply/brown-out margins,
+  still require the hardware session and have not been observed.
+- **Still not flashed.** The board continues to run the reference firmware, and its serial port is
+  still owned by the reference bridge. Flashing needs explicit approval and an agreed restore path.
