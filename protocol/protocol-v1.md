@@ -1,7 +1,8 @@
 # USB protocol v1 — design draft
 
-Status: **DRAFT for review.** Ratified in Phase 2 before any implementation is merged. No code in this
-repository consumes this specification yet.
+Status: **DRAFT — ratification review in progress.** The decision log and the defect list are in
+[`ratification-v1.md`](ratification-v1.md). No code may consume this draft until the edits listed
+there are applied and the document is marked RATIFIED.
 
 ## 1. Goals
 

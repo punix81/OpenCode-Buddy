@@ -75,7 +75,7 @@ transmitted. See [docs/architecture.md](docs/architecture.md).
 - [Security and privacy](docs/security.md)
 - [Hardware audit](docs/hardware-audit.md)
 - [OpenCode v2 API audit](docs/opencode-api-audit.md)
-- [Protocol v1 (draft)](protocol/protocol-v1.md)
+- [Protocol v1 (draft)](protocol/protocol-v1.md) · [Ratification review](protocol/ratification-v1.md)
 - [Roadmap](docs/roadmap.md)
 - [Installation](docs/installation.md) · [Troubleshooting](docs/troubleshooting.md)
 - [Phase 0 report](docs/phase-0-report.md)
