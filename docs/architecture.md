@@ -148,6 +148,15 @@ Notes:
   expires; it also never overrides `permission_required`.
 - A tool failure increments counters and shows a brief error accent but must not put the whole
   companion into `error`; only `session.execution.failed` does.
+- Terminal states (`success`, `error`, `interrupted`) are **session-scoped notifications**, not
+  persisting states. Each expires after a bounded TTL — `success` 4 s, `interrupted` 10 s, `error`
+  30 s, all configurable — or when that same session starts a new execution, whichever happens
+  first. Without an expiry, one failure could mask another session's live activity for the rest of
+  the day and the device would stop reporting reality; that is why the TTL is part of the reducer
+  contract, not a display detail.
+- A permission or question prompt does **not** expire on a timer: it disappears only when the
+  corresponding `permission.replied` / `form.replied` / `form.cancelled` event arrives, because the
+  blocking condition really is still present.
 - Counters are monotonic per session and are deduplicated by `(sessionID, assistantMessageID, toolID)`
   for tools and by taking the **maximum** cumulative token snapshot per session (v2 reports usage as
   a snapshot, not a delta — assumption to confirm in Phase 3).

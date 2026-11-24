@@ -22,6 +22,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 - `docs/phase-0-report.md` with findings classified as VERIFIED / ASSUMPTION / NOT VERIFIED /
   BLOCKER.
 
+### Changed — Phase 0 second verification pass
+
+- `docs/opencode-api-audit.md`: added payload-level facts for the eleven highest-value v2 events, the
+  privacy consequence, the re-verification evidence, and limitation L10 (`mcp.status.changed` carries
+  no status).
+- `docs/architecture.md`: terminal states are now session-scoped notifications with a bounded TTL, so
+  a stale failure cannot mask live activity forever.
+- `docs/security.md`: added `notifications` to the allowlist and stated the provenance of `versions`
+  and `diagnostic.code`.
+- `docs/ui-design.md`: corrected the page-indicator count to six; removed the unmeasurable USB speed
+  class and the unsourced bridge uptime row; documented version sources.
+- `protocol/protocol-v1.md`, `protocol/schemas/protocol-v1.schema.json`, `protocol/examples/state.json`:
+  optional `versions` and `diagnostic` in the `state` snapshot, with a corrected size budget.
+- `docs/phase-0-report.md`: current Git/remote facts, second-pass evidence, findings V-12–V-18,
+  assumptions A-07–A-08, and §14 listing the five design defects found and resolved.
+
 ### Not yet implemented
 
 - Firmware, bridge, plugin, simulator: intentionally untouched in Phase 0.

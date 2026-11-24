@@ -20,6 +20,12 @@ The official documentation was cross-checked (`https://opencode.ai/docs/build/pl
 `/build/plugins/server`, `/api`, `/build/client`). The local server's OpenAPI document wins where they
 differ, because it describes the installed version.
 
+Re-verified on 2026-11-24 in a second audit pass: `opencode --version` → 2.4.1; the OpenAPI document
+still reports 146 paths, 542 schemas and 101 `V2Event` variants; `npm view @opencode/plugin version`
+and `npm view @opencode/client version` both return 2.4.1 from the configured registry; a live
+`/api/mcp` call returns 12 servers in states `connected: 10`, `needs_auth: 1`, `failed: 1`. Server
+names are deliberately not recorded.
+
 ## 2. Integration options evaluated
 
 | Option | Data access | Latency | Auth / coupling | Verdict |
@@ -68,6 +74,42 @@ export default Plugin.define({
 Explicitly **not** used: `tool.transform`, `session.prompt`, `session.command`, `permission.reply`,
 `mcp.transform`, `experimental.generate`. Buddy must never act on the session.
 
+## 3.1 Payload-level facts that constrain the adapter
+
+Read directly from the 2.4.1 component schemas, not inferred. These decide what the plugin may look at
+and what it must drop before the bridge ever sees an event.
+
+| Event | Payload | Consequence for Buddy |
+| --- | --- | --- |
+| `session.execution.started` / `.succeeded` | `sessionID` only | The event type itself carries the meaning; no extra correlation needed. |
+| `session.execution.failed` | `error: Session.StructuredError` = `{type, message, status?, response.body?, retryAfterMs?}` | Forward only `error.type` and `error.status`. `message` and `response.body` are provider/model text and are **dropped**. |
+| `session.execution.interrupted` | `reason: user \| shutdown \| superseded \| inactivity` | Matches the reducer mapping in §7; `superseded` is not a user-visible warning. |
+| `session.step.started` | `agent`, `model`, `started` | Primary source for the model/agent shown on screens 1–2. |
+| `session.tool.called` | `assistantMessageID`, `id`, `input`, `executed`, `native` | Dedup key is `(sessionID, assistantMessageID, id)`. `input` and `native` never leave the plugin. |
+| `session.tool.progress` | `id`, `metadata` | Used only to keep a running tool alive; `metadata` is dropped. |
+| `session.tool.success` / `.failed` | `id`, `content[]`, `metadata`, `error?` | Counters only. `content` holds tool output (file text, command output) and is **dropped**. |
+| `permission.asked` | `id`, `action`, `resources[]`, `save[]`, `metadata`, `source`, `message` | Only the existence of a pending request is forwarded. `resources` and `message` describe paths and intent and are **dropped**. |
+| `form.created` | `form: Form.Info {title, fields}` | Confirms user questions are a first-class concept. Title and fields are **not** forwarded; only the pending count is. |
+| `session.usage.updated` | `cost`, `tokens {input, output, reasoning, cache{read,write}}` | `Session.Info.tokens` has the same shape, which supports the "cumulative snapshot" reading (A-02) without proving it. Phase 3 tests it. |
+| `mcp.status.changed` | `server` **only** | This is a refresh *signal*, not a status report. The adapter must re-read `ctx.mcp.list()` and diff; expecting a status here would silently produce stale MCP data. |
+| `session.retry.scheduled` | `attempt`, `at`, `error` | `attempt` and `at` are displayable; `error` is dropped like every other error body. |
+| `session.idle` | `sessionID` | Drives the grace-period removal from the active set. |
+
+Two endpoint-level facts:
+
+- `GET /api/event` is an SSE stream whose frames are `{id, event, data}`, with `data` an encoded
+  `V2Event`. It requires authentication; the in-process plugin path avoids that entirely.
+- The `types` filter on that endpoint enumerates 101 values that match the `V2Event` union exactly, so
+  the plugin's `types` option can be trusted to be complete rather than a hand-maintained subset.
+
+## 3.2 Privacy consequence of the payload facts
+
+The highest-risk fields are not in the event *names* but in the payloads: `session.tool.called.input`,
+`session.tool.success.content`, `permission.asked.resources`, and every `Session.StructuredError`
+message or response body. A naive "forward the event minus a few keys" design fails here. The adapter
+must build a new object from an allowlist per event type, which is what `docs/security.md` §3 requires
+and what Phase 3 must test by construction.
+
 ## 4. Observability matrix
 
 Every signal required by `docs/requirements.md` mapped to a verified v2 event or to a documented gap.
@@ -88,11 +130,11 @@ Every signal required by `docs/requirements.md` mapped to a verified v2 event or
 | Retry | `session.retry.scheduled` (`attempt`, `at`, `error`), `session.status` (`retry`, attempt) | VERIFIED (schema) |
 | Compaction | `session.compaction.started/delta/ended/failed` | VERIFIED (schema) |
 | Permission pending | `permission.asked` (`id`, `sessionID`, `action`, `resources`) / `permission.replied` | VERIFIED (schema) |
-| User input / question | `form.created` / `form.replied` / `form.cancelled` | ASSUMPTION: forms are the user-question flow; confirm in Phase 3 |
+| User input / question | `form.created` / `form.replied` / `form.cancelled`, each carrying `Form.Info {title, fields}` | PARTIAL: forms are a real, typed user-input concept; whether agent flows raise them on every client is confirmed in Phase 3 |
 | Model and agent | `session.step.started` (`model`, `agent`), `session.model.selected`, `session.agent.selected`, `Session.Info` | VERIFIED (schema) |
 | Token usage | `session.usage.updated` (`tokens.input/output/reasoning/cache`, `cost`) | VERIFIED (schema); cumulative vs delta semantics ASSUMPTION |
 | Session idle | `session.idle`, `session.status` (`idle`) | VERIFIED (schema) |
-| MCP status | `mcp.status.changed` + `ctx.mcp.list()` → `Mcp.Server.status` | VERIFIED (both) |
+| MCP status | `mcp.status.changed` carries only `server`; status comes from `ctx.mcp.list()` → `Mcp.Server.status` | VERIFIED (both) — the event is a refresh signal, not a status payload |
 | Context-window percentage | `Model.Info.limit.context` vs session tokens | ASSUMPTION: needs a reliable used-token definition |
 | Quota / rate limits | — | **NOT AVAILABLE** in the v2 API surface reviewed |
 | Multiple sessions | Every event carries `sessionID` | VERIFIED (schema) |
@@ -130,12 +172,13 @@ type Event = {
 | L1 | Plugin API is experimental and versioned with the CLI; breaking changes are possible | Plugin may stop loading after an OpenCode upgrade | Pin the supported CLI minor, fail soft with a visible "plugin incompatible" state, document the supported range, test against upgrades |
 | L2 | No quota/rate-limit API | Tokens screen cannot show remaining quota | Show "not supported" explicitly (FR-012); never fabricate |
 | L3 | Context percentage needs a reliable denominator | Wrong gauge is worse than none | Only show when `limit.context` is known and the used-token definition is stable; otherwise `--` |
-| L4 | `form.*` semantics unconfirmed | "User input required" may be missed | Phase 3 empirical test with a real question flow; fallback: permission alerts still cover blocking cases |
+| L4 | `form.*` existence is verified, but whether every client raises a form for a blocking question is not | "User input required" may be missed on some flows | Phase 3 empirical test with a real question flow; fallback: permission alerts still cover blocking cases |
 | L5 | Multiple server instances (`--standalone`, multiple projects) each load their own plugin instances | Sessions may be split across plugin instances | Each instance reports; the bridge merges by session ID and deduplicates |
 | L6 | Event payloads include high-risk fields (`input`, `content`, `text`, `reasoning`, `native`, `metadata`) | Accidental leakage | Hard allowlist projection at the plugin boundary; tests assert these never appear on the wire |
 | L7 | `session.usage.updated` semantics unconfirmed | Double counting | Treat as cumulative-per-session snapshot and clamp to max; verify in Phase 3 |
 | L8 | HTTP SSE requires authentication | Not used, but blocks naive scripts | Document the plugin path as the supported one |
 | L9 | Plugin loading requires configuration or a project `.opencode/plugins/` directory | Install friction | Phase 6 installer prints the exact configuration change; Phase 3 uses a project-local plugin during development |
+| L10 | `mcp.status.changed` carries no status, only the server name | A naive handler shows stale MCP state | Treat it strictly as a refresh trigger and re-read `ctx.mcp.list()`; covered by a Phase 5 test |
 
 ## 7. Mapping decisions for the reducer
 

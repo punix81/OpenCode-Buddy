@@ -61,6 +61,9 @@ full `state` snapshot plus `mcp_status`.
   "bridge": "0.1.0", "proto": 1, "session": "8f2c1a4b" } }
 ```
 
+`bridge` is the bridge version reported on the System screen. `proto` is the negotiated major and is
+echoed in later `state` snapshots as `versions.protocol`.
+
 ### `config` (B→D)
 
 Device preferences and gesture timings. Sent after `ready` and whenever they change.
@@ -94,11 +97,18 @@ Full snapshot, not a delta. Idempotent: receiving the same `seq` twice is harmle
              "categories": { "read": 9, "edit": 4, "shell": 3, "search": 2, "mcp": 2, "other": 1 } },
   "mcp": { "online": 10, "total": 12 },
   "connection": { "usb": "connected", "bridge": "ready", "opencode": "connected" },
-  "notifications": 0 } }
+  "notifications": 0,
+  "versions": { "fw": "0.1.0", "bridge": "0.1.0", "protocol": 1 },
+  "diagnostic": { "code": "E_PARSE" } } }
 ```
 
 `status` enum: `offline`, `idle`, `thinking`, `generating`, `working`, `permission_required`,
 `user_input_required`, `success`, `error`, `compacting`, `retrying`, `interrupted`.
+
+`versions` and `diagnostic` are optional. When present they feed the System screen; when absent the
+device shows `--`. `versions.fw` is the firmware's own constant, `versions.bridge` is copied from the
+bridge's `ready`, and `versions.protocol` is the negotiated major. `diagnostic.code` is one of the
+`error` codes below and describes the last local fault; it never contains free text.
 
 Unavailable numeric values are `null`, never `0`. Unknown enum values must be rendered as `offline`
 with a diagnostic code, not guessed.
@@ -229,12 +239,13 @@ heartbeats every 2 s in both directions
 
 | Message | Typical | Maximum design |
 | --- | --- | --- |
-| `state` | ~420 B | ~700 B |
+| `state` | ~500 B | ~820 B |
 | `mcp_status` | ~260 B (12 aliases) | ~520 B |
 | `config` | ~180 B | ~240 B |
 | `heartbeat` | ~48 B | ~64 B |
 
-A snapshot plus `config` and `mcp_status` stays below 1.6 kB, leaving margin under the 2048 B cap.
+A typical snapshot plus `config` and `mcp_status` is about 1.3 kB; the maximum design total is about
+1.6 kB, leaving margin under the 2048 B cap.
 
 ## 11. Test vectors
 

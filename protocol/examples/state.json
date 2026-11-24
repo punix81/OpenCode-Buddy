@@ -39,6 +39,14 @@
       "usb": "connected",
       "bridge": "ready",
       "opencode": "connected"
+    },
+    "versions": {
+      "fw": "0.1.0",
+      "bridge": "0.1.0",
+      "protocol": 1
+    },
+    "diagnostic": {
+      "code": "E_PARSE"
     }
   }
 }

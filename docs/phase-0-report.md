@@ -1,9 +1,13 @@
 # Phase 0 report — Technical audit and initialization
 
-Date: 2026-11-24
+Date: 2026-11-24 (first pass, baseline commit `f7bc964`; second verification pass and report update
+the same day)
 Repository: `punix81/OpenCode-Buddy` (branch `main`)
 Status: **Phase 0 complete; awaiting architectural review and approval.**
-Nothing was flashed, installed, rebuilt or pushed. No existing configuration was modified.
+Nothing was flashed, installed, rebuilt or pushed. No existing OpenCode configuration was modified.
+
+Remote state at the end of this report: `origin/main` is still at `c6cb443` (initial commit); every
+documentation commit after it exists **only locally**. Zero issues exist remotely.
 
 ## 1. Executive summary
 
@@ -24,6 +28,12 @@ prerequisites rather than design problems: **no GitHub write credential** (issue
 and **no PlatformIO CLI** (firmware build blocked in Phase 1). Both have exact remedies and neither
 blocks documentation, design or review.
 
+A second verification pass on the same day re-checked every hardware and API claim against the
+installed 2.4.1 surface, then corrected four internal inconsistencies in the design documents that
+would have become implementation defects in Phase 1–3: the page indicator count, a missing
+`notifications` allowlist entry, an undefined source for the System screen's version and diagnostic
+rows, and the absence of an expiry rule for terminal states in the reducer. Details in §14.
+
 Recommendation: approve the architecture, the hardware map, the protocol direction and the security
 model; provide GitHub write access; approve installation of PlatformIO Core for Phase 1.
 
@@ -41,7 +51,9 @@ model; provide GitHub write access; approve installation of PlatformIO Core for 
 
 ## 3. Completed tasks
 
-1. Inspected the repository, its Git state, remote and history (single `Initial commit`).
+1. Inspected the repository, its Git state, remote and history. It began with a single `Initial commit`;
+   two baseline documentation commits followed, and a third records this verification pass. All three
+   are local because the remote is read-only without a credential (B-01).
 2. Located and read the reference project `../Codex-Quota-Mini` without modifying it; confirmed its
    working tree is clean.
 3. Extracted and cited the exact hardware configuration: display SPI pins, panel parameters, touch
@@ -67,6 +79,12 @@ model; provide GitHub write access; approve installation of PlatformIO Core for 
 14. Verified GitHub read access, confirmed zero existing issues, and documented the write-access
     blocker with the exact command that fails.
 15. Recorded all findings with VERIFIED / ASSUMPTION / NOT VERIFIED / BLOCKER classification.
+16. Second pass: independently re-read the reference `include/display.h`, `platformio.ini` and the
+    touch/serial code in `src/main.cpp` and confirmed every pin, polarity, buffer and library claim.
+17. Second pass: re-read the live OpenAPI component schemas for the eleven highest-value events and
+    recorded payload-level constraints, including the fact that `mcp.status.changed` carries no
+    status and that `permission.asked`/`tool.*` payloads contain the riskiest fields.
+18. Second pass: corrected four design-document inconsistencies and one reducer defect (see §14).
 
 ## 4. Files created or modified
 
@@ -98,6 +116,21 @@ scripts/create-issues.sh  scripts/verify-github-access.sh
 No implementation code was written. `firmware/`, `bridge/`, `plugin/` and `simulator/` contain only
 README files describing the planned structure; they do not pretend to work.
 
+Second pass, modified for correctness (not rewritten):
+
+- `docs/opencode-api-audit.md` — added §3.1 payload-level facts, §3.2 privacy consequence, the
+  re-verification note in §1, and limitation L10.
+- `docs/architecture.md` — added the terminal-state expiry rule and the non-expiring permission rule
+  in §4.
+- `docs/security.md` — added `notifications`, split `versions` into `fw`/`bridge`/`protocol`, and
+  documented where version and diagnostic values come from.
+- `docs/ui-design.md` — corrected the page-indicator count to six, removed the unmeasurable USB speed
+  class and the unsourced bridge uptime row, and documented the version sources for the System screen.
+- `protocol/protocol-v1.md` — added optional `versions` and `diagnostic` to the `state` snapshot,
+  documented version provenance, and corrected the size budget.
+- `protocol/schemas/protocol-v1.schema.json` and `protocol/examples/state.json` — same two optional
+  objects, kept in sync with the prose.
+
 ## 5. Commands executed (evidence)
 
 | Command | Result |
@@ -127,6 +160,30 @@ README files describing the planned structure; they do not pretend to work.
 | `bash -n scripts/*.sh` | syntax OK |
 | `scripts/create-issues.sh --dry-run` | lists all seven issues, no credential, makes no change |
 | `scripts/verify-github-access.sh` | read PASS, write BLOCKER, exit 1 (expected) |
+
+### Second pass (same day, independent re-check)
+
+| Command | Observed result |
+| --- | --- |
+| `git status --short --branch` | `## main...origin/main [ahead 2]` — two local commits, clean tree |
+| `git ls-remote origin` | `HEAD` and `refs/heads/main` both `c6cb443` — remote unchanged |
+| `git push --dry-run origin main` | `fatal: could not read Username for 'https://github.com': No such device or address` |
+| `which gh`, `[ -n "$GITHUB_TOKEN" ]` | `gh` not installed; token unset |
+| `curl api.github.com/.../issues?state=all` | `count: 0` |
+| `opencode --version` | `2.4.1` |
+| `opencode service status` | `http://127.0.0.1:49374` (loopback) |
+| `opencode api get /openapi.json` | 467 461 B; 146 paths; 542 schemas; 101 `V2Event` variants |
+| `npm view @opencode/plugin version` | `2.4.1` |
+| `npm view @opencode/client version` | `2.4.1` |
+| `opencode api get /api/mcp` | 12 servers: `connected` 10, `needs_auth` 1, `failed` 1 |
+| `opencode api get /api/session` | sessions expose `agent`, `model{providerID,id,variant}`, `tokens{input,output,reasoning,cache}`, `cost`, `time` |
+| `read include/display.h`, `platformio.ini`, grep of `src/main.cpp` | pins 2/4/1/5/0, MISO −1, 27 MHz, invert/rgb_order true, touch GPIO6 active HIGH, debounce 35 ms, RX buffer 1024, line buffer 512 |
+| `lsusb` | `303a:1001 Espressif USB JTAG/serial debug unit` |
+| `fuser -v /dev/ttyACM0` | held by `python3 -u bridge.py --port /dev/ttyACM0` (PID 8645) — the reference bridge |
+| `command -v pio` | not found |
+| `git -C ../Codex-Quota-Mini status --porcelain` | 0 lines — reference project still clean |
+| parse every `*.json` in the repo | all parse; schema and examples valid JSON |
+| regex secret scan of tracked docs/scripts | no credential-like assignment found |
 
 ## 6. Architectural decisions recorded
 
@@ -164,18 +221,43 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 - **V-09** The serial port is exclusively owned by a pre-existing process at audit time.
 - **V-10** GitHub read access works, the repository is public, and it has zero issues.
 - **V-11** PlatformIO CLI is absent from the machine.
+- **V-12** Every hardware claim in `docs/hardware-audit.md` §1 was re-derived on the second pass from
+  the reference source files, not from the earlier report: pins 2/4/1/5/0, MISO −1, 27 MHz, invert and
+  rgb_order true, touch GPIO6 active HIGH, debounce 35 ms, RX buffer 1024 B, line buffer 512 B.
+- **V-13** `@opencode/plugin` and `@opencode/client` both resolve to 2.4.1 from the configured
+  registry, matching the CLI exactly. The plugin path is therefore version-aligned at audit time.
+- **V-14** The plugin event API is documented, not just typed: `ctx.event.subscribe({types, signal})`
+  returns an async iterable, `server.connected` is deliberately not delivered to plugins, and unknown
+  type names are ignored with a warning. This removes the need to guess at the subscription contract.
+- **V-15** `mcp.status.changed` carries only `{server}`. MCP state must be re-read through
+  `ctx.mcp.list()`; a handler that expects a status in the event would show stale data. This is a
+  payload fact from the installed schema, not an assumption.
+- **V-16** `permission.asked` carries `resources`, `save`, `metadata`, `source` and `message`, and
+  `session.tool.called` carries `input` and `native`. These are the real leakage vectors; the event
+  names alone would have hidden them.
+- **V-17** `form.created` is a typed user-input concept carrying `Form.Info {title, fields}`, so the
+  "user input required" state has a real API basis rather than a hopeful mapping.
+- **V-18** A reference bridge process (`bridge.py`, PID 8645) actively holds `/dev/ttyACM0`, and the
+  board is still enumerated as Espressif `303a:1001`. The single-owner constraint is current, not
+  historical.
 
 ### ASSUMPTION
 
-- **A-01** `form.created` is the user-question flow that should raise `user_input_required` (Phase 3
-  must confirm with a real question).
+- **A-01** `form.created` is a typed user-input concept (V-17), but that a blocking agent question
+  raises it on CLI, TUI and Desktop is not proven; Phase 3 must observe a real question flow.
 - **A-02** `session.usage.updated` reports cumulative per-session usage, so the reducer must take the
-  maximum rather than sum deltas (Phase 3).
+  maximum rather than sum deltas (Phase 3). The identical `tokens` shape on `Session.Info` supports
+  this reading but does not prove it.
 - **A-03** Context percentage is computable from a model context limit and session tokens; if the
   denominator is unstable, the screen must show "unavailable".
 - **A-04** GPIO0 as display reset does not disturb boot strapping on this unit (reference works).
 - **A-05** The 27 MHz SPI clock supports 20–30 FPS with partial refresh; needs measurement.
 - **A-06** `serialport` is a suitable USB library on Windows and Linux in enterprise images.
+- **A-07** The terminal-state TTLs added in this pass (`success` 4 s, `interrupted` 10 s, `error` 30 s)
+  are UX choices, not OpenCode values. They are configurable and Phase 4 validates them with users.
+- **A-08** The revised protocol size budget (state ≤ ~820 B; typical snapshot set ~1.3 kB) is
+  arithmetic on the specified fields, not a measurement of a serialized encoder; Phase 2 measures the
+  real bytes.
 
 ### NOT VERIFIED
 
@@ -188,15 +270,17 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 
 ### BLOCKER
 
-- **B-01 — GitHub write credential missing.** `git push --dry-run` fails with
-  `fatal: could not read Username for 'https://github.com'`; `gh` is not installed;
-  `GITHUB_TOKEN` is not set. Consequence: the seven issues were not created and this work is not
-  pushed. Remedy: `gh auth login` or export a token with issue write permission, then run
-  `scripts/create-issues.sh`. The dry run lists exactly the seven issues it will create.
-- **B-02 — PlatformIO CLI missing.** `pio` is not on `PATH` although platform and toolchain caches
-  exist under `~/.platformio`. `arduino-cli` cannot substitute (no indexes, download host blocked).
-  Consequence: Phase 1 cannot build. Remedy: install PlatformIO Core with user approval and network
-  access.
+- **B-01 — GitHub write credential missing (re-confirmed).** `git push --dry-run origin main` fails
+  today with `fatal: could not read Username for 'https://github.com': No such device or address`;
+  `gh` is not installed; `GITHUB_TOKEN` is not set; no credential helper is configured. Consequence:
+  the seven issues were not created and the two documentation commits remain unpushed
+  (`origin/main` = `c6cb443`). Remedy: `gh auth login` or export a token with issue write permission,
+  then run `scripts/create-issues.sh` and `git push origin main`. The dry run lists exactly the seven
+  issues it will create.
+- **B-02 — PlatformIO CLI missing (re-confirmed).** `command -v pio` returns nothing although the
+  platform, framework and RISC-V toolchain caches exist under `~/.platformio`. `arduino-cli` 1.5.1
+  cannot substitute (no indexes, download host unreachable). Consequence: Phase 1 cannot build.
+  Remedy: install PlatformIO Core with user approval and network access.
 
 ## 8. Build and test results
 
@@ -207,6 +291,9 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
   issues without changing anything; the access verification script correctly reported the write
   blocker and exited non-zero.
 - JSON validation: every JSON file in the repository parses (schema, examples, example config).
+- Second-pass static checks: the tree is clean; the reference project reports zero porcelain lines;
+  every tracked `*.json` parses; a regex scan for credential-like assignments in docs, scripts and
+  examples found none. These are static checks only — no runtime, build or hardware test was added.
 
 ## 9. Security findings
 
@@ -219,6 +306,7 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 | S-05 | Repository contains no secrets; `.gitignore` blocks env, keys, logs, captures | Verified | Keep; audit before each release |
 | S-06 | Licence is the inherited MIT file from the initial commit | Governance | Final licensing decision requires explicit owner approval; unchanged in this phase |
 | S-07 | No telemetry, no cloud dependency, no network listener beyond planned loopback | Verified by design | Enforce in review; assert bind address in tests |
+| S-08 | CI uses `actions/checkout@v4`, a mutable tag rather than a commit SHA | Low (supply chain) | Phase 5 pins third-party actions to commit SHAs and records them; not changed here to avoid claiming a SHA that was not verified |
 
 ## 10. Known limitations
 
@@ -230,17 +318,26 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 - Quota and (conditionally) context percentage have no confirmed data source; the UI must show
   explicit unavailability.
 - The seven issues exist only as files under `.github/issues/`; the remote has none (B-01).
+- Plugin event delivery was not observed end to end (N-01). Everything about the event stream is
+  schema- and documentation-verified, which is weaker than a live capture.
+- The `state` size figures are arithmetic on the specified fields, not bytes measured from an encoder
+  (A-08). The 2048 B cap has therefore been checked on paper, not against a real serializer.
+- The design documents were corrected in four places during the second pass. Those corrections are
+  design decisions reviewed against the installed API, not runtime findings.
 
 ## 11. Remaining tasks to close Phase 0 administratively
 
-1. Provide GitHub write access, then run `scripts/create-issues.sh` and push the branch.
+1. Provide GitHub write access, then run `scripts/create-issues.sh` and push `main`.
 2. Approve or change the inherited MIT licence.
 3. Approve installation of PlatformIO Core for Phase 1.
 
 ## 12. Git and issue references
 
-- Commit: Phase 0 baseline `f7bc964` (`docs: add Phase 0 audit and project baseline`) on `main`,
-  **local only — not pushed** because no write credential is available (B-01).
+- Commit `c6cb443` — `Initial commit`; this is what `origin/main` points at.
+- Commit `f7bc964` — (`docs: add Phase 0 audit and project baseline`) on `main`, **local only**.
+- Commit `9e656a0` — (`docs: record Phase 0 baseline commit reference`), **local only**.
+- A further local commit records this verification pass (see the commit log; its hash is intentionally
+  not written here, because embedding the hash of a commit inside that same commit is not possible).
 - Issues: **none created**. Zero issues exist remotely; seven bodies are ready. No issue number is
   claimed because no remote write succeeded.
 
@@ -257,3 +354,28 @@ Approve Phase 0 and proceed to Phase 1 in this order:
 
 The design is deliberately conservative: one event source, one protocol, one reducer, no invented
 data. That is the shortest path to a reliable product rather than an impressive demo.
+
+## 14. Second-pass review — defects found and resolved
+
+This section exists because the first pass produced good documents with four internal contradictions
+and one reducer defect. They were found by cross-checking the documents against each other and against
+the installed schema, not by reading them again.
+
+| # | Defect | Why it mattered | Resolution |
+| --- | --- | --- | --- |
+| D-01 | `docs/ui-design.md` specified **five** page-indicator dashes for **six** screens | The last screen would have had no position marker, and Phase 1 would have implemented the wrong count | One dash per implemented screen; dashes rather than digits to stay language-neutral |
+| D-02 | `docs/security.md` allowlist omitted `notifications`, while the protocol, schema and example all carried it | A default-deny filter would have silently removed a field the Buddy screen needs; the bug would appear as "notification indicator never lights" | `notifications` added to the allowlist as a bounded `uint8` |
+| D-03 | Screen 6 required bridge version, protocol version and diagnostics, but no document defined a single source of truth for them; the UI also asked for bridge uptime and a USB speed class that no field provides | Phase 1 would either invent values or leave the screen half-empty | `versions {fw,bridge,protocol}` and `diagnostic.code` added as optional `state` members with stated provenance; uptime and speed class removed as unmeasurable |
+| D-04 | `docs/architecture.md` had no expiry rule for terminal states | A single `error` at 09:00 would outrank every later session until restart: the device would display a stale failure all day and stop being trustworthy | Terminal states are session-scoped notifications with TTLs (success 4 s, interrupted 10 s, error 30 s) or cleared by a new execution in the same session; permission prompts explicitly do **not** expire |
+| D-05 | `protocol/protocol-v1.md` did not state that `ready` is the source of the bridge version, nor that `hello` is the source of the firmware/protocol pair | Version display would have been implemented ad hoc in firmware | Provenance documented in `ready` and `state`; handshake negotiates, the snapshot reports |
+
+Two further findings changed the *implementation guidance* without changing a requirement:
+
+- `mcp.status.changed` carries no status (V-15). The adapter must re-read `ctx.mcp.list()`. This is
+  recorded as limitation L10 with a Phase 5 test.
+- The riskiest data is in payload fields (`tool.input`, `tool.content`, `permission.resources`,
+  structured error bodies), not in event names (V-16). The adapter must construct allowlisted objects
+  rather than delete keys from raw events; `docs/opencode-api-audit.md` §3.2 now says so explicitly.
+
+None of these corrections weakens a security control or changes a requirement. All are documentation
+and design fixes made before any code exists, which is the cheapest possible time to make them.

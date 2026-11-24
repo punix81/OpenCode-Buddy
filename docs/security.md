@@ -44,6 +44,7 @@ activeSessions      uint16
 elapsedSeconds      uint32
 pendingPermissions  uint8
 pendingQuestions    uint8
+notifications       uint8
 tokens.input        uint64 | null
 tokens.output       uint64 | null
 tokens.total        uint64 | null
@@ -58,12 +59,18 @@ mcp.servers[]       { alias <= 12 chars, status enum, }        (no URL, no comma
 connection.usb      enum: connected|disconnected
 connection.bridge   enum: ready|degraded
 connection.opencode enum: connected|offline
-versions            fw, bridge, protocol (semver-ish, <= 16 chars each)
+versions.fw         semver-ish, <= 16 chars
+versions.bridge     semver-ish, <= 16 chars
+versions.protocol   protocol major as a bounded integer
 diagnostic.code     enum of known codes
 language            enum: en|fr|de
 quietMode           bool
 gestures            bounded integers (ms)
 ```
+
+`versions` and `diagnostic.code` travel as optional members of the `state` snapshot; they are sourced
+from the handshake (`hello`/`ready`) and from the last sanitized local error class. They never carry a
+build path, a hostname or a free-form message.
 
 Everything else is dropped. The allowlist is implemented as an explicit projection, not as a
 blacklist filter: a new OpenCode field never appears on the wire without a code change and a review.

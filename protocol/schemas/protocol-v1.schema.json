@@ -186,6 +186,32 @@
                 "bridge": { "enum": ["ready", "degraded"] },
                 "opencode": { "enum": ["connected", "offline"] }
               }
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "fw": { "$ref": "#/$defs/shortString" },
+                "bridge": { "$ref": "#/$defs/shortString" },
+                "protocol": { "type": "integer", "minimum": 1, "maximum": 255 }
+              }
+            },
+            "diagnostic": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "enum": [
+                    "E_PARSE",
+                    "E_TOO_LONG",
+                    "E_UNKNOWN_TYPE",
+                    "E_VERSION",
+                    "E_BOUNDS",
+                    "E_SERIAL",
+                    "E_INTERNAL"
+                  ]
+                }
+              }
             }
           }
         }

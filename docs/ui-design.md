@@ -13,7 +13,8 @@ Target: GC9A01, 240 × 240 px, circular, dark theme, viewed at 40–60 cm.
 - Outer ring (radius 108–112) is reserved for status: connection, notifications, activity pulse.
 - Spacing scale: 4 / 8 / 12 / 16 px. Baselines: title 42, primary value 120, secondary 158,
   footer 186.
-- Page indicator: five small dashes at y = 206, centred, only when more than one screen applies.
+- Page indicator: one small dash per implemented screen (six at full scope), at y = 206, centred,
+  only when more than one screen applies. Dashes, never digits, so the indicator stays language-neutral.
 
 ## 2. Visual language
 
@@ -124,9 +125,14 @@ The footer is suppressed when a permission request is pending; the alert band re
 ### Screen 6 — System
 
 - Title `SYSTEM`.
-- Rows with paired label/value: `USB` (link speed class / connected), `BRIDGE` (version + uptime),
-  `OPENCODE` (connected/offline), `FW` (firmware version), `PROTO` (v1).
+- Rows with paired label/value: `USB` (connected / no data), `BRIDGE` (version), `OPENCODE`
+  (connected / offline), `FW` (firmware version), `PROTO` (negotiated protocol major).
 - Bottom: diagnostic code from the last sanitized error class, e.g. `E-SERIAL`, `E-PARSE`, `E-LINK`.
+- Version sources are explicit because they differ: `FW` is compiled into the firmware, `BRIDGE` and
+  `PROTO` arrive in `ready`, and `PROTO` is re-confirmed by the negotiated major. There is no bridge
+  uptime row: no protocol field carries it, and an invented metric is worse than an absent one.
+- `USB` reports only the binary link state the firmware can actually observe. Cable speed class is a
+  host-side USB property and is not exposed over CDC, so it is not drawn.
 - Long-press here does not change anything except quiet mode, as everywhere.
 
 ## 5. Gestures (TTP223)
