@@ -4,7 +4,7 @@ Current workflows:
 
 | File | Purpose | Verified |
 | --- | --- | --- |
-| `validate-json.yml` | Parse every protocol schema/example and `config.example.json` on change. | NOT VERIFIED — added in Phase 0, never executed on GitHub (no write access at the time). |
+| `validate-json.yml` | Parse every protocol schema/example and `config.example.json` on change. | NOT VERIFIED — added in Phase 0, never executed remotely. Remote CI is handled by the Product Owner. |
 
 Planned, added with the code they test:
 

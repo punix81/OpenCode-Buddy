@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Product Owner only: agents must not execute this script (AGENTS.md §8).
 # Create the seven phase issues in the OpenCode Buddy repository.
 #
 # Idempotent: issues are matched by exact title and skipped when they already exist.

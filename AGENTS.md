@@ -107,6 +107,23 @@ Never claim a build, a flash or a hardware test succeeded without evidence produ
   `docs/phase-1-report.md`), not system-wide. The PlatformIO registry may be unreachable behind the
   corporate proxy: use the system trust store (`--system-certs` for `uv`, `REQUESTS_CA_BUNDLE`) and
   the git-ignored `firmware/platformio.local.ini` fallback. Never disable TLS verification.
-- The GitHub remote is public for reading, but write credentials are not configured: verify
-  authentication before claiming a push or an issue was created.
+- The GitHub remote is owned by the Product Owner. Agents never push, pull, fetch, create issues or
+  use GitHub CLI/MCP/API; see §8.
 - Do not print environment variables, credentials or full configuration files into logs or reports.
+
+## 8. GitHub ownership (Product Owner)
+
+The Product Owner manages every remote GitHub operation personally and manually. This is a permanent
+project rule, not a temporary workaround.
+
+- Work exclusively in the local repository. Local commits are allowed and expected.
+- Never run `git push`, `git pull`, `git fetch` or `git ls-remote`.
+- Never use GitHub CLI, the GitHub MCP server or the GitHub API.
+- Never create, edit or close issues, pull requests or releases remotely.
+- Never configure credentials, tokens, SSH keys or credential helpers.
+- Do not attempt to resolve the former blocker **B-01**. It is reclassified as a Product Owner
+  responsibility and is **not** a development blocker. Do not mention it as a blocker in new reports;
+  record it only as "remote publication handled by the Product Owner".
+- The issue bodies under `.github/issues/` and the scripts under `scripts/` remain available **for the
+  Product Owner**. Agents must not execute the GitHub scripts.
+- Never force-push or rewrite published history, even if remote access were available.

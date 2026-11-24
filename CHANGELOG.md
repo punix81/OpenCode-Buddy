@@ -6,6 +6,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Added — Phase 1 validation, rollback and Phase 2 plan
+
+- Hardware validation evidence: build, heap, render timing, FPS, 15-minute soak, five software
+  restarts, gesture telemetry and human observation.
+- Full 4 MB backup and verified restore of the reference firmware, with a rollback record.
+- `docs/phase-2-plan.md`: protocol ratification, firmware parser, TypeScript bridge, simulator and
+  test plan, awaiting Product Owner approval.
+- `docs/handover-phase1.md` for resuming without the session context.
+
+### Changed — GitHub ownership
+
+- Remote GitHub operations (push, pull, fetch, issues, pull requests, releases, credentials) are now
+  reserved for the Product Owner. Agents work locally only (`AGENTS.md` §8).
+- The former blocker B-01 is reclassified as a Product Owner responsibility and removed from the
+  development blockers.
+
 ### Added — Phase 1 (firmware core and animated Buddy)
 
 - `firmware/`: PlatformIO project pinned to `espressif32@6.5.0` and LovyanGFX 1.2.21, with the

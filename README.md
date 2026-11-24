@@ -7,10 +7,12 @@ waiting for a permission, failing, compacting its context, or finishing successf
 animated virtual companion with a compact developer dashboard on a 1.28" round display, driven by an
 ESP32-C3 over USB.
 
-> **Project status: Phase 0 approved. Phase 1 firmware implemented and compiling; hardware
-> verification pending approval to flash. No bridge or plugin is implemented yet.**
-> See [docs/phase-0-report.md](docs/phase-0-report.md) and
-> [docs/phase-1-report.md](docs/phase-1-report.md).
+> **Project status: Phase 0 approved. Phase 1 complete — PASS WITH RESERVATIONS: firmware validated
+> on the panel, device restored to the reference firmware. Phase 2 is planned and awaits approval;
+> no bridge or plugin is implemented yet.**
+> See [docs/phase-0-report.md](docs/phase-0-report.md),
+> [docs/phase-1-report.md](docs/phase-1-report.md) and
+> [docs/phase-2-plan.md](docs/phase-2-plan.md).
 
 ## Why
 

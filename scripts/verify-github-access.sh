@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Product Owner only: agents must not execute this script (AGENTS.md §8).
 # Verify GitHub access for the OpenCode Buddy repository without changing anything.
 #
 # Checks:

@@ -40,8 +40,9 @@ Deliverables: `firmware/`, build log, frame-time measurement, memory report, ges
 Exit criteria: builds cleanly with pinned dependencies; display and touch verified on the real unit
 with approval; 20 FPS floor measured; no flicker; all states distinguishable without colour.
 
-**Status: implemented; build verified (17.59 s clean, 349 154 B flash, 16 316 B static RAM).
-Hardware verification is pending explicit approval to flash.**
+**Status: complete — PASS WITH RESERVATIONS.** Build verified, hardware validated, device restored
+to the reference firmware. See `docs/phase-1-report.md`; reservations are cold-boot sample (2/5),
+human-only visual evidence, and idle/offline FPS intentionally below 20.
 
 ## Phase 2 — USB protocol, bridge and simulator
 
@@ -52,7 +53,9 @@ firmware serial + parser with hostile-input handling; TypeScript bridge with the
 `docs/architecture.md`; mock adapter; simulator; diagnostic mode; handshake/heartbeat/reconnect tests.
 
 Exit criteria: handshake, snapshot on reconnect, sequence-gap resync, oversized/malformed rejection,
-8 h link soak with simulated resets, zero unbounded growth.
+1-hour link soak with simulated resets, zero unbounded growth.
+
+**Status: planned, awaiting Product Owner approval. See `docs/phase-2-plan.md`.**
 
 ## Phase 3 — OpenCode v2 integration
 
@@ -103,3 +106,6 @@ no blocker reported; rollback verified.
 - No phase may relax a constraint in `docs/requirements.md` §4 without an explicit decision record.
 - A blocker in one workstream does not stop independent work; it is documented and reported.
 - Hardware claims require measurements taken in the same phase, on the real unit.
+- Remote GitHub operations belong to the Product Owner. Agents work exclusively in the local
+  repository; no push, pull, fetch, GitHub CLI/MCP/API, issues, pull requests or credentials
+  (`AGENTS.md` §8).

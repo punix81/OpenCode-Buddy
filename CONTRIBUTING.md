@@ -3,19 +3,21 @@
 ## Before you start
 
 1. Read [AGENTS.md](AGENTS.md). It contains hard constraints (no unapproved flashing, no secrets, no
-   reference-project edits) and the verified hardware table.
+   reference-project edits), the verified hardware table and the GitHub ownership rule.
 2. Read the current phase gate in [docs/roadmap.md](docs/roadmap.md).
-3. Check the open issues. Phase work is tracked as one issue per phase.
+3. Phase work is tracked by the Product Owner. Agents do not open, edit or query remote issues.
 
 ## Workflow
 
-1. Create a branch: `feat/<phase>-<short-topic>` or `fix/<topic>`.
+1. Work on the local repository. Local branches are allowed: `feat/<phase>-<short-topic>` or
+   `fix/<topic>`.
 2. Make one logical change. Keep firmware, bridge, plugin and protocol changes in separate commits
    when they do not depend on each other.
 3. Update the documents the change affects in the same commit.
 4. Run the checks listed below.
-5. Open a pull request describing: intent, verified evidence (commands + result), privacy impact,
-   and what is *not* covered.
+5. Report the change to the Product Owner with: intent, verified evidence (commands + result),
+   privacy impact, and what is *not* covered. **Do not push and do not open a pull request.** The
+   Product Owner handles remote publication.
 
 ## Checks
 

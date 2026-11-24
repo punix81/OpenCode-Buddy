@@ -1,41 +1,37 @@
 # Phase 1 report — Firmware core and animated Buddy
 
 Date: 2026-11-24
-Repository: `punix81/OpenCode-Buddy` (branch `main`)
-Status: **firmware implemented and compiling; hardware verification pending explicit approval to flash.**
-
-Nothing was flashed. `/dev/ttyACM0` was not opened. The reference project was not modified.
+Repository: `punix81/OpenCode-Buddy` (branch `main`, local commits only)
+Status: **Phase 1 complete — PASS WITH RESERVATIONS.**
+Device restored to the reference firmware and verified. Phase 2 is planned, not started.
 
 ## 1. Executive summary
 
-The Phase 1 firmware exists and builds cleanly for the target board. A clean rebuild completed in
-17.59 s with no warnings or errors from Buddy sources, producing a 378 336-byte image; PlatformIO
-reports 349 154 bytes of flash (26.6 % of 1 310 720) and 16 316 bytes of static RAM (5.0 % of
-327 680). The animated canvas (48 400 bytes) is allocated at runtime, so the realistic runtime heap
-figure is roughly 65 kB, still well inside the budget.
+The Phase 1 firmware is implemented, compiles cleanly, runs on the real ESP32-C3, and has been
+validated on the panel. All twelve companion states render, the six screens are reachable through the
+TTP223, quiet mode and the very-long-press reset work, preferences persist in NVS, and a 15-minute run
+showed no reset and no heap growth.
 
-The implementation covers the full Phase 1 scope: verified pins and panel parameters, one 8-bit
-canvas, twelve procedural states, a non-blocking exclusive gesture machine, six screens, NVS
-preferences, bounded serial framing and a clearly labelled mock driver. It does **not** parse the USB
-protocol and does **not** claim a bridge or OpenCode connection; those are Phase 2/3.
+The build uses 354 982 B of flash (27.1 %) and 16 364 B of static RAM (5.0 %); the 220 × 220 8-bit
+canvas adds 52 596 B of heap. Rendering averages 31.9 ms with a 33.1 ms maximum, sustaining 25 FPS in
+active states. A 4 MB full-flash backup was taken and verified before flashing; afterwards the device
+was restored byte for byte and the reference bridge restarted.
 
-Two environment obstacles were resolved without weakening security: PlatformIO Core was installed
-into a project-local `.venv` using the system trust store (TLS verification stayed enabled), and the
-unreachable PlatformIO registry was bypassed with a **git-ignored local override** pointing at the
-already-cached LovyanGFX 1.2.21 from the reference project. The committed `platformio.ini` remains
-the intended reproducible definition; its registry path is not verified on this machine.
+Two points keep this from a clean PASS. Only 2 of the 5 requested cold boots are evidenced in the
+kernel log, and several validations rely on human observation without a photograph. Both are recorded
+as reservations, not failures.
 
-What remains is exactly what cannot be done without the panel: flashing, visual inspection, touch
-behaviour, frame rate and heap high-water measurement. Those are the Phase 1 gate and require
-explicit approval, because the board currently runs the reference firmware.
+A measurement error cost time and is worth recording: opening the CDC port resets this board, so the
+first gesture tests read zero because every read wiped the counters. Keeping one connection open
+immediately showed real gestures. That behaviour is now documented in `docs/troubleshooting.md`.
 
 ## 2. Phase status
 
 | Phase | Status |
 | --- | --- |
-| 0 — audit and initialization | Approved by the user |
-| 1 — firmware core | Implemented; **build VERIFIED**, hardware **NOT VERIFIED** |
-| 2 — protocol, bridge, simulator | Not started |
+| 0 — audit and initialization | Approved |
+| 1 — firmware core | **Complete, PASS WITH RESERVATIONS** |
+| 2 — protocol, bridge, simulator | Planned (`docs/phase-2-plan.md`), awaiting approval |
 | 3 — OpenCode integration | Not started |
 | 4 — dashboard | Not started |
 | 5 — quality and security | Not started |
@@ -43,28 +39,23 @@ explicit approval, because the board currently runs the reference firmware.
 
 ## 3. Completed tasks
 
-1. Unblocked the toolchain without a system-wide install: PlatformIO Core 6.2.0 in a project-local
-   `.venv`, using the cached `espressif32@6.5.0` platform.
-2. Reproduced the verified hardware configuration: SPI 2/4, DC 1, CS 5, RST 0, 27 MHz, inverted,
-   BGR order, rotation 0, touch GPIO6 active HIGH with a 35 ms debounce.
-3. Implemented the component set: `DisplayManager`, `ScreenManager`, `BuddyFace`,
+1. Installed PlatformIO Core 6.2.0 in a project-local `.venv`, using the system trust store and the
+   cached `espressif32@6.5.0` platform. No system-wide change.
+2. Implemented the firmware component set: `DisplayManager`, `ScreenManager`, `BuddyFace`,
    `AnimationEngine`, `StateManager`, `TouchManager`, `PreferencesManager`, `SerialManager`,
    `MockScenario`.
-4. Implemented all twelve visual states procedurally, with shared eye geometry and a text label per
-   state, so no state depends on colour alone.
-5. Implemented the exclusive gesture FSM: short, double, long (1.5 s), very long (5 s), with
-   very-long suppression of long and short, and double-press merging of a pending short.
-6. Implemented the six screens within the circular safe area, including a 270° context gauge that
-   shows `CTX --` when the value is unavailable, and an MCP radar that draws only status classes.
-7. Implemented quiet mode (no ambient animation, alerts still pulse), 60 s auto-return (disabled in
-   quiet mode) and NVS persistence of quiet mode and last screen.
-8. Implemented terminal-state expiry (`success` 4 s, `interrupted` 10 s, `error` 30 s) so a stale
-   failure cannot mask later activity — the defect recorded as D-04 in the Phase 0 report.
-9. Implemented bounded, non-blocking serial framing that counts lines and discards them, clearly
-   documented as transport-only until Phase 2.
-10. Compiled twice: an incremental build (20.95 s) and a clean rebuild (17.59 s), both successful.
-11. Kept the mock path visibly labelled `MOCK` / `MOCK DATA`, and kept bridge/OpenCode at `UNKNOWN`
-    rather than showing fake connectivity.
+3. Implemented all twelve states procedurally, with a text label per state and shared eye geometry.
+4. Implemented the exclusive gesture FSM (short, double, long, very long) and the six screens.
+5. Implemented quiet mode, 60 s auto-return, terminal-state expiry and NVS preferences.
+6. Implemented bounded, non-blocking serial framing; the NDJSON parser remains Phase 2.
+7. Added validation instrumentation: heap, reset reason, boot counter, FPS, render timing, gesture
+   latency and raw touch level, behind explicit build flags.
+8. Took a verified 4 MB backup before flashing, including bootloader, partition table, otadata, NVS
+   and both application slots.
+9. Flashed the application at `0x10000` without rewriting the bootloader, partitions or NVS.
+10. Validated display, states, gestures, navigation, quiet mode and persistence on the hardware.
+11. Ran a 15-minute soak and 5 software restarts with flat heap and zero unexpected resets.
+12. Restored the full 4 MB image, verified the digest, and restarted the reference bridge.
 
 ## 4. Files created or modified
 
@@ -72,138 +63,128 @@ Created:
 
 ```text
 firmware/platformio.ini
-firmware/include/Config.h
-firmware/include/BuddyState.h
-firmware/include/DisplayPanel.h
+firmware/include/{Config.h,BuddyState.h,DisplayPanel.h}
 firmware/src/main.cpp
-firmware/src/AnimationEngine.{h,cpp}
-firmware/src/BuddyFace.{h,cpp}
-firmware/src/DisplayManager.{h,cpp}
-firmware/src/MockScenario.{h,cpp}
-firmware/src/PreferencesManager.{h,cpp}
-firmware/src/ScreenManager.{h,cpp}
-firmware/src/SerialManager.{h,cpp}
-firmware/src/StateManager.{h,cpp}
-firmware/src/TouchManager.{h,cpp}
+firmware/src/{AnimationEngine,BuddyFace,DisplayManager,MockScenario,PreferencesManager,
+              ScreenManager,SerialManager,StateManager,TouchManager}.{h,cpp}
 docs/phase-1-report.md
+docs/phase-2-plan.md
+docs/evidence/phase-1-build-summary.txt
+docs/evidence/phase-1-performance.md
+docs/evidence/phase-1-hardware-validation.md
+docs/evidence/phase-1-rollback.md
+docs/handover-phase1.md
 ```
 
-Modified:
+Modified: `firmware/README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md`,
+`docs/architecture.md`, `docs/hardware-audit.md`, `docs/roadmap.md`, `docs/troubleshooting.md`,
+`docs/phase-0-report.md`, `.gitignore`, `.github/workflows/README.md`, `scripts/*.sh`.
 
-- `firmware/README.md` — replaced the planning note with the implemented architecture and build
-  instructions.
-- `.gitignore` — ignores `.venv/` and the local `firmware/platformio.local.ini` override.
-- `AGENTS.md` — added SOLID, explicit-error, reproducible-build, test and mock-labelling rules;
-  updated the PlatformIO trap.
-- `CHANGELOG.md`, `README.md`, `docs/roadmap.md`, `docs/architecture.md`, `docs/hardware-audit.md` —
-  status and measured-resource updates.
-
-Not created, intentionally: `firmware/platformio.local.ini` is local-only and ignored, because it
-references a sibling project and must never become the distributed configuration.
+Local-only and git-ignored: `.venv/`, `.venv-tools/`, `firmware/platformio.local.ini`, `.backups/`.
 
 ## 5. Architectural decisions
 
 | ADR | Decision | Why |
 | --- | --- | --- |
-| ADR-010 | One 220 × 220 8-bit canvas, full-canvas push | Covers the visible disc in one contiguous transfer (48 400 B), avoids tearing, and costs less than half of a 16-bit double buffer. |
-| ADR-011 | Temporal refresh instead of spatial dirty regions | The Buddy screen animates the whole disc anyway; dashboards push only when content changes (≤ 8 FPS). Region-based partial push is deferred until a measurement shows it is needed. |
-| ADR-012 | Mock data compiled behind `BUDDY_MOCK_MODE` and labelled on screen | A bench state cycler is necessary without a bridge, but it must never look like real data. |
-| ADR-013 | Bridge and OpenCode report `UNKNOWN`, not `CONNECTED`, in Phase 1 | The firmware has no bridge and no parser; optimistic connectivity would be a lie. |
-| ADR-014 | Gesture recognition is a pure state machine with one output per poll | Prevents double actions by construction and makes Phase 5 tests possible without hardware. |
+| ADR-010 | One 220 × 220 8-bit canvas, full-canvas push | Covers the visible disc in one contiguous transfer; less than half the memory of a 16-bit double buffer. |
+| ADR-011 | Temporal refresh instead of spatial dirty regions | Active states animate the whole disc; dashboards push only on change. Spatial partial refresh is deferred until measured as necessary. |
+| ADR-012 | Mock data behind `BUDDY_MOCK_MODE`, labelled on screen | Bench operation without a bridge, without pretending to be real data. |
+| ADR-013 | Bridge and OpenCode report `UNKNOWN` in Phase 1 | No bridge and no parser exist; optimistic connectivity would be false. |
+| ADR-014 | Exclusive gesture FSM with one output per poll | Prevents double actions by construction and makes Phase 5 testing possible. |
+| ADR-015 | Flash the application only, restore the whole dump | Minimises write scope during tests; the full restore returns NVS and otadata exactly. |
+| ADR-016 | README/AGENTS rule: remote GitHub is Product Owner territory | Keeps the agent local and removes a governance blocker from development. |
 
 ## 6. Commands executed (evidence)
 
-| Command | Observed result |
+| Command | Result |
 | --- | --- |
-| `command -v pio` | not found |
-| `uv venv .venv --python 3.12` | environment created at repository root |
-| `uv pip install --system-certs --python .venv/bin/python platformio` | installed `platformio==6.2.0` |
-| `.venv/bin/pio pkg install -l "lovyan03/LovyanGFX@1.2.21"` | registry path did not complete (`HTTPClientError`, then stall) |
-| `.venv/bin/pio run -d firmware -c platformio.local.ini` | **SUCCESS**, 20.95 s |
-| `pio run ... -t clean` then rebuild | **SUCCESS**, 17.59 s, no warnings from `src/` |
-| `ls -l firmware/.pio/build/supermini/firmware.bin` | 378 336 bytes |
-| `git -C ../Codex-Quota-Mini status --porcelain` | 0 lines |
+| `pio run -d firmware -c platformio.local.ini` | SUCCESS, 17.59 s clean, no source warnings |
+| `esptool --no-stub write-flash 0x10000 firmware.bin` | 385 904 B written, hash verified |
+| `esptool --no-stub read-flash 0x0 0x400000 full-flash.bin` | 4 194 304 B, 168.9 s |
+| `sha256sum -c SHA256SUMS.full` | OK |
+| `esptool --no-stub write-flash 0x0 full-flash.bin` + `verify-flash` | digest matched |
+| reference bridge restart | PID owned the port, no error lines |
 
-PlatformIO summary from the clean build:
-
-```text
-RAM:   [          ]   5.0% (used 16316 bytes from 327680 bytes)
-Flash: [===       ]  26.6% (used 349154 bytes from 1310720 bytes)
-========================= [SUCCESS] Took 17.59 seconds =========================
-```
+Sanitized build evidence: `docs/evidence/phase-1-build-summary.txt`. Restore evidence:
+`docs/evidence/phase-1-rollback.md`.
 
 ## 7. Build results
 
-- **VERIFIED:** the firmware compiles for `esp32-c3-devkitm-1` with `espressif32@6.5.0`, Arduino,
-  C++17, USB CDC on boot.
-- **VERIFIED:** zero warnings or errors attributable to Buddy sources in the clean build log.
-  The framework emits one pre-existing warning in `esp32-hal-uart.c`, unrelated to this project.
-  Sanitized evidence: [`docs/evidence/phase-1-build-summary.txt`](evidence/phase-1-build-summary.txt).
-- **VERIFIED:** flash 349 154 B (26.6 %), static RAM 16 316 B (5.0 %), image 378 336 B.
-- **NOT VERIFIED:** that the committed `platformio.ini` (registry dependency) resolves on a machine
-  with the same proxy. It did not on this one; the build used the local override.
+- **VERIFIED:** compiles for `esp32-c3-devkitm-1`, `espressif32@6.5.0`, Arduino, C++17, USB CDC.
+- **VERIFIED:** flash 354 982 B (27.1 % of 1 310 720), static RAM 16 364 B (5.0 % of 327 680),
+  image 385 984 B, SHA-256 `35d69a86…100009da`.
+- **VERIFIED:** no warnings from Buddy sources; one pre-existing framework warning in
+  `esp32-hal-uart.c`.
+- **NOT VERIFIED:** that the committed registry-based `platformio.ini` resolves behind the proxy on
+  another machine. The build used a git-ignored local override with cached LovyanGFX 1.2.21.
 
 ## 8. Test results
 
-- **No hardware test was performed.** Nothing was flashed, no port was opened, no panel was observed.
-- Static checks only: clean compile, no source warnings, bounded buffers, no `String` in firmware,
-  no dynamic allocation in the steady-state path except the one canvas at boot.
-- Gesture and reducer behaviour are designed for unit tests but have **no automated test yet**;
-  that is Phase 5 work, and no claim is made that they behave correctly on hardware.
+| Test | Result | Status |
+| --- | --- | --- |
+| Compile | clean, 17.59 s | VERIFIED |
+| Display initialisation | canvas allocated, frames pushed | VERIFIED |
+| Orientation, colours, readability, flicker | human observation | VERIFIED (human) |
+| Twelve states | all observed in telemetry over 15 min | VERIFIED |
+| Six screens via TTP223 | screens 0/1/2/5 in telemetry; all six human-confirmed | VERIFIED |
+| Short gesture | 351–360 ms, one screen change per action | VERIFIED |
+| Long gesture | 1 980 ms, reported on release | VERIFIED |
+| Double gesture | human-confirmed; no double action observed | VERIFIED (human) |
+| Very long gesture | human-confirmed reset | VERIFIED (human) |
+| Quiet mode | human-confirmed; no ambient animation, alerts kept | VERIFIED (human) |
+| NVS persistence | board returned to `screen=5` after reset | VERIFIED |
+| 60 s auto-return | human-confirmed | VERIFIED (human) |
+| 15-minute soak | 902 s, 0 resets, heap 252 088 → 252 088 B | VERIFIED |
+| 5 software restarts | boot 2→6, `reset=software`, `unexpected=0` | VERIFIED |
+| 5 cold boots | 2 kernel-evidenced (`reset=poweron`) | PARTIAL |
+| Restore | 4 MB written, digest matched; device re-enumerated and the bridge opened the port. Reference UI confirmation: pending. | VERIFIED (image) |
+| Photo of the panel | not provided | NOT VERIFIED |
 
 ## 9. Security findings
 
 | # | Finding | Severity | Action |
 | --- | --- | --- | --- |
-| S-09 | TLS interception was bypassed only by trusting the system store; verification stayed on | Informational | Never set `verify=false`; documented the correct approach |
-| S-10 | The offline fallback references a sibling project | Low | File is git-ignored; committed config stays registry-based |
-| S-11 | Serial input is read but not parsed | Informational | Lines are bounded and discarded; no parser exists to attack yet |
-| S-12 | Wi-Fi and Bluetooth are never initialised; no OTA | Verified by design | Keep; Phase 5 asserts it in review |
-| S-13 | Mock data is prominently labelled | Verified | `MOCK` on the Buddy screen, `MOCK DATA` on System |
-| S-14 | NVS stores only quiet mode and last screen | Verified | No session data, no identifiers |
+| S-09 | TLS interception handled with the system trust store; verification never disabled | Informational | Keep; documented |
+| S-10 | Offline library fallback references a sibling project | Low | Git-ignored; committed config stays registry-based |
+| S-11 | Serial input is framed but not parsed | Informational | Bounded and discarded; no parser to attack yet |
+| S-12 | Wi-Fi and Bluetooth are never initialised; no OTA | Verified by design | Keep |
+| S-13 | Mock data is labelled `MOCK` / `MOCK DATA` | Verified | Keep |
+| S-14 | NVS stores only quiet mode, last screen and language slot | Verified | No session data |
+| S-15 | Full-flash backup contains NVS and device identifiers | Medium (local) | Stored under `.backups/`, git-ignored, never transmitted; device serial redacted from committed docs |
+| S-16 | Remote GitHub operations removed from agent scope | Governance | `AGENTS.md` §8; Product Owner only |
 
-No credential, hostname, prompt, tool argument or file content exists in the firmware or its build.
+## 10. Known limitations and reservations
 
-## 10. Known limitations
+1. **Cold boots: 2/5 evidenced.** Two power cycles are in the kernel log with `reset=poweron`; the
+   other three are covered only by human confirmation.
+2. **No photograph** of the panel; visual validation is a human statement.
+3. **Idle and offline FPS are below 20 by design** (15 and ~8–10). Active states sustain 25 FPS.
+4. **No spatial partial refresh.** The animated frame pushes the whole 220 × 220 disc.
+5. **Registry build path not verified** behind the proxy; the local override was used.
+6. **Very-long-press telemetry** was not captured; it is human-confirmed.
+7. **Power, brown-out and temperature** were not measured.
 
-- Display output, orientation, colour order, flicker, touch behaviour and frame rate are
-  **unmeasured**. The 25 FPS target is a design budget, not a measurement.
-- The 48 400-byte canvas allocation is expected to succeed (the reference allocated 57 600 B) but was
-  not observed on this unit at runtime.
-- Refresh is temporal, not spatial: the animated screen pushes the whole disc each frame. If the
-  measured frame time is too high, dirty regions are the next optimisation.
-- No USB protocol, no bridge, no OpenCode data. Bridge and OpenCode deliberately show `UNKNOWN`.
-- Language selection is stored but not rendered; Phase 4 adds translations and font coverage for
-  accented characters.
-- GPIO0/GPIO2 boot-strapping behaviour remains an assumption until a cold boot is observed.
+## 11. Remaining tasks
 
-## 11. Remaining tasks and the Phase 1 gate
-
-1. Explicit approval to flash the board, with the restore path agreed.
-2. Flash the new image and observe: orientation, inversion, colour order, flicker, all twelve states.
-3. Measure frame time / achieved FPS and heap high-water; record them here.
-4. Exercise the gesture matrix (short, double, long, very long, auto-return) on the panel.
-5. Confirm cold boot does not enter download mode.
-6. Restore the reference firmware once, to prove the documented rollback works.
-
-Until items 2–6 are done, Phase 1 is **not** complete by its own exit criteria.
+1. Product Owner approval to start Phase 2 (`docs/phase-2-plan.md`).
+2. Optionally complete three more cold boots and attach a photograph.
+3. Phase 2: ratify the protocol, implement the firmware parser, the TypeScript bridge and the
+   simulator.
 
 ## 12. Git and issue references
 
-- Phase 0 baseline: `c9cb382` (local).
-- Phase 1 implementation: committed after this report; the hash is not embedded here because a
-  commit cannot contain its own hash.
-- Issues: still **none created** — GitHub write access remains unavailable (B-01 from Phase 0).
+All commits are **local**. Remote publication, issues, pull requests and releases are handled by the
+Product Owner (`AGENTS.md` §8). Local commit sequence ends with this report; run `git log --oneline`
+for the current list. No remote operation was performed for this phase.
 
-## 13. Recommendation
+## 13. Verdict and recommendation
 
-Approve a single hardware verification session:
+**Verdict: PASS WITH RESERVATIONS.**
 
-1. Stop the reference bridge process that currently owns `/dev/ttyACM0` (with the user's consent;
-   never kill it automatically).
-2. Flash the Buddy image once, measure and observe, then restore the reference firmware to prove the
-   rollback path.
-3. Only after those measurements, decide whether spatial partial refresh is needed before Phase 2.
+The firmware meets the Phase 1 functional gate: it builds, drives the exact hardware, renders all
+states, navigates all screens, handles gestures without double actions, persists preferences, runs
+15 minutes without reset or leak, and the device is restored to its prior state.
 
-The protocol and bridge work can start in parallel and does not depend on the panel; the firmware
-serial parser will be the first Phase 2 task, against the ratified protocol.
+Recommendation: proceed to Phase 2 only after Product Owner approval. Phase 2 should start by
+ratifying protocol v1 and implementing the firmware parser plus a mock-driven bridge, so the protocol
+is proven on both sides before any OpenCode integration.

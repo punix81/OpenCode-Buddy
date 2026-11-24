@@ -7,10 +7,11 @@ Audience: a developer or agent resuming the work without this session's context.
 ## Status in one paragraph
 
 Phase 0 is approved. Phase 1 firmware is implemented, compiles cleanly, runs on the real board, and
-its display, twelve states, gestures, quiet mode and NVS persistence are validated with a combination
-of firmware telemetry and human observation. The full 4 MB device backup was taken and verified
-before flashing. At the time of writing, the device still runs Buddy and the reference firmware has
-not yet been restored; the restore script and image are ready.
+its display, twelve states, gestures, quiet mode and NVS persistence are validated with firmware
+telemetry plus human observation. The full 4 MB device backup was taken and verified before flashing,
+and the device has been restored to the reference firmware and verified byte for byte. Phase 1 is
+closed as **PASS WITH RESERVATIONS**. Phase 2 is planned in `docs/phase-2-plan.md` and has **not**
+started; it waits for Product Owner approval.
 
 ## Verified facts
 
@@ -27,30 +28,31 @@ not yet been restored; the restore script and image are ready.
 | Gestures | short ≈350 ms, long 1980 ms, screens 0/1/2/5 reached, edge count 0→30 |
 | Display | human-validated: orientation, colours, readability, no flicker, `MOCK` visible |
 | Navigation | human-validated: six screens, double press, quiet, very-long reset, 60 s return |
+| Restore | 4 MB written and verified, digest matched; device re-enumerated and the bridge opened the port. Reference UI confirmation pending. |
 
-Detailed evidence: `docs/evidence/phase-1-performance.md` and
-`docs/evidence/phase-1-hardware-validation.md`.
+Detailed evidence: `docs/evidence/phase-1-performance.md`,
+`docs/evidence/phase-1-hardware-validation.md`, `docs/evidence/phase-1-rollback.md`.
 
-## Device state and rollback
+## Device state
 
-- Buddy application is flashed at `0x10000`; bootloader, partition table, otadata and NVS were not
-  rewritten.
-- Full backup: 4 194 304 bytes, SHA-256 `9a83841f558517bd9eb4e6c67a0daa483b36fe3ed0e31de3b1e9e0735bd07479`.
-- The bootloader, partition table and application regions of the dump match the reference build
-  artefacts byte for byte, and the lower 2 MB match an independent 64 KB block read.
-- Restore: `.backups/phase1-2026-11-24/restore.sh` (git-ignored) writes the whole dump at `0x0` and
-  verifies it.
-- The reference bridge was stopped: a manual `bridge.py` instance and the user service
-  `codex-quota-bridge.service`. Both start commands are documented in the session report.
+- Restored to the reference Codex Quota Mini firmware from the verified 4 MB dump.
+- Reference bridge restarted with its original manual command; it owns `/dev/ttyACM0`.
+- The systemd unit `codex-quota-bridge.service` remains stopped and enabled, as it was before the
+  session.
+- Full backup hash: `9a83841f558517bd9eb4e6c67a0daa483b36fe3ed0e31de3b1e9e0735bd07479`.
 
 ## Pending work
 
-1. Run the restore, verify the reference image, restart the bridge, confirm the reference screen.
-2. Cold boots: 2 power cycles are kernel-evidenced; 5 were requested.
-3. Write the final Phase 1 verdict (expected: PASS WITH RESERVATIONS).
-4. GitHub: commits are local only. No credential is configured. The SSH key is not registered on the
-   account; the GitHub MCP OAuth path cannot reach GitHub. The seven issue bodies are ready under
-   `.github/issues/` and `scripts/create-issues.sh` is idempotent.
+1. Phase 2 implementation, after explicit Product Owner approval (see `docs/phase-2-plan.md`).
+2. Cold boots: 2 power cycles are kernel-evidenced; 5 were requested. Recorded as a reservation.
+3. Optionally attach a photograph of the panel to the hardware evidence.
+
+## GitHub
+
+All remote GitHub operations are handled personally by the Product Owner: pushes, issues, pull
+requests and releases. Local commits are expected. Agents must not attempt remote operations or
+credential setup (`AGENTS.md` §8). The former blocker B-01 is a Product Owner responsibility and is
+not a development blocker.
 
 ## Traps discovered during validation
 
@@ -63,17 +65,7 @@ Detailed evidence: `docs/evidence/phase-1-performance.md` and
 - The PlatformIO registry did not complete behind the proxy. TLS verification stayed enabled; the
   build used a git-ignored local override linking cached LovyanGFX 1.2.21.
 
-## Commits (local, unpushed)
+## Commits
 
-```
-109a75f docs: add Phase 1 hardware validation evidence
-870b77d docs: record Phase 1 performance measurements
-6904717 docs: record that opening the CDC port resets the board
-7c4b4f6 feat(firmware): allow active-low touch input behind a build flag
-0111f28 feat(firmware): expose raw touch level and edge count in diagnostics
-1dff2f1 feat(firmware): keep boot metrics retrievable after boot
-c6aa02d feat(firmware): add Phase 1 validation instrumentation
-c5d3828 feat(firmware): implement Phase 1 companion, gestures and screens
-```
-
-`origin/main` is still at `c6cb443`; the branch is ten commits ahead and must not be force-pushed.
+Local only. Use `git log --oneline` for the current list; the branch is ahead of `origin/main`, which
+is expected and is not a blocker.

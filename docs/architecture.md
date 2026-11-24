@@ -209,7 +209,7 @@ specification: `protocol/protocol-v1.md`.
 | --- | --- | --- |
 | Flash | ≤ 1.5 MB of 4 MB | **Measured Phase 1: 349 154 B (26.6 % of the 1 310 720 B app partition), image 378 336 B.** |
 | Static RAM | ≤ 180 kB of ~320 kB usable | **Measured Phase 1: 16 316 B static. Plus the 48 400 B canvas allocated at boot, roughly 65 kB at runtime.** |
-| Frame time | ≤ 50 ms (20 FPS floor), target 33 ms | Not measured: requires the panel. Design budget only. |
+| Frame time | ≤ 50 ms (20 FPS floor), target 33 ms | **Measured Phase 1: render average 31.9 ms, maximum 33.1 ms; 25 FPS active, 15 idle, ~8–10 offline by design.** |
 | Protocol line | 2048 B hard cap | Fits the largest snapshot with MCP list (bounded to 12 entries by alias and truncation). |
 | Bridge RSS | < 100 MB | Node baseline + serial + small caches. |
 

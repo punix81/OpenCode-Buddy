@@ -12,6 +12,9 @@ Include: affected component, version or commit, reproduction steps, impact, and 
 data could be exposed. You will receive an acknowledgement, an assessment, and a coordinated
 disclosure date.
 
+Agent sessions do not use GitHub. If an agent finds a vulnerability, it reports it to the Product
+Owner inside the session and does not attempt any remote disclosure (`AGENTS.md` §8).
+
 ## Security model (summary)
 
 | Property | Rule |

@@ -9,6 +9,11 @@ Nothing was flashed, installed, rebuilt or pushed. No existing OpenCode configur
 Remote state at the end of this report: `origin/main` is still at `c6cb443` (initial commit); every
 documentation commit after it exists **only locally**. Zero issues exist remotely.
 
+> **Update 2026-11-24 — ownership change.** All remote GitHub operations are now owned personally by
+> the Product Owner. Agent sessions work exclusively in the local repository: no push, pull, fetch,
+> GitHub CLI/MCP/API, issues, pull requests or credentials. **B-01 is reclassified as a Product Owner
+> responsibility and is no longer a development blocker.** See `AGENTS.md` §8.
+
 ## 1. Executive summary
 
 The project is technically feasible with the hardware already owned and with the installed OpenCode
@@ -53,7 +58,7 @@ model; provide GitHub write access; approve installation of PlatformIO Core for 
 
 1. Inspected the repository, its Git state, remote and history. It began with a single `Initial commit`;
    two baseline documentation commits followed, and a third records this verification pass. All three
-   are local because the remote is read-only without a credential (B-01).
+   are local because remote publication is handled by the Product Owner (see `AGENTS.md` §8).
 2. Located and read the reference project `../Codex-Quota-Mini` without modifying it; confirmed its
    working tree is clean.
 3. Extracted and cited the exact hardware configuration: display SPI pins, panel parameters, touch
@@ -270,13 +275,10 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 
 ### BLOCKER
 
-- **B-01 — GitHub write credential missing (re-confirmed).** `git push --dry-run origin main` fails
-  today with `fatal: could not read Username for 'https://github.com': No such device or address`;
-  `gh` is not installed; `GITHUB_TOKEN` is not set; no credential helper is configured. Consequence:
-  the seven issues were not created and the two documentation commits remain unpushed
-  (`origin/main` = `c6cb443`). Remedy: `gh auth login` or export a token with issue write permission,
-  then run `scripts/create-issues.sh` and `git push origin main`. The dry run lists exactly the seven
-  issues it will create.
+- **B-01 — GitHub write credential (reclassified 2026-11-24).** This was recorded as a blocker during
+  Phase 0. It is now a **Product Owner responsibility**, not a development blocker: the Product Owner
+  manages every remote GitHub operation manually. Agents must not attempt to resolve it, and it must
+  not be reported as a blocker in new phase reports.
 - **B-02 — PlatformIO CLI missing (re-confirmed).** `command -v pio` returns nothing although the
   platform, framework and RISC-V toolchain caches exist under `~/.platformio`. `arduino-cli` 1.5.1
   cannot substitute (no indexes, download host unreachable). Consequence: Phase 1 cannot build.
@@ -317,7 +319,8 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 - Partial-refresh strategy and the exact animation performance are unproven on this panel.
 - Quota and (conditionally) context percentage have no confirmed data source; the UI must show
   explicit unavailability.
-- The seven issues exist only as files under `.github/issues/`; the remote has none (B-01).
+- The seven issue bodies remain local under `.github/issues/`; remote publication is handled by the
+  Product Owner.
 - Plugin event delivery was not observed end to end (N-01). Everything about the event stream is
   schema- and documentation-verified, which is weaker than a live capture.
 - The `state` size figures are arithmetic on the specified fields, not bytes measured from an encoder
@@ -327,7 +330,8 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 
 ## 11. Remaining tasks to close Phase 0 administratively
 
-1. Provide GitHub write access, then run `scripts/create-issues.sh` and push `main`.
+1. Remote publication (push, issues) is handled by the Product Owner; no development action is
+   required.
 2. Approve or change the inherited MIT licence.
 3. Approve installation of PlatformIO Core for Phase 1.
 
@@ -345,7 +349,7 @@ Full table with alternatives and rationale in `docs/architecture.md` §7. Summar
 
 Approve Phase 0 and proceed to Phase 1 in this order:
 
-1. Unblock B-01 (GitHub credential) so the backlog and this baseline are visible to the team.
+1. Remote publication is a Product Owner task. Development proceeds locally and does not wait on it.
 2. Unblock B-02 (PlatformIO Core) and build the untouched reference configuration first, to confirm
    the toolchain reproduces the known-good firmware before adding Buddy code.
 3. Implement the firmware core with the verified pins, measure frame time and memory early, and only
