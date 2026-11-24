@@ -5,6 +5,23 @@ Anything else is marked as a hypothesis to validate in the phase that touches it
 
 ## Serial port
 
+### Opening the CDC port resets the board (verified)
+
+On this ESP32-C3 Super Mini setup, **opening `/dev/ttyACM0` resets the MCU**. Each open increments
+the boot counter (`boot=6`, `boot=7`, …), resets the gesture counters and re-renders the persisted
+last screen. This is not a firmware bug; it is how the board behaves with the host CDC driver.
+
+Consequences for testing:
+
+- Never interpret `touch_edges=0` or `screen=0` from a freshly opened port as "no gesture": the
+  counters were just cleared by the reset.
+- Keep **one** serial connection open for the whole observation window and do not close/reopen it
+  between actions.
+- Automatic watchers that reconnect after every read will reset the board each time and invalidate
+  gesture and persistence measurements.
+- The reset is also useful: it proves NVS persistence, because the board returns to the last saved
+  screen after the reset.
+
 ### `could not open port` / permission denied
 
 - Cause: another process owns the device, or the user lacks group access.
