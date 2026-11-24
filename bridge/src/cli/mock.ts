@@ -36,6 +36,7 @@ try {
     const stats = bridge.stats;
     logger.info(`summary sent=${JSON.stringify(stats.sent)}`);
     logger.info(`summary received=${JSON.stringify(stats.received)}`);
+    logger.info(`summary ack_latency avg=${stats.ackLatency.avgMs} ms max=${stats.ackLatency.maxMs} ms count=${stats.ackLatency.count}`);
   };
   installShutdown(stop);
   if (options.durationMs !== undefined) {

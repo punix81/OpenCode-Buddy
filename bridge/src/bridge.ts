@@ -49,6 +49,10 @@ export class Bridge {
 
   private readonly sentCounts: Record<string, number> = {};
   private readonly receivedCounts: Record<string, number> = {};
+  private readonly pendingAcks = new Map<number, number>();
+  private ackCount = 0;
+  private ackTotalMs = 0;
+  private ackMaxMs = 0;
 
   private statusValue: BridgeStatus = 'idle';
   private lastRxMs = 0;
@@ -79,8 +83,20 @@ export class Bridge {
 
   // Per-type counters for the soak report. They count frames that left the
   // process and frames that passed validation, not frames the device applied.
-  get stats(): { sent: Record<string, number>; received: Record<string, number> } {
-    return { sent: { ...this.sentCounts }, received: { ...this.receivedCounts } };
+  get stats(): {
+    sent: Record<string, number>;
+    received: Record<string, number>;
+    ackLatency: { count: number; avgMs: number; maxMs: number };
+  } {
+    return {
+      sent: { ...this.sentCounts },
+      received: { ...this.receivedCounts },
+      ackLatency: {
+        count: this.ackCount,
+        avgMs: this.ackCount === 0 ? 0 : Math.round(this.ackTotalMs / this.ackCount),
+        maxMs: this.ackMaxMs,
+      },
+    };
   }
 
   private setStatus(status: BridgeStatus): void {
@@ -274,9 +290,18 @@ export class Bridge {
         this.options.logger.error(`device error code=${message.data.code} fatal=${message.data.fatal}`);
         this.sendAck(message.seq);
         return;
-      case 'ack':
+      case 'ack': {
+        const sentAt = this.pendingAcks.get(message.data.ack);
+        if (sentAt !== undefined) {
+          const latency = this.now() - sentAt;
+          this.pendingAcks.delete(message.data.ack);
+          ++this.ackCount;
+          this.ackTotalMs += latency;
+          if (latency > this.ackMaxMs) this.ackMaxMs = latency;
+        }
         this.options.logger.debug(`ack received ack=${message.data.ack} warning=${message.data.warning ?? 'none'}`);
         return;
+      }
       default:
         this.options.logger.warn(`unexpected message type=${message.type}`);
         return;
@@ -313,6 +338,13 @@ export class Bridge {
     }
     this.options.logger.protocol('out', message.type, message.seq, Buffer.byteLength(line));
     this.sentCounts[message.type] = (this.sentCounts[message.type] ?? 0) + 1;
+    if (message.type === 'state' || message.type === 'mcp_status') {
+      this.pendingAcks.set(message.seq, this.now());
+      if (this.pendingAcks.size > 128) {
+        const oldest = this.pendingAcks.keys().next();
+        if (!oldest.done) this.pendingAcks.delete(oldest.value);
+      }
+    }
     void this.options.transport.write(`${line}\n`).catch((error: Error) => {
       this.options.logger.error(`write failed: ${error.message}`);
     });
