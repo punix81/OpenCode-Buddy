@@ -100,6 +100,9 @@ Copy `config.example.json` to `config.local.json` (git-ignored) and adjust:
   connection** and never opens the port per message.
 - It waits for a valid `hello` before sending `ready`, `config`, `state` or `mcp_status`, and ignores a
   duplicate `hello` with the same `boot` counter within 2 s (buffered replay).
+- The handshake is split in two groups: `ready` + `config` + `ack` immediately, `state` + `mcp_status` on
+  the next tick. All five at once (~1.1 KB) overran the device RX queue and lost one frame per
+  connection (measured on hardware).
 - Modem control lines are never touched: `set({dtr,rts})` fails with "Operation not supported" on this
   native USB CDC port and surfaces as a spurious port error (verified on hardware).
 - A port error is treated as a link loss and reopened with backoff, not as a fatal state.

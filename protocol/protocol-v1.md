@@ -245,6 +245,9 @@ heartbeats every 2 s in both directions
 - The bridge treats any `hello` as a new session: it resets its own `seq`, recomputes aliases and sends
   a full snapshot. A repeated `hello` with the same `boot` within 2 s is a buffered duplicate and is
   ignored without a new snapshot.
+- The snapshot is split: `ready`, `config` and the `ack` go out immediately, `state` and `mcp_status` on
+  the next tick. Sending all five back-to-back (~1.1 KB) overran the device's CDC RX queue and lost one
+  frame per connection.
 - The device never assumes state survives a reconnect; it shows `OFFLINE` after the timeout.
 
 ## 7. Sequence, ACK, duplicates and gaps

@@ -53,6 +53,7 @@ export class Bridge {
   private lastStateMs = 0;
   private lastHandshakeMs = 0;
   private deviceBoot = -1;
+  private snapshotPending = false;
   private dirty = true;
   private tickTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -211,7 +212,12 @@ export class Bridge {
       this.setStatus('ready');
       this.sendReady();
       this.sendConfig();
-      this.emitState(true);
+      // The snapshot is deferred to the next tick: sending ready, config, state,
+      // mcp_status and ack back-to-back is ~1.1 KB, which exceeds the device's
+      // 1024-byte CDC RX queue while it renders a frame (one lost frame per
+      // connection was observed on hardware).
+      this.snapshotPending = true;
+      this.dirty = true;
       this.sendAck(message.seq);
       return;
     }
@@ -249,7 +255,8 @@ export class Bridge {
         return;
       case 'resync':
         this.sendConfig();
-        this.emitState(true);
+        this.snapshotPending = true;
+        this.dirty = true;
         this.sendAck(message.seq);
         return;
       case 'error':
@@ -267,6 +274,10 @@ export class Bridge {
   tick(now: number): void {
     if (this.statusValue === 'ready' && now - this.lastRxMs > this.options.config.linkTimeoutMs) {
       this.setStatus('degraded');
+      this.emitState(true);
+    }
+    if (this.statusValue === 'ready' && this.snapshotPending) {
+      this.snapshotPending = false;
       this.emitState(true);
     }
     if (this.statusValue !== 'ready') return;

@@ -39,6 +39,10 @@ test('handshake completes and a snapshot reaches the device', async () => {
   await bridge.start();
   await simulator.start();
   await settle();
+  // The snapshot is deferred to the next tick so the handshake burst stays
+  // below the device RX queue size.
+  bridge.tick(clock.now);
+  await settle();
 
   assert.equal(bridge.status, 'ready');
   assert.equal(simulator.statusValue, 'ready');
@@ -62,6 +66,8 @@ test('mock source is carried to the device', async () => {
 
   await bridge.start();
   await simulator.start();
+  await settle();
+  bridge.tick(Date.now());
   await settle();
 
   assert.equal(simulator.lastState?.source, 'mock');
@@ -282,6 +288,8 @@ test('buffered duplicate hellos do not trigger repeated snapshots', async () => 
   await bridge.start();
   transport.feed(hello(7));
   await settle();
+  bridge.tick(clock.now);
+  await settle();
   assert.equal(transport.count('state'), 1);
   assert.equal(transport.count('ready'), 1);
 
@@ -289,6 +297,8 @@ test('buffered duplicate hellos do not trigger repeated snapshots', async () => 
   for (let i = 0; i < 3; ++i) {
     clock.now += 10;
     transport.feed(hello(7));
+    await settle();
+    bridge.tick(clock.now);
     await settle();
   }
   assert.equal(transport.count('state'), 1, 'no extra snapshot for the same boot');
@@ -298,12 +308,16 @@ test('buffered duplicate hellos do not trigger repeated snapshots', async () => 
   clock.now += 10;
   transport.feed(hello(8));
   await settle();
+  bridge.tick(clock.now);
+  await settle();
   assert.equal(transport.count('state'), 2);
   assert.equal(transport.count('ready'), 2);
 
   // A later announcement with the same boot is a new session, not a burst.
   clock.now += 5000;
   transport.feed(hello(8));
+  await settle();
+  bridge.tick(clock.now);
   await settle();
   assert.equal(transport.count('state'), 3);
 
