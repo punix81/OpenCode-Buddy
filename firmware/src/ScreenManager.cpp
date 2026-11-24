@@ -258,6 +258,7 @@ void ScreenManager::update(uint32_t now) {
 void ScreenManager::render(uint32_t now) {
   auto& g = display_->canvas();
   const Palette palette(g);
+  const uint32_t startUs = micros();
   g.fillScreen(palette.bg);
 
   switch (screen_) {
@@ -286,6 +287,14 @@ void ScreenManager::render(uint32_t now) {
 
   drawToast(g, now);
   display_->push();
+
+  const uint32_t elapsedUs = micros() - startUs;
+  ++pushCount_;
+  ++renderCount_;
+  renderSumUs_ += elapsedUs;
+  if (elapsedUs > renderMaxUs_) {
+    renderMaxUs_ = elapsedUs;
+  }
 }
 
 void ScreenManager::drawChrome(lgfx::LGFX_Sprite& g, const char* title, uint16_t accent) {

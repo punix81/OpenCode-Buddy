@@ -45,6 +45,7 @@ Gesture TouchManager::poll(uint32_t now) {
       veryLongFired_ = false;
     } else {
       const uint32_t held = now - pressStart_;
+      lastRelease_ = now;
 
       if (veryLongFired_) {
         // Already reported; suppress Long and Short on release.
@@ -52,9 +53,11 @@ Gesture TouchManager::poll(uint32_t now) {
       } else if (held >= timings_.longMs) {
         // A long press is not part of a double press: discard any pending short.
         shortPending_ = false;
+        lastLatencyMs_ = held;
         return Gesture::Long;
       } else if (shortPending_ && now - shortPendingAt_ <= timings_.doubleWindowMs) {
         shortPending_ = false;
+        lastLatencyMs_ = now - lastRelease_;
         return Gesture::Double;
       } else {
         shortPending_ = true;
@@ -66,11 +69,13 @@ Gesture TouchManager::poll(uint32_t now) {
   if (stable_ && !veryLongFired_ && now - pressStart_ >= timings_.veryLongMs) {
     veryLongFired_ = true;
     shortPending_ = false;
+    lastLatencyMs_ = now - pressStart_;
     return Gesture::VeryLong;
   }
 
   if (!stable_ && shortPending_ && now - shortPendingAt_ > timings_.doubleWindowMs) {
     shortPending_ = false;
+    lastLatencyMs_ = now - lastRelease_;
     return Gesture::Short;
   }
 

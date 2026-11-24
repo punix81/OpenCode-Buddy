@@ -22,12 +22,19 @@ class SerialManager {
   uint32_t overflows() const { return overflows_; }
   bool hostConnected() const;
 
+  // Bench-only hooks, used by the Phase 1 validation harness. They are not the
+  // USB protocol and are replaced by it in Phase 2.
+  bool takeRestartRequest();
+  bool takeDiagnosticRequest();
+
  private:
   char line_[kSerialLineMax] = {0};
   size_t length_ = 0;
   bool discard_ = false;
   uint32_t lines_ = 0;
   uint32_t overflows_ = 0;
+  bool restartRequested_ = false;
+  bool diagnosticRequested_ = false;
 };
 
 }  // namespace buddy

@@ -2,7 +2,14 @@
 
 #include <Arduino.h>
 
+#include <cstring>
+
 namespace buddy {
+
+namespace {
+constexpr char kRestartCommand[] = "BUDDY-RESTART";
+constexpr char kDiagnosticCommand[] = "BUDDY-DIAG";
+}  // namespace
 
 void SerialManager::begin() {
   // Matches the reference firmware: 1024-byte driver buffer, 115 200 baud.
@@ -22,6 +29,13 @@ void SerialManager::poll(uint32_t /*now*/) {
     if (byte == '\n') {
       if (!discard_ && length_ > 0) {
         ++lines_;
+        if (length_ == sizeof(kRestartCommand) - 1 &&
+            memcmp(line_, kRestartCommand, length_) == 0) {
+          restartRequested_ = true;
+        } else if (length_ == sizeof(kDiagnosticCommand) - 1 &&
+                   memcmp(line_, kDiagnosticCommand, length_) == 0) {
+          diagnosticRequested_ = true;
+        }
       }
       length_ = 0;
       discard_ = false;
@@ -41,6 +55,18 @@ bool SerialManager::hostConnected() const {
   // USB property the firmware can observe; cable speed and DTR state are not
   // exposed and are therefore never displayed.
   return static_cast<bool>(Serial);
+}
+
+bool SerialManager::takeRestartRequest() {
+  const bool requested = restartRequested_;
+  restartRequested_ = false;
+  return requested;
+}
+
+bool SerialManager::takeDiagnosticRequest() {
+  const bool requested = diagnosticRequested_;
+  diagnosticRequested_ = false;
+  return requested;
 }
 
 }  // namespace buddy

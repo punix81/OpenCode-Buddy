@@ -58,6 +58,22 @@ PLATFORMIO_SETTING_ENABLE_TELEMETRY=false .venv/bin/pio run -d firmware
 registry is unreachable, a git-ignored `firmware/platformio.local.ini` can point at an already
 cached LovyanGFX copy; it is a local convenience, never the distributed configuration.
 
+## Bench instrumentation (Phase 1 validation only)
+
+Two compile-time flags, both enabled in `platformio.ini` for Phase 1 and to be disabled when the
+real protocol lands:
+
+- `BUDDY_DIAGNOSTICS=1` prints one `BUDDY-DIAG ...` line every 5 s with reset reason, boot counter,
+  unexpected-reset counter, free/min/largest-block heap, measured FPS, push count, average and max
+  render time, last gesture latency, screen and state. It also prints a `stage=canvas` line at boot
+  with the heap before/after canvas allocation and the setup-to-first-frame time.
+- `BUDDY_BENCH_COMMANDS=1` accepts two exact lines on USB CDC: `BUDDY-DIAG` (print a diagnostic now)
+  and `BUDDY-RESTART` (`ESP.restart()`).
+
+These are **not** the USB protocol. They are clearly prefixed, documented here, and replaced by the
+NDJSON protocol in Phase 2. Diagnostics are suppressed when the CDC transmit buffer is short, so a
+missing host cannot stall the animation loop.
+
 ## What this firmware deliberately does not do
 
 - It does not parse the NDJSON protocol yet. `SerialManager` frames and counts lines and discards

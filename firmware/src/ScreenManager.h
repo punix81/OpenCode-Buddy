@@ -22,6 +22,18 @@ class ScreenManager {
 
   ScreenId screen() const { return screen_; }
 
+  // Instrumentation counters (Phase 1 validation).
+  uint32_t pushCount() const { return pushCount_; }
+  uint32_t renderAvgUs() const {
+    return renderCount_ == 0 ? 0 : renderSumUs_ / renderCount_;
+  }
+  uint32_t renderMaxUs() const { return renderMaxUs_; }
+  void resetRenderStats() {
+    renderCount_ = 0;
+    renderSumUs_ = 0;
+    renderMaxUs_ = 0;
+  }
+
  private:
   void render(uint32_t now);
   void drawBuddy(uint32_t now);
@@ -48,6 +60,11 @@ class ScreenManager {
 
   char toast_[16] = {0};
   uint32_t toastUntil_ = 0;
+
+  uint32_t pushCount_ = 0;
+  uint32_t renderCount_ = 0;
+  uint32_t renderSumUs_ = 0;
+  uint32_t renderMaxUs_ = 0;
 };
 
 }  // namespace buddy

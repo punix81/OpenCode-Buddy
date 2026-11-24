@@ -30,6 +30,8 @@ class TouchManager {
   // Values outside the protocol bounds are clamped, never rejected silently.
   void setTimings(const GestureTimings& value);
 
+  uint32_t lastLatencyMs() const { return lastLatencyMs_; }
+
  private:
   GestureTimings timings_;
 
@@ -41,6 +43,8 @@ class TouchManager {
   uint32_t lastRawChange_ = 0;
   uint32_t pressStart_ = 0;
   uint32_t shortPendingAt_ = 0;
+  uint32_t lastRelease_ = 0;
+  uint32_t lastLatencyMs_ = 0;
 };
 
 }  // namespace buddy

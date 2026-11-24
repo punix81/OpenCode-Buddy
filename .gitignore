@@ -43,6 +43,7 @@ diagnostics/*.jsonl
 firmware/.pio/
 .venv/
 venv/
+.backups/
 firmware/platformio.local.ini
 firmware/.pio/
 *.bin
