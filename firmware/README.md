@@ -1,8 +1,10 @@
 # Firmware — ESP32-C3
 
-Phase 1 scope: the display core, the animated companion, the touch gesture machine, the six
-screens and a clearly labelled mock data source. The USB protocol parser and the bridge arrive in
-Phase 2; until then the firmware never claims a bridge or OpenCode connection.
+Status: **Phase 2 implemented; hardware validation pending approval.** The firmware contains the
+Phase 1 display/face/gesture/screen stack plus the ratified NDJSON v1 parser, handshake, heartbeat,
+acknowledgement, resync and error handling.
+
+It does not contain OpenCode event mapping; the bridge is the only source of normalized state.
 
 ## Hardware
 
@@ -20,7 +22,8 @@ and are verified in [`../docs/hardware-audit.md`](../docs/hardware-audit.md) §1
 | TTP223 output | 6 (active HIGH, internal pulldown) |
 
 Panel: `Panel_GC9A01`, `SPI2_HOST`, 27 MHz, inverted colours, BGR order, rotation 0.
-Toolchain: PlatformIO, `espressif32@6.5.0`, `esp32-c3-devkitm-1`, Arduino, USB CDC on boot.
+Toolchain: PlatformIO, `espressif32@6.5.0`, `esp32-c3-devkitm-1`, Arduino, C++17, USB CDC on boot.
+Libraries: LovyanGFX 1.2.21, ArduinoJson 7.4.3.
 
 ## Components
 
@@ -30,21 +33,32 @@ Toolchain: PlatformIO, `espressif32@6.5.0`, `esp32-c3-devkitm-1`, Arduino, USB C
 | `ScreenManager` | Six screens, layout, auto-return, quiet-mode behaviour. |
 | `BuddyFace` | Procedural eyes, mouth, ring, particles and badges for all 12 states. |
 | `AnimationEngine` | Time-derived blink, pulse and frame scheduling. |
-| `StateManager` | Normalized state, metrics, link state, terminal-state expiry. |
+| `StateManager` | Normalized state, metrics, link states, terminal-state expiry, mock source flag. |
 | `TouchManager` | Debounced, exclusive gesture recognition. |
 | `PreferencesManager` | NVS persistence: quiet mode, last screen, language slot. |
-| `SerialManager` | Bounded, non-blocking USB CDC line framing. |
-| `MockScenario` | Bench state cycler, compiled only with `BUDDY_MOCK_MODE`. |
+| `SerialManager` | Bounded, non-blocking USB CDC line framing (2048 bytes including newline). |
+| `ProtocolParser` | NDJSON v1 validation, atomic state application, encoders, sequence/ACK/resync. |
+
+`ProtocolParser` has no Arduino dependency, so it is covered by host tests using the same JSON
+vectors as the TypeScript side.
+
+## Protocol behaviour
+
+- The device sends `hello` (seq 1) on boot, `heartbeat` every 2 s, `ack` for applied snapshots,
+  `interaction` on gestures, `resync` on gaps and `error` on invalid input.
+- It accepts `ready`, `config`, `state`, `mcp_status`, `heartbeat`, `ack` and `error`.
+- A message is validated into a temporary structure and applied only if every field is valid; an
+  invalid message never corrupts the previous state.
+- USB link, bridge link and OpenCode state are separate. The device derives USB locally, the bridge
+  reports its own link and OpenCode availability, and `unknown` is never rendered as `0`.
+- `connection.usb` and `versions.fw` never come from the bridge.
+- The firmware version is `0.2.0`; the protocol major is `1`.
 
 ## Rendering strategy
 
-One 220 × 220 8-bit canvas (48 400 bytes) covers the whole visible disc. A frame is a single
-contiguous `pushSprite`, so there is no tearing and no 16-bit double buffer (which would cost
-115 200 bytes). The animated Buddy screen pushes at 25 FPS active / 15 FPS idle; the five dashboard
-screens push only when their content changes (≤ 8 FPS) and are static otherwise.
-
-Animations are procedural: shapes, text and motion, never stored image sequences. Every state also
-carries a text label, so no state depends on colour alone.
+One 220 × 220 8-bit canvas (48 400 bytes) covers the visible disc. A frame is a single contiguous
+`pushSprite`; dashboards push only when content changes. Animations are procedural and every state
+has a text label, so no state depends on colour alone.
 
 ## Build
 
@@ -54,44 +68,38 @@ uv pip install --system-certs --python .venv/bin/python platformio
 PLATFORMIO_SETTING_ENABLE_TELEMETRY=false .venv/bin/pio run -d firmware
 ```
 
-`firmware/platformio.ini` is the reproducible definition. On a machine where the PlatformIO
-registry is unreachable, a git-ignored `firmware/platformio.local.ini` can point at an already
-cached LovyanGFX copy; it is a local convenience, never the distributed configuration.
+`firmware/platformio.ini` is the reproducible definition. On a machine where the PlatformIO registry
+is unreachable, the git-ignored `firmware/platformio.local.ini` links the cached LovyanGFX and
+ArduinoJson copies.
 
-## Bench instrumentation (Phase 1 validation only)
+## Tests
 
-Two compile-time flags, both enabled in `platformio.ini` for Phase 1 and to be disabled when the
-real protocol lands:
+```sh
+# Host tests for the parser, with the shared protocol vectors
+firmware/test/host/run.sh
+```
 
-- `BUDDY_DIAGNOSTICS=1` prints one `BUDDY-DIAG ...` line every 5 s with reset reason, boot counter,
-  unexpected-reset counter, free/min/largest-block heap, measured FPS, push count, average and max
-  render time, last gesture latency, screen and state. It also prints a `stage=canvas` line at boot
-  with the heap before/after canvas allocation and the setup-to-first-frame time.
-- `BUDDY_BENCH_COMMANDS=1` accepts two exact lines on USB CDC: `BUDDY-DIAG` (print a diagnostic now)
-  and `BUDDY-RESTART` (`ESP.restart()`).
+The host suite covers valid/invalid vectors, sequence duplicates/stale/gaps, ACK values, resync,
+invalid input preserving the last state, token total computation, mock source, config clamping and
+the 2047/2048-byte boundary.
 
-These are **not** the USB protocol. They are clearly prefixed, documented here, and replaced by the
-NDJSON protocol in Phase 2. Diagnostics are suppressed when the CDC transmit buffer is short, so a
-missing host cannot stall the animation loop.
+## Bench instrumentation
 
-## What this firmware deliberately does not do
-
-- It does not parse the NDJSON protocol yet. `SerialManager` frames and counts lines and discards
-  them; no handler pretends to understand them.
-- It does not report a bridge or OpenCode connection. Those fields stay `UNKNOWN` until the bridge
-  exists and the protocol is implemented.
-- It does not enable Wi-Fi or Bluetooth, and it has no OTA path.
-- It cannot approve permissions, run commands or modify files. The touch pad has four navigation
-  actions and nothing else.
+`BUDDY_DIAGNOSTICS` and `BUDDY_BENCH_COMMANDS` are **off** in the Phase 2 release build, because
+free-form serial diagnostics would collide with NDJSON. A separate diagnostic build can enable them
+for memory/FPS measurement; it must not be used with the bridge.
 
 ## Verification status
 
-- **Build VERIFIED (2026-11-24):** clean rebuild in 17.59 s; flash 349 154 B (26.6 % of 1 310 720),
-  static RAM 16 316 B (5.0 % of 327 680), image 378 336 B; no warnings from Buddy sources.
-- **Hardware NOT VERIFIED:** nothing was flashed. Display output, touch behaviour, frame rate and
-  heap high-water are unmeasured, and the 25 FPS target is a design budget.
+- Build: **372 100 B flash (28.4 %)**, **20 412 B static RAM (6.2 %)**, image 406 368 B,
+  SHA-256 `880f1444…09553cc4`; clean build in 20.17 s, no warnings from Buddy sources.
+- Host parser tests: **PASS**.
+- Hardware: **NOT VERIFIED for Phase 2**; the release image has not been flashed.
+- Phase 1 runtime baseline for comparison: 25 FPS active, render average 31.9 ms, heap 252 088 B.
 
-Full evidence, including the registry-proxy caveat, is in
-[`../docs/phase-1-report.md`](../docs/phase-1-report.md). A build is only reported as successful when
-the command actually completed; hardware behaviour is only reported when it was observed on the
-panel.
+## What this firmware deliberately does not do
+
+- It does not read OpenCode events; the bridge normalizes them.
+- It cannot approve permissions, run commands or modify files.
+- It does not enable Wi-Fi, Bluetooth or OTA.
+- It does not display raw prompts, responses, code, paths or tool arguments.

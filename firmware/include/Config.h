@@ -33,7 +33,11 @@ constexpr uint32_t kDashboardIntervalMs = 120;
 constexpr uint32_t kTextRefreshMs = 1000;
 
 // Protocol line bound — protocol/protocol-v1.md §2.
-constexpr size_t kSerialLineMax = 512;
+constexpr size_t kSerialLineMax = 2048;
+constexpr char kFirmwareVersion[] = "0.2.0";
+constexpr uint8_t kProtocolMajor = 1;
+constexpr uint32_t kHeartbeatMs = 2000;
+constexpr uint32_t kLinkTimeoutMs = 6000;
 constexpr size_t kTextMax = 32;
 
 // Terminal-state visibility — docs/architecture.md §4.

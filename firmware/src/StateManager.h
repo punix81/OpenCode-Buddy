@@ -34,6 +34,9 @@ class StateManager {
   void setVersions(const Versions& value) { versions_ = value; }
   const Versions& versions() const { return versions_; }
 
+  void setMock(bool value) { mock_ = value; }
+  bool mockSource() const { return mock_; }
+
   void setDiagnostic(const char* code);
   const char* diagnostic() const { return diagnostic_; }
 
@@ -48,6 +51,7 @@ class StateManager {
   uint32_t stateSince_ = 0;
   BuddyMetrics metrics_;
   Versions versions_;
+  bool mock_ = false;
   char model_[24] = "--";
   char agent_[16] = "--";
   char diagnostic_[12] = "--";

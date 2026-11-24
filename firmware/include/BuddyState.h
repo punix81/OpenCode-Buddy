@@ -93,8 +93,8 @@ struct BuddyMetrics {
 };
 
 struct Versions {
-  char firmware[16] = "0.1.0";
-  char bridge[16] = "--";
+  char firmware[17] = "0.1.0";
+  char bridge[17] = "--";
   uint8_t protocol = 1;
   bool bridgeKnown = false;
 };

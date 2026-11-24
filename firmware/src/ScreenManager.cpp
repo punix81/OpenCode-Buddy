@@ -347,9 +347,14 @@ void ScreenManager::drawBuddy(uint32_t now) {
   }
 
 #if defined(BUDDY_MOCK_MODE) && BUDDY_MOCK_MODE
-  drawText(g, "MOCK", 34, 200, &lgfx::fonts::FreeSans9pt7b, p.warn, p.bg,
-           lgfx::textdatum_t::middle_left);
+  const bool mockBuild = true;
+#else
+  const bool mockBuild = false;
 #endif
+  if (mockBuild || state_->mockSource()) {
+    drawText(g, "MOCK", 34, 200, &lgfx::fonts::FreeSans9pt7b, p.warn, p.bg,
+             lgfx::textdatum_t::middle_left);
+  }
 
   if (preferences_->quietMode()) {
     drawText(g, "QUIET", 186, 200, &lgfx::fonts::FreeSans9pt7b, p.muted, p.bg,
@@ -577,9 +582,15 @@ void ScreenManager::drawSystem(uint32_t now) {
   }
   drawRow(g, 78, "BRIDGE", bridge, bridgeColor);
 
-  const char* opencode = state_->opencode() == OpenCodeState::Connected ? "CONNECTED" : "OFFLINE";
-  const uint16_t opencodeColor =
-      state_->opencode() == OpenCodeState::Connected ? p.ok : p.error;
+  const char* opencode = "--";
+  uint16_t opencodeColor = p.muted;
+  if (state_->opencode() == OpenCodeState::Connected) {
+    opencode = "CONNECTED";
+    opencodeColor = p.ok;
+  } else if (state_->opencode() == OpenCodeState::Offline) {
+    opencode = "OFFLINE";
+    opencodeColor = p.error;
+  }
   drawRow(g, 98, "OPENCODE", opencode, opencodeColor);
 
   drawRow(g, 118, "FW", versions.firmware, p.text);
@@ -593,8 +604,13 @@ void ScreenManager::drawSystem(uint32_t now) {
   drawText(g, diagnostic, kCx, 164, &lgfx::fonts::FreeSans9pt7b, p.muted, p.bg);
 
 #if defined(BUDDY_MOCK_MODE) && BUDDY_MOCK_MODE
-  drawText(g, "MOCK DATA", kCx, 186, &lgfx::fonts::FreeSans9pt7b, p.warn, p.bg);
+  const bool mockBuild = true;
+#else
+  const bool mockBuild = false;
 #endif
+  if (mockBuild || state_->mockSource()) {
+    drawText(g, "MOCK DATA", kCx, 186, &lgfx::fonts::FreeSans9pt7b, p.warn, p.bg);
+  }
 
   drawText(g, "OPENCODE BUDDY", kCx, 206, &lgfx::fonts::FreeSans9pt7b, p.grid, p.bg);
   (void)now;

@@ -6,48 +6,54 @@
 
 namespace buddy {
 
-namespace {
-constexpr char kRestartCommand[] = "BUDDY-RESTART";
-constexpr char kDiagnosticCommand[] = "BUDDY-DIAG";
-}  // namespace
-
 void SerialManager::begin() {
-  // Matches the reference firmware: 1024-byte driver buffer, 115 200 baud.
-  // The ESP32-C3 native USB CDC ignores the baud rate, but the host expects one.
+  // Native USB CDC: the host expects a baud rate, the peripheral ignores it.
   Serial.setRxBufferSize(1024);
   Serial.begin(115200);
 }
 
-void SerialManager::poll(uint32_t /*now*/) {
+bool SerialManager::readLine(char* out, size_t capacity, size_t& length) {
+  if (out == nullptr || capacity < kSerialLineMax + 1) {
+    return false;
+  }
+
   while (Serial.available() > 0) {
     const int value = Serial.read();
     if (value < 0) {
-      return;
+      return false;
     }
     const char byte = static_cast<char>(value);
 
     if (byte == '\n') {
-      if (!discard_ && length_ > 0) {
-        ++lines_;
-        if (length_ == sizeof(kRestartCommand) - 1 &&
-            memcmp(line_, kRestartCommand, length_) == 0) {
-          restartRequested_ = true;
-        } else if (length_ == sizeof(kDiagnosticCommand) - 1 &&
-                   memcmp(line_, kDiagnosticCommand, length_) == 0) {
-          diagnosticRequested_ = true;
-        }
+      if (discard_) {
+        discard_ = false;
+        length_ = 0;
+        overflowPending_ = true;
+        continue;
       }
+      if (length_ == 0) {
+        continue;
+      }
+      memcpy(out, line_, length_);
+      out[length_] = '\0';
+      length = length_;
       length_ = 0;
-      discard_ = false;
-    } else if (byte != '\r' && !discard_) {
-      if (length_ >= sizeof(line_)) {
-        discard_ = true;
-        ++overflows_;
-      } else {
-        line_[length_++] = byte;
-      }
+      ++lines_;
+      return true;
     }
+
+    if (byte == '\r' || discard_) {
+      continue;
+    }
+
+    if (length_ >= kSerialLineMax - 1) {
+      discard_ = true;
+      ++overflows_;
+      continue;
+    }
+    line_[length_++] = byte;
   }
+  return false;
 }
 
 bool SerialManager::hostConnected() const {
@@ -57,16 +63,10 @@ bool SerialManager::hostConnected() const {
   return static_cast<bool>(Serial);
 }
 
-bool SerialManager::takeRestartRequest() {
-  const bool requested = restartRequested_;
-  restartRequested_ = false;
-  return requested;
-}
-
-bool SerialManager::takeDiagnosticRequest() {
-  const bool requested = diagnosticRequested_;
-  diagnosticRequested_ = false;
-  return requested;
+bool SerialManager::takeOverflow() {
+  const bool pending = overflowPending_;
+  overflowPending_ = false;
+  return pending;
 }
 
 }  // namespace buddy
