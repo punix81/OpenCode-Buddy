@@ -239,19 +239,29 @@ export function createProjector() {
         return out;
       }
       case 'mcp.status.changed': {
-        const server = data.server;
-        const name = id(server?.name, 64);
-        // Mcp.Server.status is an object with a `status` discriminant
-        // ({ status: "connected" }); a bare string is accepted for robustness.
-        const status = typeof server?.status === 'string' ? server.status : server?.status?.status;
-        if (name === null || typeof status !== 'string') return [];
-        if (!['connected', 'pending', 'disabled', 'failed', 'needs_auth'].includes(status)) return [];
-        mcp.set(name, status);
-        if (mcp.size > MAX_SERVERS) {
-          const oldest = mcp.keys().next();
-          if (!oldest.done) mcp.delete(oldest.value);
+        // Runtime shape (verified on 2.4.1): `data.server` is the changed server's
+        // NAME as a string. It carries no status, so it cannot feed the radar by
+        // itself: the status only comes from ctx.mcp.list(), which the plugin
+        // queries on this event. Object and array shapes are accepted defensively.
+        const payload = data.server;
+        if (typeof payload === 'string') return out;
+        const entries = Array.isArray(payload) ? payload : [payload];
+        for (const server of entries) {
+          const name = id(server?.name, 64);
+          // Mcp.Server.status is an object with a `status` discriminant
+          // ({ status: "connected" }); a bare string is accepted for robustness.
+          const status = typeof server?.status === 'string' ? server.status : server?.status?.status;
+          if (name === null || typeof status !== 'string') continue;
+          if (!['connected', 'pending', 'disabled', 'failed', 'needs_auth'].includes(status)) continue;
+          mcp.set(name, status);
+          mcpDirty = true;
         }
-        mcpDirty = true;
+        if (mcp.size > MAX_SERVERS) {
+          for (const key of mcp.keys()) {
+            if (mcp.size <= MAX_SERVERS) break;
+            mcp.delete(key);
+          }
+        }
         return out;
       }
       default:

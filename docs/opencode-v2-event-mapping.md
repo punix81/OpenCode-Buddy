@@ -56,7 +56,7 @@ received another project's usage totals (31.9 M input tokens) at connect time.
 | Model | `session.step.started`, `session.model.selected` | `model.id` | VERIFIED | `deepseek-v4-1-flash-1017-r` | `--` |
 | Agent | `session.step.started`, `session.agent.selected` | `agent` | VERIFIED | `build` | `--` |
 | Execution duration | `session.execution.started` timestamp | bridge clock | VERIFIED | bridge `elapsedSeconds` | — |
-| MCP status | `mcp.status.changed` (`{ name, status }`) + `ctx.mcp.list()` | status enum | VERIFIED | captured, 14 MCP servers configured | `online 0 / total 0` |
+| MCP status | `mcp.status.changed` (trigger) + `ctx.mcp.list()` (authoritative) | `Mcp.Server[]` with `status.status` | VERIFIED | real run: `online=7 total=12` on the bridge | `online 0 / total 0` |
 | Context occupancy (CTX) | — | — | **NOT AVAILABLE** | no capacity field in v2 events or `Session.Info` | stays `CTX --` |
 | OpenCode version on screen 6 | — | — | **NOT AVAILABLE** | NDJSON v1 has no field, protocol frozen | not displayed |
 
@@ -75,7 +75,21 @@ With one `bash` tool the sequence adds `session.tool.input.started → session.t
 session.tool.called → session.step.streamed → session.tool.success → session.step.ended` and a
 second `session.step.*` round.
 
-## 4. Deliberately ignored events
+## 4. MCP payload, verified the hard way
+
+At runtime `mcp.status.changed.data.server` is the changed server's **name as a string**
+(`"context7"`), not an object and not an array: three successive probes assumed object, array and
+string. It carries no status, so the plugin treats it as a trigger and re-queries `ctx.mcp.list()`.
+
+Two further limits were measured:
+
+- `ctx.mcp.list()` returned `{ data: [] }` in the standalone run until a server changed; the first
+  real statuses arrived after the first `mcp.status.changed`.
+- NDJSON v1 and the firmware radar accept at most **8** server entries. The bridge keeps the true
+  `online`/`total` counts and sends the eight most useful entries (connected first); 12 configured
+  servers therefore show as `7 online / 12` with eight dots.
+
+## 5. Deliberately ignored events
 
 | Event | Why |
 | --- | --- |
@@ -87,7 +101,7 @@ second `session.step.*` round.
 | `filesystem.changed`, `file.edited`, `vcs.branch.updated` | paths, no Buddy requirement |
 | `session.usage.recorded` | auxiliary (title/compaction/generate) totals; adding it would double count with `usage.updated` |
 
-## 5. Limits of this mapping
+## 6. Limits of this mapping
 
 1. `session.execution.started` carries **no** `location`; it is accepted because the session is known
    from the snapshot or from a previous located event. A session that appears only through

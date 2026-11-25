@@ -23,6 +23,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 - `docs/opencode-v2-event-mapping.md`, `docs/opencode-integration.md`, `docs/plugin-installation.md`
   and the Phase 3 reports/evidence.
 
+### Fixed — MCP radar on real data
+
+- `mcp.status.changed` carries the changed server **name** only. The plugin now treats it as a
+  trigger and re-queries `ctx.mcp.list()`, which is the only status source.
+- The bridge caps the outbound server list at eight entries (protocol and firmware limit) while
+  keeping the true `online`/`total` counts. Verified live: `mcp online=7 total=12`.
+
 ### Fixed — integration defects found on real data
 
 - The plugin snapshot restored sessions from other projects served by the same OpenCode server

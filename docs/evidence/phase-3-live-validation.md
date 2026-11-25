@@ -58,6 +58,11 @@ interval and is documented.
    probe used a string and hid the bug. Fixed; the pipeline is verified with the real shape injected
    through the plugin runtime (`online=1 total=2`).
 4. The logger redacted `plugin@version` as an e-mail address; the message no longer uses `@`.
+5. MCP radar stayed at `0/0` for four runs. Root cause chain: `data.server` is a **name string**
+   (not an object, not an array), it carries no status, `ctx.mcp.list()` was empty before the first
+   change, and the bridge rejects more than **8** server entries. Fixed by re-querying the MCP API on
+   the event and capping the detail list; measured `mcp online=7 total=12` on a real prompt at
+   23:03:49 (12 configured servers, 7 connected).
 
 ## 5. Not validated live
 
@@ -66,5 +71,5 @@ interval and is documented.
 | `permission.asked` notification | a non-interactive `run` did not ask for `ls`; forcing one requires interactive approval | payload and projection verified by schema and unit test; **NOT VERIFIED live** |
 | `form.created` (user input) | no safe way to make a model request a form | as above |
 | Two **active** executions at once | two `--standalone` runs serialize (peer 6 ended before peer 7 started); overlap < 1.3 s | reducer has multi-session tests; live overlap **NOT VERIFIED** |
-| MCP Radar with real payloads | the last real run still reported `0/0`; the pipeline works with the real schema injected, so the remaining cause is in the real event delivery, not in the mapping | **PARTIALLY VERIFIED** |
+| MCP Radar | **resolved**: `mcp.status.changed.data.server` is a name string, statuses come from `ctx.mcp.list()`, and the bridge caps the detail list at 8 | **VERIFIED** — real run `mcp online=7 total=12` |
 | One-hour soak | Phase 2 carry-over | still **OPEN** |

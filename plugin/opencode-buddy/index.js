@@ -215,7 +215,22 @@ export default {
       if (mcp === null) return;
       // An empty reconciliation result must not delay the first real status.
       if (mcp.total > 0) lastMcpSentAt = Date.now();
+      debug(`mcp flush total=${mcp.total} online=${mcp.online}`);
       send({ type: 'event', event: mcp });
+    };
+
+    // The event only says which server changed; the statuses come from the MCP
+    // API. Re-query it instead of guessing.
+    const refreshMcp = async () => {
+      try {
+        const page = await withTimeout(ctx.mcp.list(), SNAPSHOT_TIMEOUT_MS);
+        const servers = Array.isArray(page?.data) ? page.data : [];
+        debug(`mcp refresh servers=${servers.length}`);
+        projector.seedMcp(servers);
+        flushMcp();
+      } catch (error) {
+        debug(`mcp refresh skipped: ${error?.message ?? error}`);
+      }
     };
 
     const scheduleReconnect = () => {
@@ -301,11 +316,11 @@ export default {
             // pending throttle timer. Later changes are coalesced.
             const elapsed = Date.now() - lastMcpSentAt;
             if (elapsed >= MCP_THROTTLE_MS) {
-              flushMcp();
+              void refreshMcp();
             } else if (mcpTimer === null) {
               mcpTimer = setTimeout(() => {
                 mcpTimer = null;
-                flushMcp();
+                void refreshMcp();
               }, MCP_THROTTLE_MS - elapsed);
               mcpTimer.unref?.();
             }

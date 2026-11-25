@@ -22,13 +22,9 @@ State at the end of Phase 3 (2026-11-25).
 
 1. **Trigger a real `permission.asked` and a `form.created`** with an interactive session (needs the
    product owner) and record them in the evidence file.
-2. **MCP Radar shows 0/0**: the mapping accepts the real `{ status: "connected" }` shape and works when
-   injected; a real run still reports nothing. Next step: log `ctx.mcp.list()` and the raw
-   `mcp.status.changed` payload with `OPENCODE_BUDDY_DEBUG=1`, then check whether the events arrive
-   before the socket is authenticated.
-3. **One-hour soak** (Phase 2 carry-over) on the LIVE path, with the bridge log as evidence.
-4. Two concurrent active sessions on one server (two prompts, one server) to exercise aggregation.
-5. A second provider (any) to confirm the mapping is not DeepSeek-specific.
+2. **One-hour soak** (Phase 2 carry-over) on the LIVE path, with the bridge log as evidence.
+3. Two concurrent active sessions on one server (two prompts, one server) to exercise aggregation.
+4. A second provider (any) to confirm the mapping is not DeepSeek-specific.
 
 ## Useful commands
 

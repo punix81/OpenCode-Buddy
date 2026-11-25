@@ -108,6 +108,31 @@ test('no prompt, response, tool argument or path can leave the projector', () =>
   }
 });
 
+test('mcp aggregate accepts an array of servers (defensive shape, not the runtime one)', () => {
+  const p = createProjector();
+  p.project(
+    ev('mcp.status.changed', {
+      server: [
+        { name: 'context7', status: { status: 'connected' } },
+        { name: 'jeap-mcp', status: { status: 'needs_auth' } },
+      ],
+    }),
+  );
+  const first = p.takeMcp();
+  assert.deepEqual(first.servers, [
+    { name: 'context7', status: 'connected' },
+    { name: 'jeap-mcp', status: 'needs_auth' },
+  ]);
+  assert.equal(first.online, 1);
+  assert.equal(first.total, 2);
+});
+
+test('an mcp name-only event never invents a status', () => {
+  const p = createProjector();
+  assert.deepEqual(p.project(ev('mcp.status.changed', { server: 'context7' })), []);
+  assert.equal(p.takeMcp(), null, 'a name without a status must not reach the device');
+});
+
 test('mcp aggregate is produced once per change and stays bounded', () => {
   const p = createProjector();
   p.project(ev('mcp.status.changed', { server: { name: 'context7', status: 'connected' } }));

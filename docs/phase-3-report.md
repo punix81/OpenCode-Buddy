@@ -74,7 +74,7 @@ Full table in `docs/opencode-v2-event-mapping.md`. Sources used: `session.execut
 | 2 Session | model, agent, execution duration, active sessions |
 | 3 Tokens | input/output/total from cumulative `usage.updated`; reasoning and cache carried; CTX `--` |
 | 4 Tools | running/success/failed and categories, e.g. `tools=3/0/1` during `ls` |
-| 5 MCP Radar | pipeline verified with the real payload shape; last real run still `0/0` |
+| 5 MCP Radar | `online=7 total=12` on a real prompt: 12 configured servers, 8 dots (connected first) |
 | 6 System | USB, bridge, OpenCode, firmware, bridge version, protocol — OpenCode version unavailable |
 
 ## 8. Unsupported metrics
@@ -137,11 +137,10 @@ See `git log --oneline` after this report; the phase is delivered in focused com
 1. `permission.asked` and `form.created` not observed live.
 2. Two simultaneous *active* executions not observed (standalone runs serialize); multi-session is
    covered by reducer tests and multiple peers were verified.
-3. MCP Radar receives `0/0` in real runs; the mapping is verified with the real schema injected.
-4. One-hour soak and heap/FPS measurements still open from Phase 2.
-5. Windows IPC not implemented; Linux/macOS only.
-6. Context occupancy unavailable; `CTX --` remains.
-7. No second provider tested (DeepSeek only).
+3. One-hour soak and heap/FPS measurements still open from Phase 2.
+4. Windows IPC not implemented; Linux/macOS only.
+5. Context occupancy unavailable; `CTX --` remains.
+6. No second provider tested (DeepSeek only).
 
 ## 18. Verdict
 

@@ -3,6 +3,9 @@ import type { McpStatus } from '../protocol/types.js';
 export const IPC_VERSION = 1 as const;
 export const IPC_MAX_LINE_BYTES = 8192;
 export const IPC_MAX_SERVERS = 16;
+// NDJSON v1 carries at most eight server entries (privacy.projectMcp slices to 8
+// and the firmware radar draws eight). Totals may be larger.
+export const IPC_MAX_DETAIL = 8;
 export const IPC_ALIAS_MAX = 12;
 
 const MCP_STATUSES: readonly McpStatus[] = ['connected', 'pending', 'disabled', 'failed', 'needs_auth'];
@@ -60,12 +63,17 @@ export function normalizeMcpStatus(raw: Record<string, unknown>, options: LiveNo
     parsed.push({ alias: alias.slice(0, IPC_ALIAS_MAX), status: status as McpStatus });
   }
 
+  const connected = parsed.filter((entry) => entry.status === 'connected');
+  const detail = [...connected, ...parsed.filter((entry) => entry.status !== 'connected')].slice(
+    0,
+    IPC_MAX_DETAIL,
+  );
   return {
     kind: 'mcp.status',
     at: timestamp(raw['at']),
-    online: parsed.filter((entry) => entry.status === 'connected').length,
+    online: connected.length,
     total: parsed.length,
-    servers: parsed,
+    servers: detail,
   };
 }
 
