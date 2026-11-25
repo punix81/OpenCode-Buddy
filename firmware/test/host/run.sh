@@ -10,7 +10,12 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 REFERENCE="${REFERENCE:-$ROOT/../Codex-Quota-Mini}"
-ARDUINOJSON="${ARDUINOJSON:-$REFERENCE/.pio/libdeps/supermini/ArduinoJson/src}"
+# Prefer this repository's own cached dependency; the reference project is an
+# optional fallback for a fresh clone that never ran a build.
+ARDUINOJSON="${ARDUINOJSON:-$ROOT/firmware/.pio/libdeps/supermini/ArduinoJson/src}"
+if [ ! -f "$ARDUINOJSON/ArduinoJson.h" ]; then
+  ARDUINOJSON="$REFERENCE/.pio/libdeps/supermini/ArduinoJson/src"
+fi
 OUT="${OUT:-/tmp/opencode/buddy-protocol-test}"
 
 if [ ! -f "$ARDUINOJSON/ArduinoJson.h" ]; then
