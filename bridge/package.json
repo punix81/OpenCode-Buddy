@@ -14,7 +14,11 @@
     "validate:protocol": "tsx scripts/validate-protocol.ts",
     "mock": "tsx src/cli/mock.ts",
     "diagnose": "tsx src/cli/diagnose.ts",
-    "simulate": "tsx src/cli/simulate.ts"
+    "simulate": "tsx src/cli/simulate.ts",
+    "start": "tsx src/cli/live.ts",
+    "live": "tsx src/cli/live.ts",
+    "diagnose:opencode": "tsx src/cli/diagnose-opencode.ts",
+    "test:plugin": "node --test ../plugin/opencode-buddy/map.test.mjs"
   },
   "dependencies": {
     "serialport": "13.0.0"
