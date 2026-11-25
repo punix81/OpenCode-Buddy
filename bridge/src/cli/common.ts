@@ -71,12 +71,25 @@ export function describeState(state: StateData): string {
   return `status=${state.status} sessions=${state.activeSessions} tokens=${tokens} tools=${tools} source=${state.source}`;
 }
 
+// A CLI must terminate even when a transport refuses to close (a half-open CDC
+// fd does that). Give the orderly shutdown a bounded budget, then exit.
+const SHUTDOWN_TIMEOUT_MS = 5000;
+
+export function exitAfterStop(stop: () => Promise<void>, code = 0): void {
+  const watchdog = setTimeout(() => process.exit(code), SHUTDOWN_TIMEOUT_MS);
+  watchdog.unref();
+  void stop().finally(() => {
+    clearTimeout(watchdog);
+    process.exit(code);
+  });
+}
+
 export function installShutdown(stop: () => Promise<void>): void {
   let stopping = false;
   const handler = (): void => {
     if (stopping) return;
     stopping = true;
-    void stop().finally(() => process.exit(0));
+    exitAfterStop(stop);
   };
   process.on('SIGINT', handler);
   process.on('SIGTERM', handler);

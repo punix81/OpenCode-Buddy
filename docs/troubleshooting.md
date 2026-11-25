@@ -22,6 +22,33 @@ Consequences for testing:
 - The reset is also useful: it proves NVS persistence, because the board returns to the last saved
   screen after the reset.
 
+### Bridge running, display still OFFLINE (verified, fixed)
+
+Symptom observed on the audit machine: the mock bridge owned `/dev/ttyACM0`, the process was alive, yet
+the panel stayed OFFLINE for minutes and no `state` frame was ever sent (measured traffic: ~14 B/s out
+instead of ~700 B/s when the link is ready).
+
+Cause: the port was opened while the board was still booting after the reset that the open itself
+triggers. The device's `hello` fell into that window, and the bridge had **no handshake timeout**:
+`tick()` only checked `linkTimeoutMs` in the `ready` state, and a half-open CDC fd reports no `close`
+event, so no reconnect was ever scheduled. The session stayed in `handshaking` until the process was
+restarted. The same half-open fd also made `transport.close()` hang, so SIGTERM did not terminate the
+process.
+
+Fix (bridge):
+
+- `HANDSHAKE_TIMEOUT_MS` (7 s, more than two `kHelloIntervalMs` periods): a session that never
+  handshakes is released and reconnected instead of waiting forever.
+- `CLOSE_TIMEOUT_MS` (2 s): `transport.close()` is bounded, so shutdown and reconnection always
+  progress. The CLI adds a watchdog and exits regardless.
+
+Evidence: replaying the mock after the fix reached `ready` in 3 ms, sent one `state` per second and
+received 22 acks (avg 29 ms). SIGTERM terminated the process in 111 ms, where it previously survived
+indefinitely.
+
+Do not work around this by reopening the port in a loop: each open resets the board and re-arms the
+same race.
+
 ### `could not open port` / permission denied
 
 - Cause: another process owns the device, or the user lacks group access.

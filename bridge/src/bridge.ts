@@ -37,6 +37,35 @@ const DEFAULT_GESTURES = {
   veryLongPressMs: 5000,
 } as const;
 
+// Opening the CDC port resets the ESP32-C3 (see docs/troubleshooting.md), and
+// the device only re-announces itself every kHelloIntervalMs (3 s) while it has
+// no bridge session. A `hello` missed during that reboot window used to leave
+// the bridge in `handshaking` forever: no state was ever sent and the display
+// stayed OFFLINE until the process was restarted. Give up on the session after
+// more than two announcement periods and take the port again.
+export const HANDSHAKE_TIMEOUT_MS = 7000;
+
+// A half-open CDC fd never reports close, so `transport.close()` can hang. Bound
+// it: shutdown and reconnection must always make progress.
+export const CLOSE_TIMEOUT_MS = 2000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms} ms`)), ms);
+    timer.unref();
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
+}
+
 export class Bridge {
   private readonly framer = new LineFramer();
   private readonly seqOut = new OutboundSequence();
@@ -59,12 +88,14 @@ export class Bridge {
   private lastHeartbeatMs = 0;
   private lastStateMs = 0;
   private lastHandshakeMs = 0;
+  private lastOpenMs = 0;
   private deviceBoot = -1;
   private snapshotPending = false;
   private dirty = true;
   private tickTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
+  private stopping = false;
 
   onState?: (state: StateData) => void;
   onMcpStatus?: (status: McpStatusData) => void;
@@ -107,6 +138,7 @@ export class Bridge {
   }
 
   async start(): Promise<void> {
+    this.stopping = false;
     this.options.transport.setHandlers({
       onData: (chunk) => this.onData(chunk),
       onError: (error) => this.onError(error),
@@ -119,13 +151,14 @@ export class Bridge {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true;
     if (this.tickTimer !== null) clearInterval(this.tickTimer);
     if (this.reconnectTimer !== null) clearTimeout(this.reconnectTimer);
     this.tickTimer = null;
     this.reconnectTimer = null;
     // An intentional stop must not look like a link loss in the logs.
     this.setStatus('idle');
-    await this.options.transport.close();
+    await this.closeTransport();
   }
 
   ingest(raw: unknown): boolean {
@@ -149,6 +182,7 @@ export class Bridge {
       this.deviceBoot = -1;
       this.lastHandshakeMs = 0;
       this.lastRxMs = this.now();
+      this.lastOpenMs = this.lastRxMs;
       this.reconnectAttempt = 0;
       this.setStatus('handshaking');
     } catch (error) {
@@ -167,14 +201,33 @@ export class Bridge {
   private onError(error: Error): void {
     // A port-level error (cable unplugged, EIO, driver reset) is a link loss, not
     // a fatal condition: close and let the backoff schedule reopen it.
-    this.options.logger.error(`transport error: ${error.message}`);
     if (this.statusValue === 'idle') return;
+    void this.releaseAndReconnect(`transport error: ${error.message}`, 'error');
+  }
+
+  // One path for every "this session is over" case, so the port is always
+  // released before the next open attempt and never blocks it indefinitely.
+  private async releaseAndReconnect(
+    reason: string,
+    severity: 'warn' | 'error' = 'warn',
+  ): Promise<void> {
+    if (this.stopping) return;
+    this.options.logger[severity](reason);
     this.setStatus('reconnecting');
-    void this.options.transport.close();
+    await this.closeTransport();
     this.scheduleReconnect();
   }
 
+  private async closeTransport(): Promise<void> {
+    try {
+      await withTimeout(this.options.transport.close(), CLOSE_TIMEOUT_MS, 'transport close');
+    } catch (error) {
+      this.options.logger.warn(`transport close failed: ${(error as Error).message}`);
+    }
+  }
+
   private scheduleReconnect(): void {
+    if (this.stopping) return;
     if (!this.autoTimers || this.reconnectTimer !== null) return;
     const delays = this.options.config.reconnectDelaysMs;
     const delay = delays[Math.min(this.reconnectAttempt, delays.length - 1)] ?? 15000;
@@ -309,6 +362,12 @@ export class Bridge {
   }
 
   tick(now: number): void {
+    if (this.statusValue === 'handshaking' && now - this.lastOpenMs >= HANDSHAKE_TIMEOUT_MS) {
+      void this.releaseAndReconnect(
+        `handshake timeout after ${now - this.lastOpenMs} ms, no hello received`,
+      );
+      return;
+    }
     if (this.statusValue === 'ready' && now - this.lastRxMs > this.options.config.linkTimeoutMs) {
       this.setStatus('degraded');
       this.emitState(true);

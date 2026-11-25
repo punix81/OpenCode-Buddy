@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { Bridge } from '../src/bridge.js';
+import { Bridge, CLOSE_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS } from '../src/bridge.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { NullLogger } from '../src/logger.js';
 import { Simulator } from '../src/simulator/simulator.js';
@@ -323,4 +323,87 @@ test('buffered duplicate hellos do not trigger repeated snapshots', async () => 
 
   await bridge.stop();
   assert.equal(bridge.status, 'idle');
+});
+
+// A silent transport models the failure seen on hardware: the CDC port is open
+// but the device's `hello` never arrives, and no close or error event is ever
+// emitted. Before the timeout existed, the bridge stayed in `handshaking` for
+// the whole session and never sent a single state frame.
+class SilentTransport implements Transport {
+  private handlers: TransportHandlers = {};
+  openCalls = 0;
+  closeCalls = 0;
+  closed = false;
+
+  constructor(private readonly closeImpl: () => Promise<void> = async () => {}) {}
+
+  async open(): Promise<void> {
+    ++this.openCalls;
+  }
+
+  close(): Promise<void> {
+    ++this.closeCalls;
+    this.closed = true;
+    return this.closeImpl();
+  }
+
+  async write(): Promise<void> {}
+
+  isOpen(): boolean {
+    return true;
+  }
+
+  setHandlers(handlers: TransportHandlers): void {
+    this.handlers = handlers;
+  }
+}
+
+test('a missing hello times out instead of waiting forever', async () => {
+  const transport = new SilentTransport();
+  const clock = { now: 5000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+
+  await bridge.start();
+  assert.equal(bridge.status, 'handshaking');
+
+  bridge.tick(clock.now + HANDSHAKE_TIMEOUT_MS - 1);
+  await settle();
+  assert.equal(bridge.status, 'handshaking', 'must wait for the announcement period');
+  assert.equal(transport.closeCalls, 0);
+
+  bridge.tick(clock.now + HANDSHAKE_TIMEOUT_MS);
+  await settle();
+  assert.equal(bridge.status, 'reconnecting');
+  assert.equal(transport.closed, true, 'the port is released before reopening');
+
+  await bridge.stop();
+});
+
+test('stop() completes when the transport never closes', async () => {
+  const transport = new SilentTransport(() => new Promise<void>(() => {}));
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+  });
+
+  await bridge.start();
+  const started = Date.now();
+  await bridge.stop();
+  const elapsed = Date.now() - started;
+
+  assert.equal(bridge.status, 'idle');
+  assert.equal(transport.closeCalls, 1);
+  assert.ok(
+    elapsed >= CLOSE_TIMEOUT_MS - 100,
+    `stop() returned before the close budget elapsed (${elapsed} ms)`,
+  );
+  assert.ok(elapsed < CLOSE_TIMEOUT_MS + 2000, `stop() took ${elapsed} ms`);
 });

@@ -1,6 +1,6 @@
 import { Bridge } from '../bridge.js';
 import { loadConfig } from '../config.js';
-import { describeState, installShutdown, makeLogger, openSerial, parseCli } from './common.js';
+import { describeState, exitAfterStop, installShutdown, makeLogger, openSerial, parseCli } from './common.js';
 
 const options = parseCli(process.argv.slice(2));
 const config = {
@@ -27,7 +27,7 @@ try {
   installShutdown(stop);
   if (options.durationMs !== undefined) {
     setTimeout(() => {
-      void stop().then(() => process.exit(0));
+      exitAfterStop(stop);
     }, options.durationMs);
   }
 } catch (error) {
