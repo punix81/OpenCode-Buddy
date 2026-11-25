@@ -40,8 +40,10 @@ The build produced zero Buddy source warnings and one warning in the pinned Ardu
 | Browser review | VERIFIED Chrome displayed firmware pixels. Short, double, long, very long, idle return and simulated permission on another page passed. |
 | Serial and hardware scope | VERIFIED the RX queue setting, frame writer, panel configuration, rotation and bridge source match the starting revision |
 
-## Hardware gate
+## ESP32-C3 installation
 
-**NOT VERIFIED** for this image — active FPS, frame time, minimum heap, first frame, transfer latency, real USB operation, one-hour stability, panel color separation, touch through PLA and readability at 40–60 cm. The Phase 1 timing and Phase 2 link evidence belong to earlier images. Palette lookup during SPI transfer is the main new timing cost to measure.
+**VERIFIED** — the Product Owner authorized installation of the release image from commit `1499c73`. Before writing, the full 4 MiB backup matched the digest computed by the device. The partition table and boot selection matched the app at `0x10000`. Only that application was written. Its on-device digest matched all 405,712 bytes of the reviewed binary.
 
-**Decision pending** — Product Owner visual approval and explicit authorization with an agreed restore path before flashing. The one-hour soak and on-device measurements remain Phase 2 work. Remote publication is handled by the Product Owner.
+**VERIFIED** — after a watchdog reset, the device sent an NDJSON v1 `hello` over USB identifying itself as OpenCode Buddy firmware `0.2.0`.
+
+**NOT VERIFIED** for this image — sustained bidirectional USB traffic, one-hour stability, active FPS, frame time, minimum heap, first-frame and transfer latency, panel color separation, touch through PLA and readability at 40–60 cm. These checks remain Phase 2 work.
