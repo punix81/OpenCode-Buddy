@@ -1,17 +1,18 @@
 #include "AnimationEngine.h"
 
 #include "Config.h"
+#include <cstdlib>
 
 namespace buddy {
 namespace {
 
 constexpr uint32_t kBlinkPeriodMs = 4200;
-constexpr uint32_t kBlinkClosedMs = 110;
+constexpr uint32_t kBlinkWindowMs = 240;
 
 }  // namespace
 
 void AnimationEngine::begin(uint32_t now) {
-  start_ = now;
+  entered_ = start_ = now;
   lastPush_ = now - kFrameIntervalActiveMs;
   frame_ = MotionFrame{};
 }
@@ -26,9 +27,15 @@ void AnimationEngine::tick(uint32_t now, BuddyState state, bool quiet) {
 
   // Quiet mode suspends ambient blinking but keeps alert motion available.
   frame_.quiet = quiet;
-  frame_.blink = !quiet && (frame_.elapsedMs % kBlinkPeriodMs) < kBlinkClosedMs;
-
-  (void)state;
+  if (state != current_) {
+    frame_.previous = current_;
+    current_ = state;
+    entered_ = now;
+  }
+  frame_.age = now - entered_;
+  const uint32_t blink = (frame_.elapsedMs + 620) % kBlinkPeriodMs;
+  frame_.lid = quiet || blink >= kBlinkWindowMs ? 0 :
+      255 * (120 - std::abs(static_cast<int>(blink) - 120)) / 120;
 }
 
 uint32_t AnimationEngine::intervalMs(BuddyState state) const {

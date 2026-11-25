@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Changed — companion display
+
+- Redesigned all twelve expressions and six circular pages with shared indexed colors, fitted
+  typography and a procedural optical face. Quiet mode holds a still expression.
+- Dashboard counters preserve individual field availability. Wide derived token totals, independent
+  context utilization and explicit bridge readiness carry through to the display.
+- Added a loopback mock preview using the firmware renderer and local PNG review sheets.
+
 ### Fixed — Phase 2 hardware validation findings
 
 - The device now re-announces `hello` while no bridge session is established, so a bridge started

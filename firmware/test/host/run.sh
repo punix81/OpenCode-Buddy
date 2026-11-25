@@ -29,3 +29,8 @@ g++ -std=c++17 -O2 -Wall -Wextra \
   -o "$OUT"
 
 "$OUT" "$ROOT/protocol/test-vectors/messages.json"
+
+g++ -std=c++17 -O2 -Wall -Wextra \
+  -I "$HERE/mock" -I "$ROOT/firmware/include" -I "$ROOT/firmware/src" \
+  "$ROOT/firmware/src/TouchManager.cpp" "$HERE/test_touch.cpp" -o "$OUT-touch"
+"$OUT-touch"

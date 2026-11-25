@@ -1,14 +1,14 @@
 #include "DisplayManager.h"
+#include "Theme.h"
 
 namespace buddy {
 
 bool DisplayManager::begin() {
   panel_.init();
   panel_.setRotation(kDisplayRotation);
-  panel_.fillScreen(0);
+  panel_.fillScreen(panel_.color565(8,14,25));
 
-  canvas_.setColorDepth(8);
-  if (canvas_.createSprite(kCanvasSize, kCanvasSize) == nullptr) {
+  if (!ui::initCanvas(canvas_)) {
     ready_ = false;
     return false;
   }

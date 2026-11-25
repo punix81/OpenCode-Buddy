@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenCode Buddy · Display studio</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1018;color:#dfe8ef;font:16px system-ui,sans-serif}
+main{max-width:880px;margin:7vh auto;padding:24px}header{border-bottom:1px solid #2e3945;padding-bottom:16px}
+h1{font-weight:550;letter-spacing:-.045em;font-size:36px;margin:0}small{color:#93a5b7}
+section{display:flex;align-items:center;gap:48px;flex-wrap:wrap;margin:36px 0}canvas{border-radius:100%;width:min(360px,90vw);height:auto;image-rendering:pixelated;box-shadow:0 0 0 6px #202a37,0 14px 36px #06090e}
+aside{flex:1;min-width:220px;display:grid;gap:12px}label{display:grid;gap:4px;color:#a4b4c6}
+select,button{font:inherit;color:#dfe8ef;background:#192330;border:1px solid #364658;border-radius:8px;padding:9px 14px}
+button{cursor:pointer}.check{display:block}#touch{touch-action:none;user-select:none;background:#a3ead3;color:#07291e;font-weight:bold}
+</style>
+<main><header><h1>OpenCode Buddy</h1><small>Firmware display preview · mock data</small></header>
+<section><canvas id="panel" width="240" height="240" aria-label="Mock Buddy display"></canvas>
+<aside><label>Screen<select id="screen"></select></label><label>Expression<select id="state"></select></label>
+<label>Metrics<select id="profile"><option>Typical</option><option>Missing</option><option>Extreme</option><option>Degraded link</option></select></label>
+<label class="check"><input type="checkbox" id="quiet"> Quiet mode</label>
+<label class="check"><input type="checkbox" id="native"> Native size</label>
+<label class="check"><input type="checkbox" id="day"> Light surround</label>
+<button id="touch">Touch sensor</button><small>Tap to advance, double tap for Buddy. Hold 1.5 s for quiet mode or 5 s to reset.</small>
+<button id="notify">Simulate permission request</button><output id="feedback" aria-live="polite"></output></aside></section></main>
+<script>
+const el=id=>document.getElementById(id), screenMenu=el('screen'), state=el('state'), quiet=el('quiet');
+for(const [menu,names] of [[screenMenu,['Buddy','Session','Tokens','Tools','MCP Radar','System']],
+  [state,['Offline','Idle','Thinking','Generating','Working','Permission','Input needed','Success','Error','Compacting','Retrying','Interrupted']]]) {
+  for(const name of names) menu.add(new Option(name));
+}
+state.selectedIndex=1;
+let current=1, previous=1, entered=0, lastTouch=0, pending, pressed, held, reset=false;
+const now=()=>Math.floor(performance.now());
+function selectState(next) {
+  if(next!==current) {previous=current;current=next;entered=now();}
+  state.selectedIndex=next;
+}
+state.onchange=()=>selectState(state.selectedIndex);
+el('notify').onclick=()=>selectState(5);
+screenMenu.onchange=()=>{lastTouch=now();};
+el('native').onchange=e=>el('panel').style.width=e.target.checked?'240px':'min(360px,90vw)';
+el('day').onchange=e=>{document.body.style.background=e.target.checked?'#dbe3ed':'';
+  document.body.style.color=e.target.checked?'#293647':'';};
+const pad=el('touch');
+function down() {
+  if(pressed!=null)return;
+  pressed=now(); reset=false;
+  held=setTimeout(()=>{clearTimeout(pending);pending=null;quiet.checked=false;screenMenu.selectedIndex=0;
+    reset=true;lastTouch=now();el('feedback').value='Preferences reset';},5000);
+}
+function up() {
+  if(pressed==null)return;
+  const duration=now()-pressed;pressed=null;clearTimeout(held);lastTouch=now();
+  if(reset)return;
+  if(duration>=1500){clearTimeout(pending);pending=null;quiet.checked=!quiet.checked;return;}
+  if(pending){clearTimeout(pending);pending=null;screenMenu.selectedIndex=0;return;}
+  pending=setTimeout(()=>{screenMenu.selectedIndex=(screenMenu.selectedIndex+1)%6;pending=null;},350);
+}
+pad.onpointerdown=e=>{pad.setPointerCapture(e.pointerId);down();};
+pad.onpointerup=up;
+pad.onpointercancel=()=>{clearTimeout(held);pressed=null;};
+pad.onkeydown=e=>{if([' ','Enter'].includes(e.key)){e.preventDefault();down();}};
+pad.onkeyup=e=>{if([' ','Enter'].includes(e.key))up();};
+async function paint() {
+  const time=now(), age=time-entered;
+  if(!quiet.checked && time-lastTouch>=60000 && screenMenu.selectedIndex){screenMenu.selectedIndex=0;lastTouch=time;}
+  const ttl={7:4000,8:30000,11:10000}[current];
+  if(ttl && age>=ttl)selectState(1);
+  const values=[screenMenu.selectedIndex,current,el('profile').selectedIndex,+quiet.checked,time,time-entered,previous,time-lastTouch];
+  try{
+    const res=await fetch('/frame?v='+values.join(','));
+    if(!res.ok)throw Error(res.status);
+    const image=await createImageBitmap(await res.blob());
+    el('panel').getContext('2d').drawImage(image,0,0);image.close();
+    setTimeout(paint,quiet.checked?150:45);
+  }catch(e){el('feedback').value='Preview unavailable. Start preview.py and open its local address.';}
+}
+paint();
+</script></html>

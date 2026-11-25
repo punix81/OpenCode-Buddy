@@ -12,7 +12,9 @@ struct MotionFrame {
   uint32_t elapsedMs = 0;
   uint16_t cycleMs = 0;   // 0..999
   uint8_t pulse = 0;      // 0..255 triangle wave, 1 Hz
-  bool blink = false;
+  uint8_t lid = 0;
+  uint32_t age = 0;
+  BuddyState previous = BuddyState::Offline;
   bool quiet = false;
 };
 
@@ -28,6 +30,8 @@ class AnimationEngine {
   void markPushed(uint32_t now);
 
  private:
+  BuddyState current_ = BuddyState::Offline;
+  uint32_t entered_ = 0;
   uint32_t start_ = 0;
   uint32_t lastPush_ = 0;
   MotionFrame frame_;

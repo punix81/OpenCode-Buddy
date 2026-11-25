@@ -35,7 +35,8 @@ class StateManager {
   const Versions& versions() const { return versions_; }
 
   void setMock(bool value) { mock_ = value; }
-  bool mockSource() const { return mock_; }
+  void setConfigMock(bool value) { configMock_ = value; }
+  bool mockSource() const { return mock_ || configMock_; }
 
   void setDiagnostic(const char* code);
   const char* diagnostic() const { return diagnostic_; }
@@ -47,13 +48,15 @@ class StateManager {
   bool isTerminal() const;
 
  private:
+  BuddyState reported_ = BuddyState::Count;
   BuddyState state_ = BuddyState::Offline;
   uint32_t stateSince_ = 0;
   BuddyMetrics metrics_;
   Versions versions_;
   bool mock_ = false;
-  char model_[24] = "--";
-  char agent_[16] = "--";
+  bool configMock_ = false;
+  char model_[41] = "--";
+  char agent_[25] = "--";
   char diagnostic_[12] = "--";
   LinkState usb_ = LinkState::Disconnected;
   BridgeState bridge_ = BridgeState::Unknown;

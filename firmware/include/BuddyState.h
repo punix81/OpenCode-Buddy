@@ -48,15 +48,19 @@ enum class McpStatus : uint8_t {
 };
 
 struct TokenUsage {
-  bool available = false;
+  bool inputKnown = false;
+  bool outputKnown = false;
+  bool totalKnown = false;
   uint32_t input = 0;
   uint32_t output = 0;
-  uint32_t total = 0;
+  uint64_t total = 0;
   bool contextAvailable = false;
   int16_t contextPercent = -1;
 };
 
 struct ToolUsage {
+  // Success, failed, running, then read/edit/shell/search/MCP/other.
+  uint16_t known = 0;
   uint32_t success = 0;
   uint32_t failed = 0;
   uint8_t running = 0;
@@ -74,6 +78,8 @@ struct McpEntry {
 };
 
 struct McpSummary {
+  bool known = false;
+  bool mock = false;
   uint8_t online = 0;
   uint8_t total = 0;
   uint8_t count = 0;
@@ -81,6 +87,8 @@ struct McpSummary {
 };
 
 struct BuddyMetrics {
+  bool sessionsKnown = false;
+  bool elapsedKnown = false;
   uint16_t activeSessions = 0;
   uint32_t elapsedSeconds = 0;
   uint8_t pendingPermissions = 0;

@@ -225,6 +225,35 @@ int main(int argc, char** argv) {
     check(state.mockSource(), "mock source");
   }
 
+  // Only supplied fields are present. Full snapshots replace prior optional metrics.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string tail = R"(,"connection":{"bridge":"ready","opencode":"connected"},"versions":{"bridge":"0.2.0","protocol":1},"source":"live"}})";
+    auto snapshot = [&](int seq, const std::string& fields) {
+      const std::string line = R"({"v":1,"type":"state","seq":)" + std::to_string(seq)
+          + R"(,"data":{"status":"success","activeSessions":0,)" + fields + tail;
+      return feed(parser, state, line, seq * 1000);
+    };
+    check(snapshot(1, R"("tokens":{"input":0},"tools":{"failed":0})") == buddy::ParseCode::Ok,
+          "partial telemetry accepted");
+    const auto& a = state.metrics();
+    check(a.sessionsKnown && !a.elapsedKnown && a.tools.known == 2, "zero vs missing tools and time");
+    check(a.tokens.inputKnown && !a.tokens.outputKnown && !a.tokens.totalKnown, "missing token components");
+    check(snapshot(2, R"("tokens":{"input":4294967295,"output":4294967295})") == buddy::ParseCode::Ok,
+          "largest token components accepted");
+    check(a.tokens.totalKnown && a.tokens.total == 8589934590ULL && !a.tools.known, "wide derived total");
+    check(state.stateSince() == 1000, "unchanged snapshot preserves entry time");
+    state.tick(6000);
+    check(snapshot(3, R"("elapsedSeconds":0)") == buddy::ParseCode::Ok, "repeated success after TTL");
+    check(state.state() == buddy::BuddyState::Idle && a.elapsedKnown, "expired celebration stays expired");
+    state.setState(buddy::BuddyState::Working, 7000);
+    state.setState(buddy::BuddyState::Success, 8000);
+    check(state.stateSince() == 8000 && state.isTerminal(), "new execution can celebrate");
+  }
+
   // Config is exposed to the caller and clamped values are reported.
   {
     buddy::ProtocolParser parser;

@@ -378,6 +378,8 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
     if (!onlyKeys(data, allowed)) return ParseCode::ParseError;
 
     ParsedState parsed;
+    parsed.versions = state.versions();
+    parsed.metrics.sessionsKnown = true;
     if (data["status"].isUnbound()) return ParseCode::ParseError;
     const char* status = data["status"] | "";
     const int statusValue = statusIndex(status);
@@ -467,6 +469,7 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
     uint32_t value = 0;
     if (!data["elapsedSeconds"].isUnbound()) {
       if (!readU32(data["elapsedSeconds"], value)) return ParseCode::ParseError;
+      parsed.metrics.elapsedKnown = true;
       parsed.metrics.elapsedSeconds = value;
     }
     if (!data["pendingPermissions"].isUnbound()) {
@@ -510,14 +513,13 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
         if (!readU32(tokens["total"], total)) return ParseCode::ParseError;
         hasTotal = true;
       }
-      if (!hasTotal && hasInput && hasOutput) {
-        total = input + output;
-        hasTotal = true;
-      }
-      parsed.metrics.tokens.available = hasInput || hasOutput || hasTotal;
-      parsed.metrics.tokens.input = hasInput ? input : 0;
-      parsed.metrics.tokens.output = hasOutput ? output : 0;
-      parsed.metrics.tokens.total = hasTotal ? total : 0;
+      auto& usage = parsed.metrics.tokens;
+      usage.inputKnown = hasInput;
+      usage.outputKnown = hasOutput;
+      usage.totalKnown = hasTotal || (hasInput && hasOutput);
+      usage.input = input;
+      usage.output = output;
+      usage.total = hasTotal ? total : static_cast<uint64_t>(input) + output;
       if (!tokens["contextPct"].isUnbound() && !tokens["contextPct"].isNull()) {
         if (!tokens["contextPct"].is<float>() && !tokens["contextPct"].is<int>()) {
           return ParseCode::ParseError;
@@ -535,12 +537,15 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
       static const char* const toolKeys[] = {"success", "failed", "running", "categories"};
       if (!onlyKeys(tools, toolKeys)) return ParseCode::ParseError;
       if (!tools["success"].isUnbound()) {
+        parsed.metrics.tools.known |= 1u << 0;
         if (!readU32(tools["success"], parsed.metrics.tools.success)) return ParseCode::ParseError;
       }
       if (!tools["failed"].isUnbound()) {
+        parsed.metrics.tools.known |= 1u << 1;
         if (!readU32(tools["failed"], parsed.metrics.tools.failed)) return ParseCode::ParseError;
       }
       if (!tools["running"].isUnbound()) {
+        parsed.metrics.tools.known |= 1u << 2;
         if (!readU8(tools["running"], parsed.metrics.tools.running)) return ParseCode::ParseError;
       }
       if (!tools["categories"].isUnbound()) {
@@ -548,23 +553,21 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
         JsonObjectConst categories = tools["categories"].as<JsonObjectConst>();
         static const char* const categoryKeys[] = {"read", "edit", "shell", "search", "mcp", "other"};
         if (!onlyKeys(categories, categoryKeys)) return ParseCode::ParseError;
-        if (!categories["read"].isUnbound() &&
-            !readU32(categories["read"], parsed.metrics.tools.read)) return ParseCode::ParseError;
-        if (!categories["edit"].isUnbound() &&
-            !readU32(categories["edit"], parsed.metrics.tools.edit)) return ParseCode::ParseError;
-        if (!categories["shell"].isUnbound() &&
-            !readU32(categories["shell"], parsed.metrics.tools.shell)) return ParseCode::ParseError;
-        if (!categories["search"].isUnbound() &&
-            !readU32(categories["search"], parsed.metrics.tools.search)) return ParseCode::ParseError;
-        if (!categories["mcp"].isUnbound() &&
-            !readU32(categories["mcp"], parsed.metrics.tools.mcp)) return ParseCode::ParseError;
-        if (!categories["other"].isUnbound() &&
-            !readU32(categories["other"], parsed.metrics.tools.other)) return ParseCode::ParseError;
+        uint32_t* counts[] = {&parsed.metrics.tools.read, &parsed.metrics.tools.edit,
+                              &parsed.metrics.tools.shell, &parsed.metrics.tools.search,
+                              &parsed.metrics.tools.mcp, &parsed.metrics.tools.other};
+        for (unsigned i = 0; i < 6; ++i) {
+          const auto field = categories[categoryKeys[i]];
+          if (field.isUnbound()) continue;
+          if (!readU32(field, *counts[i])) return ParseCode::ParseError;
+          parsed.metrics.tools.known |= 1u << (3 + i);
+        }
       }
     }
 
     if (!data["mcp"].isUnbound()) {
       if (!data["mcp"].is<JsonObjectConst>()) return ParseCode::ParseError;
+      parsed.metrics.mcp.known = true;
       JsonObjectConst mcp = data["mcp"].as<JsonObjectConst>();
       static const char* const mcpKeys[] = {"online", "total"};
       if (!onlyKeys(mcp, mcpKeys)) return ParseCode::ParseError;
@@ -591,14 +594,21 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
     // Apply atomically.
     state.setModel(parsed.model);
     state.setAgent(parsed.agent);
+    // The separate detail frame owns the alias list. Only retain it when
+    // its source and aggregate still agree with this complete snapshot.
+    const auto& prior = state.metrics().mcp;
+    auto& incoming = parsed.metrics.mcp;
+    if (incoming.known && prior.known && prior.mock == parsed.mock &&
+        prior.total == incoming.total && prior.online == incoming.online) {
+      incoming = prior;
+    }
+    incoming.mock = parsed.mock;
     state.mutableMetrics() = parsed.metrics;
     state.setVersions(parsed.versions);
     state.setMock(parsed.mock);
     state.setDiagnostic(parsed.diagnosticSet ? parsed.diagnostic : "--");
     state.setLink(state.usb(), parsed.bridge, parsed.opencode);
-    if (state.state() != parsed.status) {
-      state.setState(parsed.status, now);
-    }
+    state.setState(parsed.status, now);
     ready_ = true;
   } else if (strcmp(type, "mcp_status") == 0) {
     static const char* const allowed[] = {"online", "total", "servers", "source"};
@@ -614,6 +624,8 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
     if (servers.size() > kMcpMaxEntries) return ParseCode::BoundsError;
 
     McpSummary summary;
+    summary.known = true;
+    summary.mock = strcmp(source, "mock") == 0;
     summary.online = online;
     summary.total = total;
     for (JsonVariantConst item : servers) {
@@ -632,7 +644,6 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
       ++summary.count;
     }
     state.mutableMetrics().mcp = summary;
-    state.setMock(strcmp(source, "mock") == 0);
   } else if (strcmp(type, "heartbeat") == 0) {
     // No payload; only liveness.
   } else if (strcmp(type, "ack") == 0) {

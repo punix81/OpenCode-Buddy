@@ -58,7 +58,11 @@ void MockScenario::begin(uint32_t now, StateManager& state) {
   metrics = BuddyMetrics{};
   seedMcp(metrics.mcp);
   metrics.activeSessions = 0;
-  metrics.tokens.available = true;
+  metrics.sessionsKnown = metrics.elapsedKnown = true;
+  metrics.tokens.inputKnown = metrics.tokens.outputKnown = metrics.tokens.totalKnown = true;
+  metrics.tools.known = 0x1ff;
+  metrics.mcp.known = true;
+  state.setMock(true);
   metrics.tokens.contextAvailable = false;
   state.setModel("mock-deepseek");
   state.setAgent("build");

@@ -131,3 +131,13 @@ project rule, not a temporary workaround.
 - The issue bodies under `.github/issues/` and the scripts under `scripts/` remain available **for the
   Product Owner**. Agents must not execute the GitHub scripts.
 - Never force-push or rewrite published history, even if remote access were available.
+
+## 9. Rendering conventions
+
+- Use Theme and the indexed 220-square sprite for dashboard and face changes. Fit text using
+  LovyanGFX font measurements and the safe chord at both vertical edges of its box.
+- Preserve independent availability of optional metrics. Use wide arithmetic for totals and ratios.
+  Show the data source on every mock page, including standalone MCP detail.
+- Use monotonic state-entry time for one-shot effects. Keep quiet frames still and repeated
+  snapshots idempotent. Rebuild the native preview and review both contact sheets after layout edits.
+- Distinguish host pixel verification from panel measurements in design reports.

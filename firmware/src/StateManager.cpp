@@ -38,6 +38,7 @@ void copySanitized(char* destination, size_t capacity, const char* source) {
 }  // namespace
 
 void StateManager::begin(uint32_t now) {
+  reported_ = BuddyState::Count;
   state_ = BuddyState::Offline;
   stateSince_ = now;
   usb_ = LinkState::Disconnected;
@@ -52,6 +53,8 @@ void StateManager::setState(BuddyState value, uint32_t now) {
   if (value >= BuddyState::Count) {
     value = BuddyState::Offline;
   }
+  if (reported_ == value) return;
+  reported_ = value;
   state_ = value;
   stateSince_ = now;
 }

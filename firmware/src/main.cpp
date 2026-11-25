@@ -136,7 +136,7 @@ void flushProtocol(uint32_t now) {
     timings.longMs = config.longPressMs;
     timings.veryLongMs = config.veryLongPressMs;
     gTouch.setTimings(timings);
-    gState.setMock(config.mock);
+    gState.setConfigMock(config.mock);
   }
 
   uint32_t expected = 0;
