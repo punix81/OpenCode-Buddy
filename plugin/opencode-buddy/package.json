@@ -1,0 +1,17 @@
+{
+  "name": "opencode-buddy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "description": "OpenCode Buddy server plugin: forwards allowlisted OpenCode v2 session metadata to the local Buddy bridge.",
+  "engines": {
+    "opencode": ">=2.4.1 <3"
+  }
+}
