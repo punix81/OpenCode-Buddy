@@ -6,6 +6,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Added — Phase 3, real OpenCode v2 integration
+
+- `plugin/opencode-buddy`: dependency-free OpenCode 2.4.1 server plugin. Subscribes to
+  `ctx.event.subscribe()`, filters on the event's `location.directory`, projects an allowlist of fields
+  and forwards them over a local Unix socket. Never blocks the host; reconnects with 1 s → 15 s backoff.
+- `bridge/src/ipc`: Unix-socket server in a 0700 directory, socket and token file in 0600, 256-bit
+  per-run token checked in the first frame, bounded lines (8 KiB), rate limit (200/s, burst 400), up
+  to eight authenticated peers (one per OpenCode location).
+- `bridge/src/live`: live source that validates every message with the existing default-deny
+  normalizer, anonymises MCP names (`MCP-1…8`) unless `allowRealMcpNames`, and invalidates sessions
+  and pending counters when a peer disappears or stays silent for 15 s.
+- `npm run live` / `npm start` (LIVE, default) and `npm run diagnose:opencode`.
+- `scripts/install-buddy-plugin.mjs`: prints the exact configuration change, never rewrites the global
+  OpenCode configuration; `--project DIR` writes a project-local config with a backup.
+- `docs/opencode-v2-event-mapping.md`, `docs/opencode-integration.md`, `docs/plugin-installation.md`
+  and the Phase 3 reports/evidence.
+
+### Fixed — integration defects found on real data
+
+- The plugin snapshot restored sessions from other projects served by the same OpenCode server
+  (31.9 M input tokens at connect). Sessions are now scoped to the plugin's location and to the last
+  15 minutes.
+- `permission.list` is session-scoped; the snapshot asks per restored session and tolerates absence.
+- MCP server names are anonymised before the registry so a real name cannot reach the USB protocol.
+
 ### Changed — companion display
 
 - Redesigned all twelve expressions and six circular pages with shared indexed colors, fitted

@@ -61,17 +61,18 @@ flash, 20 420 B RAM) ran on three boards with a clean handshake, ACKs, heartbeat
 scenarios; the 1-hour soak and the heap/FPS measurement remain open. See `docs/phase-2-report.md`,
 `docs/evidence/phase-2-hardware-validation.md` and `docs/handover-phase2.md`.
 
-## Phase 3 — OpenCode v2 integration
+## Phase 3 — OpenCode v2 integration — DELIVERED (with reservations)
 
 **Goal:** real activity drives the companion.
 
-Scope: plugin with `ctx.event.subscribe`; event mapping per the audit; permission and form alerts;
-concurrent sessions; deduplication; usage semantics confirmed; failure isolation; DeepSeek and at
-least one other provider tested; documented behaviour with the Buddy absent.
+Delivered: dependency-free plugin using `ctx.event.subscribe`; location filtering; allowlist
+projection; Unix-socket IPC with per-run token; LIVE by default with MOCK only by explicit flag;
+real states verified on hardware for THINKING, GENERATING, WORKING, SUCCESS and IDLE; real tokens,
+model, agent, tool categories and MCP radar; session invalidation on plugin loss; reconnect.
 
-Exit criteria: a real execution changes state; permission request visible; success and failure
-distinct; two concurrent sessions aggregate deterministically; OpenCode latency unchanged; no
-prohibited field on the wire (capture test).
+Not validated live: a `permission.asked` and a `form.created` notification (no safe trigger without
+interactive approval), a simultaneous pair of *active* executions (standalone runs serialize), a
+second provider, and the Phase 2 one-hour soak. See `docs/phase-3-report.md` §17.
 
 ## Phase 4 — Developer dashboard
 

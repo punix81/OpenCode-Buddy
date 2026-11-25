@@ -33,6 +33,22 @@ normalized state and counters.
 Wiring is identical to the pre-existing `Codex-Quota-Mini` reference build and is documented, with
 its source evidence, in [hardware/wiring.md](hardware/wiring.md).
 
+## Quick start
+
+```sh
+cd bridge
+npm ci
+npm run live          # LIVE: real OpenCode events (default mode)
+npm run mock -- --scenario all-states   # MOCK: development only
+npm run diagnose      # USB device and link
+npm run diagnose:opencode  # plugin, IPC, OpenCode version
+node ../scripts/install-buddy-plugin.mjs   # prints the exact plugin entry
+```
+
+LIVE mode requires the OpenCode plugin to be configured (see
+[docs/plugin-installation.md](docs/plugin-installation.md)); without it the device stays IDLE/OFFLINE
+and never receives simulated data.
+
 ## Architecture
 
 ```text

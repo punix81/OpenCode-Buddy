@@ -34,18 +34,21 @@ Two hard properties shape every decision:
 
 ## 2. Components
 
-### 2.1 Plugin (`plugin/`)
+### 2.1 Plugin (`plugin/opencode-buddy`) — implemented in Phase 3
 
 | Component | Responsibility |
 | --- | --- |
-| `PluginEntry` | `Plugin.define`, lifecycle, cleanup, option parsing. |
-| `OpenCodeAdapter` | Subscribes with `ctx.event.subscribe`, maps OpenCode v2 events to normalized events; uses `ctx.session`, `ctx.permission`, `ctx.mcp` for snapshots. |
-| `EventClassifier` | Classifies tool calls (read / edit / shell / search / mcp / other) from the tool ID only. |
-| `PrivacyGate` | First allowlist filter: drops anything not explicitly normalized; never forwards raw payloads. |
-| `BridgeLink` | Loopback-only client to the bridge, bounded queue, drop-oldest policy, reconnect with backoff. |
+| `index.js` default export | `{ id, setup }`. Loads a per-location instance, owns cleanup and the event loop. No SDK import: `Plugin.define` is an identity function in `@opencode/plugin@2.0.16`. |
+| Location gate | Keeps only events whose envelope `location.directory` is this instance's location; location-less session events are accepted only for sessions already known. |
+| `map.js` projector | Pure mapping from v2 events to Buddy `NormalizedEvent`; the only place that reads event fields, one explicit projection per type. Bounded caches: tool-call id → tool name (512), agent/model per session (64), MCP servers (16). |
+| Snapshot | On every connect: `ctx.session.list` (own location, last 15 min), `ctx.mcp.list`, `ctx.permission.list` per restored session. Restores model and cumulative usage, never a terminal outcome. |
+| `BridgeLink` | Unix socket client, bounded queue (500), NDJSON, 5 s heartbeat, reconnect 1 s → 15 s, all errors swallowed. |
 
-The plugin runs inside the OpenCode server, so it needs no HTTP authentication and no scraping. It
-must never throw into the host: every handler is wrapped, failures are counted and logged sanitized.
+The plugin runs inside the OpenCode server (Bun), so it needs no HTTP credential and no scraping.
+It never throws into the host and never blocks: the event loop only projects and writes to a socket.
+
+The bridge side is `bridge/src/ipc` (server, token, framing, rate limit) plus `bridge/src/live`
+(validation, MCP aliasing, liveness, session invalidation).
 
 ### 2.2 Bridge (`bridge/`)
 

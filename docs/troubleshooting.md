@@ -75,6 +75,39 @@ same race.
 - Hypothesis (Phase 1): GPIO0 is the display reset and a strapping pin. Confirm on the real unit before
   changing wiring. Mitigation is a reset-line timing change, not rewiring.
 
+## Phase 3 — plugin and IPC
+
+### The device stays IDLE/OFFLINE while OpenCode is running
+
+1. `npm run diagnose:opencode` — it checks the binary, the plugin entry, the socket, the token
+   handshake and the USB device in one pass.
+2. `ipc directory … mode 700` and `IPC handshake accepted` mean the bridge is up. A `WARN plugin not
+   configured` means the plugin entry is missing from the OpenCode configuration; nothing else can
+   work until it is added (see `docs/plugin-installation.md`).
+3. The bridge log must show `opencode peer=N app=cli version=2.4.1`. Without that line the plugin
+   never connected: check the plugin path is a **directory**, not a file — OpenCode skips file paths
+   with `configured plugin path must be a directory`.
+
+### The panel shows another project's tokens
+
+Symptom seen during development: 31.9 M input tokens at connect. Cause: the OpenCode server serves
+every location, so both `ctx.event.subscribe()` and `ctx.session.list()` return other projects.
+The plugin filters events on `location.directory` and restores only sessions of its own location
+updated in the last 15 minutes. If it reappears, capture `OPENCODE_BUDDY_DEBUG=1` output in
+`/tmp/opencode-buddy-debug.log` and check the `snapshot directory=` line.
+
+### Nothing happens on the panel for a tool that lasted milliseconds
+
+The bridge emits state once per second. A tool that starts and succeeds inside that window is counted
+(verified: `tools=3/0/1` for a real `ls`) but may never be sampled as WORKING. Use a tool that runs
+longer to observe the state.
+
+### Plugin debug output
+
+`OPENCODE_BUDDY_DEBUG=1` writes to `/tmp/opencode-buddy-debug.log` (the OpenCode server detaches its
+stderr, so console output is lost). Never enable it in normal use: it records event types and
+session identifiers, never prompts or content.
+
 ## Firmware build
 
 ### `pio: command not found`

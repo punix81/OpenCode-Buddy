@@ -132,7 +132,19 @@ project rule, not a temporary workaround.
   Product Owner**. Agents must not execute the GitHub scripts.
 - Never force-push or rewrite published history, even if remote access were available.
 
-## 9. Rendering conventions
+## 9. Phase 3 integration facts (verified on 2026-11-25)
+
+- OpenCode **2.4.1**, `@opencode/cli` via npm global; plugins run inside the server on **Bun**.
+- Plugin SDK `@opencode/plugin@2.0.16`: `{ id, setup(ctx) }`, `ctx.event.subscribe()`.
+  `Plugin.define` is an identity function — importing it is optional.
+- A configured plugin path must be a **directory**; a file path is skipped with a warning.
+- The server-wide event stream carries every location: filter on `location.directory`.
+- Local IPC is a Unix socket in `0700` with a `0600` per-run token (see `docs/security.md` §5).
+  Node and Bun expose no portable `SO_PEERCRED`, so the token is the second factor.
+- LIVE is the default (`npm run live`); MOCK is explicit (`npm run mock`); no fallback exists.
+- Never run `opencode service restart` while an agent session is running: it kills that session.
+
+## 10. Rendering conventions
 
 - Use Theme and the indexed 220-square sprite for dashboard and face changes. Fit text using
   LovyanGFX font measurements and the safe chord at both vertical edges of its box.
