@@ -57,7 +57,7 @@ responses, reasoning, tool arguments, tool output, commands and paths never leav
 | Plugin silent > 15 s | treated as disconnected (watchdog in the bridge) |
 | Bridge down | plugin reconnects with 1 s → 15 s backoff; OpenCode is unaffected |
 | Device unplugged | bridge reconnects the serial port; OpenCode is unaffected |
-| Bridge restart | new token and socket; plugin re-reads them on its next attempt |
+| Bridge restart | new token and socket; the plugin reconnects and restores the snapshot, including the current execution start from `Session.Info.time.busy` |
 | USB replug | firmware handshake + full snapshot (Phase 2 behaviour, unchanged) |
 
 ## 5. Metrics semantics

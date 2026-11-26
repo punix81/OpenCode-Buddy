@@ -23,6 +23,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 - `docs/opencode-v2-event-mapping.md`, `docs/opencode-integration.md`, `docs/plugin-installation.md`
   and the Phase 3 reports/evidence.
 
+### Fixed — execution duration on the Session screen
+
+- The chronometer no longer stays at 00:00 when the bridge attaches while an execution is already
+  running: the plugin snapshot restores the start from `Session.Info.time.busy`, and the bridge falls
+  back to the first phase event when even that is missing.
+- The duration now measures one execution: it runs while active, freezes on the terminal value for the
+  notification TTL, and returns to zero once the session is idle. A start left over from a previous
+  execution can no longer leak into the next one.
+- 4 bridge tests and 2 plugin tests added; bridge 56/56, plugin 13/13, typecheck clean.
+- Diagnostics now include `elapsed=` in the state lines and the forwarded event kind at debug level.
+
 ### Fixed — plugin diagnostics and installer
 
 - `npm run diagnose:opencode` now reads the global configuration **and** every project

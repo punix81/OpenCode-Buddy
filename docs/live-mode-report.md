@@ -73,6 +73,7 @@ See `docs/opencode-v2-event-mapping.md` §5.
 | Real `ls` command | `status=working`, `tools=3/0/1`, then `tools=4/0/0` |
 | Tokens | real, cumulative, consistent with `session export` (11 879 input / 127 output) |
 | MCP radar | `online=7 total=12` |
+| Execution duration after a bridge restart | restored from `Session.Info.time.busy`; `elapsed=353 s` and counting |
 | Plugin disconnect | sessions closed, pending counters cleared, IDLE/OFFLINE |
 
 ## 7. Defects found by real data (all fixed)
@@ -84,6 +85,7 @@ See `docs/opencode-v2-event-mapping.md` §5.
 | 3 | `mcp.status.changed.data.server` is a **name string**, with no status | three wrong hypotheses tested → `ctx.mcp.list()` re-query |
 | 4 | More than **8** MCP servers were rejected silently by the bridge | `online=0` with 12 servers → `IPC_MAX_DETAIL=8`, real counters kept |
 | 5 | `plugin@version` was redacted as an e-mail address | log message rewritten |
+| 6 | Session chronometer stayed at 00:00 when the bridge attached mid-execution | no `execution.started` in the snapshot → `time.busy` restore; `elapsed=353 s` after the restart |
 
 In addition, the bridge reliability fix from the previous session (7 s handshake timeout, bounded
 transport close, guaranteed CLI exit) is what keeps a LIVE session from freezing silently.

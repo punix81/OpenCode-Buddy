@@ -1,7 +1,7 @@
 import type { McpStatusData, OpenCodeLink, StateData } from '../protocol/types.js';
 import { MetricsManager, type MetricsSnapshot } from '../metrics/metrics.js';
 import { newSession, type McpServerState, type NormalizedEvent, type SessionState } from './types.js';
-import { reduceState, type ReduceContext } from './reducer.js';
+import { isActive, reduceState, type ReduceContext } from './reducer.js';
 
 interface McpSnapshot {
   online: number;
@@ -84,6 +84,13 @@ export class SessionRegistry {
         session.terminalAt = event.at;
         return;
       case 'phase':
+        // A phase can be the first trace of an execution seen by this bridge
+        // (attach mid-run, missed execution.started). Start the chronometer from
+        // that first trace instead of leaving it at zero; a phase that arrives
+        // while the session is already running keeps the original start.
+        if (session.startedAt === null || !isActive(session.status)) {
+          session.startedAt = event.at;
+        }
         session.status = event.status;
         session.terminalAt = null;
         return;

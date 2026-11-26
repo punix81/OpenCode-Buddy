@@ -114,3 +114,38 @@ test('a degraded bridge reports offline', () => {
   const state = registry.snapshot({ ...ctx(1100), bridge: 'degraded' });
   assert.equal(state.status, 'offline');
 });
+
+test('elapsed time runs while the execution is active', () => {
+  const registry = new SessionRegistry();
+  registry.apply({ kind: 'execution.started', sessionId: 's1', at: 1000 });
+  assert.equal(registry.snapshot(ctx(11000)).elapsedSeconds, 10);
+});
+
+test('elapsed time freezes on the terminal duration, then reads zero', () => {
+  const registry = new SessionRegistry();
+  registry.apply({ kind: 'execution.started', sessionId: 's1', at: 1000 });
+  registry.apply({ kind: 'execution.succeeded', sessionId: 's1', at: 8000 });
+
+  assert.equal(registry.snapshot(ctx(9000)).elapsedSeconds, 7);
+  assert.equal(registry.snapshot(ctx(8000 + 4001)).elapsedSeconds, 0);
+});
+
+test('a phase seen without execution.started starts the chronometer', () => {
+  const registry = new SessionRegistry();
+  registry.apply({ kind: 'phase', sessionId: 's1', at: 5000, status: 'thinking' });
+
+  const state = registry.snapshot(ctx(9000));
+  assert.equal(state.status, 'thinking');
+  assert.equal(state.elapsedSeconds, 4);
+});
+
+test('a new execution after idle restarts the chronometer', () => {
+  const registry = new SessionRegistry();
+  registry.apply({ kind: 'execution.started', sessionId: 's1', at: 1000 });
+  registry.apply({ kind: 'execution.succeeded', sessionId: 's1', at: 2000 });
+  registry.apply({ kind: 'session.idle', sessionId: 's1', at: 2500 });
+  assert.equal(registry.snapshot(ctx(3000)).elapsedSeconds, 0);
+
+  registry.apply({ kind: 'phase', sessionId: 's1', at: 5000, status: 'thinking' });
+  assert.equal(registry.snapshot(ctx(7000)).elapsedSeconds, 2);
+});

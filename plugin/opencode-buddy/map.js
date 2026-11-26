@@ -308,6 +308,15 @@ export function projectSessionSnapshot(session) {
   if (sessionID === null) return [];
   const at = Date.now();
   const out = [{ kind: 'session.started', sessionId: sessionID, at }];
+  // A bridge that (re)connects in the middle of an execution has missed
+  // session.execution.started. Session.Info.time.busy is the start of the
+  // current busy period, so restoring it keeps the duration truthful instead of
+  // pinning the timer at zero until the next execution.
+  const busy = typeof session?.time?.busy === 'number' ? session.time.busy : null;
+  const idle = typeof session?.time?.idle === 'number' ? session.time.idle : null;
+  if (busy !== null && busy <= at && (idle === null || busy > idle)) {
+    out.push({ kind: 'execution.started', sessionId: sessionID, at: busy });
+  }
   const agent = id(session?.agent, MAX_AGENT);
   const model = modelId(session?.model);
   if (agent !== null && model !== null) {

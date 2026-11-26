@@ -163,3 +163,19 @@ test('a reconnect snapshot restores model and usage but never a terminal state',
   );
   assert.ok(!events.some((event) => event.kind === 'execution.succeeded'));
 });
+
+test('a snapshot of a busy session restores the execution start from time.busy', () => {
+  const busyAt = Date.now() - 90_000;
+  const events = projectSessionSnapshot({ id: S, time: { busy: busyAt, idle: busyAt - 60_000 } });
+  const start = events.find((event) => event.kind === 'execution.started');
+  assert.equal(start?.at, busyAt);
+
+  const firstRun = projectSessionSnapshot({ id: S, time: { busy: busyAt } });
+  assert.equal(firstRun.find((event) => event.kind === 'execution.started')?.at, busyAt);
+});
+
+test('a snapshot of an idle session invents no execution start', () => {
+  const now = Date.now();
+  const events = projectSessionSnapshot({ id: S, time: { busy: now - 60_000, idle: now - 30_000 } });
+  assert.ok(!events.some((event) => event.kind === 'execution.started'));
+});

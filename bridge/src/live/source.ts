@@ -143,6 +143,7 @@ export class LiveSource {
 
   private onEvent(peer: number, raw: Record<string, unknown>): void {
     this.touch(peer);
+    this.options.logger.debug(`event kind=${String(raw['kind'])}`);
 
     const event: NormalizedEvent | null =
       raw['kind'] === 'mcp.status'

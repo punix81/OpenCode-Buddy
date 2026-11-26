@@ -55,7 +55,7 @@ received another project's usage totals (31.9 M input tokens) at connect time.
 | Cache read/write | same → `tokens.cache.read/write` | cumulative | VERIFIED | 0/0 on this provider | — |
 | Model | `session.step.started`, `session.model.selected` | `model.id` | VERIFIED | `deepseek-v4-1-flash-1017-r` | `--` |
 | Agent | `session.step.started`, `session.agent.selected` | `agent` | VERIFIED | `build` | `--` |
-| Execution duration | `session.execution.started` timestamp | bridge clock | VERIFIED | bridge `elapsedSeconds` | — |
+| Execution duration | `session.execution.started`; on reconnect `Session.Info.time.busy`; first phase as last resort | bridge clock | VERIFIED | bridge `elapsedSeconds`, 353 s after a bridge restart | starts at the first trace seen if the start was missed |
 | MCP status | `mcp.status.changed` (trigger) + `ctx.mcp.list()` (authoritative) | `Mcp.Server[]` with `status.status` | VERIFIED | real run: `online=7 total=12` on the bridge | `online 0 / total 0` |
 | Context occupancy (CTX) | — | — | **NOT AVAILABLE** | no capacity field in v2 events or `Session.Info` | stays `CTX --` |
 | OpenCode version on screen 6 | — | — | **NOT AVAILABLE** | NDJSON v1 has no field, protocol frozen | not displayed |

@@ -68,7 +68,7 @@ export function describeState(state: StateData): string {
   const tools = state.tools
     ? `${state.tools.success}/${state.tools.failed}/${state.tools.running}`
     : '--';
-  return `status=${state.status} sessions=${state.activeSessions} tokens=${tokens} tools=${tools} source=${state.source}`;
+  return `status=${state.status} sessions=${state.activeSessions} elapsed=${state.elapsedSeconds}s tokens=${tokens} tools=${tools} source=${state.source}`;
 }
 
 // A CLI must terminate even when a transport refuses to close (a half-open CDC

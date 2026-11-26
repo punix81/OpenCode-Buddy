@@ -76,9 +76,26 @@ function focusSession(sessions: readonly SessionState[], now: number): SessionSt
   return best;
 }
 
-function isActive(status: Status): boolean {
+export function isActive(status: Status): boolean {
   return status !== 'idle' && status !== 'success' && status !== 'error' && status !== 'interrupted' &&
     status !== 'offline';
+}
+
+// The chronometer measures one execution: it runs while the focus session is
+// active, freezes on its terminal value for the notification TTL, and reads zero
+// once the session is idle again. A start time from a previous execution must
+// never leak into the next one.
+function elapsedSecondsFor(focus: SessionState | null, effective: Status, now: number): number {
+  if (focus === null || focus.startedAt === null) return 0;
+  let end: number;
+  if (isActive(effective)) {
+    end = now;
+  } else if (effective === 'success' || effective === 'error' || effective === 'interrupted') {
+    end = focus.terminalAt ?? now;
+  } else {
+    return 0;
+  }
+  return Math.max(0, Math.floor((end - focus.startedAt) / 1000));
 }
 
 export function reduceState(
@@ -106,10 +123,11 @@ export function reduceState(
     }
   }
 
-  const elapsedSeconds =
-    focus !== null && focus.startedAt !== null
-      ? Math.max(0, Math.floor((context.now - focus.startedAt) / 1000))
-      : 0;
+  const elapsedSeconds = elapsedSecondsFor(
+    focus,
+    focus === null ? 'idle' : effectiveStatus(focus, context.now),
+    context.now,
+  );
 
   const state: StateData = {
     status,
