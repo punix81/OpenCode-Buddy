@@ -1,11 +1,124 @@
 import type { Bridge } from '../bridge.js';
 import type { NormalizedEvent } from '../state/types.js';
 
-// Continuous, deterministic pressure for the one-hour soak. It rotates through
-// every state, keeps three sessions alive, toggles permissions and questions,
-// changes MCP availability, updates metrics on every tick and uses the longest
-// legal model and agent names so the outbound snapshot stays near its maximum
-// size. It never claims to be live data: every state carries source "mock".
+// Continuous, deterministic pressure for the one-hour soak. One 12-phase cycle
+// runs on a single session: execution lifecycle, tools, permission, question,
+// retry, compaction, MCP changes and the terminal/idle pair. The next cycle
+// moves to the next session, so three sessions stay alive without ever leaving
+// an interaction or a running tool behind.
+//
+// It never claims to be live data: every state carries source "mock".
+export const STRESS_SESSIONS = ['stress-1', 'stress-2', 'stress-3'] as const;
+const STRESS_MODEL = 'stress-model-40-chars-abcdefghijklmnopqr'; // exactly 40
+const STRESS_AGENT = 'stress-agent-24-chars-ab'; // exactly 24
+
+export function stressEvents(step: number, at: number): NormalizedEvent[] {
+  const cycle = Math.floor(step / 12);
+  const phase = step % 12;
+  const sessionId = STRESS_SESSIONS[cycle % STRESS_SESSIONS.length] ?? STRESS_SESSIONS[0];
+  const toolA = `tool-a-${cycle}`;
+  const toolB = `tool-b-${cycle}`;
+  const permissionId = `perm-${cycle}`;
+  const formId = `form-${cycle}`;
+  const events: NormalizedEvent[] = [];
+
+  switch (phase) {
+    case 0:
+      events.push({ kind: 'execution.started', sessionId, at });
+      events.push({ kind: 'model', sessionId, at, model: STRESS_MODEL, agent: STRESS_AGENT });
+      break;
+    case 1:
+      events.push({ kind: 'phase', sessionId, at, status: 'thinking' });
+      break;
+    case 2:
+      events.push({ kind: 'phase', sessionId, at, status: 'working' });
+      events.push({
+        kind: 'tool.started',
+        sessionId,
+        at,
+        toolId: toolA,
+        messageId: `msg-a-${cycle}`,
+        category: 'read',
+      });
+      break;
+    case 3:
+      events.push({
+        kind: 'tool.succeeded',
+        sessionId,
+        at,
+        toolId: toolA,
+        messageId: `msg-a-${cycle}`,
+        category: 'read',
+      });
+      events.push({ kind: 'usage', sessionId, at, input: 1000 + step * 7, output: 500 + step * 3 });
+      break;
+    case 4:
+      events.push({ kind: 'phase', sessionId, at, status: 'generating' });
+      events.push({ kind: 'usage', sessionId, at, input: 4000 + step * 11, output: 900 + step * 5 });
+      break;
+    case 5:
+      events.push({ kind: 'permission.asked', sessionId, at, requestId: permissionId });
+      break;
+    case 6:
+      events.push({ kind: 'permission.replied', sessionId, at, requestId: permissionId });
+      events.push({
+        kind: 'tool.started',
+        sessionId,
+        at,
+        toolId: toolB,
+        messageId: `msg-b-${cycle}`,
+        category: 'edit',
+      });
+      break;
+    case 7:
+      events.push({ kind: 'question.asked', sessionId, at, requestId: formId });
+      break;
+    case 8:
+      events.push({ kind: 'question.replied', sessionId, at, requestId: formId });
+      events.push({ kind: 'retry.scheduled', sessionId, at, attempt: 1 + (cycle % 3) });
+      break;
+    case 9:
+      events.push({ kind: 'compaction.started', sessionId, at });
+      events.push({
+        kind: 'mcp.status',
+        at,
+        online: cycle % 2,
+        total: 2,
+        servers: [
+          { alias: 'MCP-1', status: cycle % 2 === 0 ? 'connected' : 'needs_auth' },
+          { alias: 'MCP-2', status: cycle % 3 === 0 ? 'connected' : 'needs_auth' },
+        ],
+      });
+      break;
+    case 10:
+      events.push({ kind: 'compaction.ended', sessionId, at });
+      events.push({
+        kind: 'tool.succeeded',
+        sessionId,
+        at,
+        toolId: toolB,
+        messageId: `msg-b-${cycle}`,
+        category: 'edit',
+      });
+      events.push({ kind: 'execution.succeeded', sessionId, at });
+      break;
+    default:
+      events.push({ kind: 'session.idle', sessionId, at });
+      // Outcome without a start: exercises the missing-start path without
+      // leaving a running tool behind.
+      events.push({
+        kind: 'tool.failed',
+        sessionId,
+        at,
+        toolId: `tool-x-${cycle}`,
+        messageId: `msg-x-${cycle}`,
+        category: 'shell',
+      });
+      break;
+  }
+  return events;
+}
+
 export class StressAdapter {
   private timer: NodeJS.Timeout | null = null;
   private step = 0;
@@ -17,8 +130,7 @@ export class StressAdapter {
   ) {}
 
   start(): void {
-    const sessions: [string, string, string] = ['stress-1', 'stress-2', 'stress-3'];
-    for (const sessionId of sessions) {
+    for (const sessionId of STRESS_SESSIONS) {
       this.bridge.ingest({ kind: 'session.started', sessionId, at: Date.now() });
     }
     this.bridge.ingest({ kind: 'opencode.connected', at: Date.now() });
@@ -33,70 +145,8 @@ export class StressAdapter {
 
   private tick(): void {
     if (this.stopped) return;
-    const at = Date.now();
-    const sessionIndex = this.step % 3;
-    const sessionId: string =
-      sessionIndex === 0 ? 'stress-1' : sessionIndex === 1 ? 'stress-2' : 'stress-3';
-    const phase = this.step % 12;
-    const emit = (event: NormalizedEvent): void => {
+    for (const event of stressEvents(this.step, Date.now())) {
       this.bridge.ingest(event);
-    };
-
-    switch (phase) {
-      case 0:
-        emit({ kind: 'execution.started', sessionId, at });
-        emit({ kind: 'model', sessionId, at, model: 'stress-model-name-at-forty-chars-abcdefghij', agent: 'stress-agent-24-chars-ab' });
-        break;
-      case 1:
-        emit({ kind: 'phase', sessionId, at, status: 'thinking' });
-        break;
-      case 2:
-        emit({ kind: 'phase', sessionId, at, status: 'working' });
-        emit({ kind: 'tool.started', sessionId, at, toolId: `tool-${this.step}`, messageId: `msg-${this.step}`, category: 'read' });
-        break;
-      case 3:
-        emit({ kind: 'tool.succeeded', sessionId, at, toolId: `tool-${this.step - 1}`, messageId: `msg-${this.step - 1}`, category: 'read' });
-        emit({ kind: 'usage', sessionId, at, input: 1000 + this.step * 7, output: 500 + this.step * 3 });
-        break;
-      case 4:
-        emit({ kind: 'phase', sessionId, at, status: 'generating' });
-        emit({ kind: 'usage', sessionId, at, input: 4000 + this.step * 11, output: 900 + this.step * 5 });
-        break;
-      case 5:
-        emit({ kind: 'permission.asked', sessionId, at });
-        break;
-      case 6:
-        emit({ kind: 'permission.replied', sessionId, at });
-        emit({ kind: 'tool.started', sessionId, at, toolId: `tool-${this.step}`, messageId: `msg-${this.step}`, category: 'edit' });
-        break;
-      case 7:
-        emit({ kind: 'question.asked', sessionId, at });
-        break;
-      case 8:
-        emit({ kind: 'question.replied', sessionId, at });
-        emit({ kind: 'retry.scheduled', sessionId, at, attempt: 1 + (this.step % 3) });
-        break;
-      case 9:
-        emit({ kind: 'compaction.started', sessionId, at });
-        emit({
-          kind: 'mcp.status',
-          at,
-          online: this.step % 3,
-          total: 2,
-          servers: [
-            { alias: 'MCP-1', status: this.step % 2 === 0 ? 'connected' : 'needs_auth' },
-            { alias: 'MCP-2', status: this.step % 3 === 0 ? 'connected' : 'needs_auth' },
-          ],
-        });
-        break;
-      case 10:
-        emit({ kind: 'compaction.ended', sessionId, at });
-        emit({ kind: 'execution.succeeded', sessionId, at });
-        break;
-      default:
-        emit({ kind: 'session.idle', sessionId, at });
-        emit({ kind: 'tool.failed', sessionId, at, toolId: `tool-${this.step}`, messageId: `msg-${this.step}`, category: 'shell' });
-        break;
     }
     ++this.step;
   }

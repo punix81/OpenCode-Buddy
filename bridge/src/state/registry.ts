@@ -162,16 +162,27 @@ export class SessionRegistry {
       case 'compaction.ended':
         session.status = session.tools.running > 0 ? 'working' : 'idle';
         return;
-      case 'tool.started':
-        if (this.metrics.recordTool(event.sessionId, event.messageId, event.toolId, 'started', event.category)) {
+      case 'tool.started': {
+        const changed = this.metrics.recordTool(
+          event.sessionId,
+          event.messageId,
+          event.toolId,
+          'started',
+          event.category,
+        );
+        if (changed) {
           session.tools = this.metrics.toolsFor(event.sessionId);
+          session.status = 'working';
+          session.terminalAt = null;
         }
-        session.status = 'working';
-        session.terminalAt = null;
         return;
+      }
       case 'tool.succeeded':
       case 'tool.failed': {
         const outcome = event.kind === 'tool.succeeded' ? 'succeeded' : 'failed';
+        // A late outcome without a start must update the counters but never
+        // revive an idle/terminal session.
+        const hadRunning = session.tools.running > 0;
         const changed = this.metrics.recordTool(
           event.sessionId,
           event.messageId,
@@ -181,8 +192,10 @@ export class SessionRegistry {
         );
         if (changed) {
           session.tools = this.metrics.toolsFor(event.sessionId);
-          session.status = session.tools.running > 0 ? 'working' : 'thinking';
-          session.terminalAt = null;
+          if (hadRunning) {
+            session.status = session.tools.running > 0 ? 'working' : 'thinking';
+            session.terminalAt = null;
+          }
         }
         return;
       }
