@@ -66,7 +66,7 @@ function modelId(model) {
 export function createProjector() {
   const toolNames = new Map();
   const selections = new Map();
-  const mcp = new Map();
+  let mcp = new Map();
   let mcpDirty = false;
 
   function rememberTool(callId, name) {
@@ -209,21 +209,52 @@ export function createProjector() {
         });
         return out;
       }
-      case 'permission.asked':
-        if (sessionID !== null) push({ kind: 'permission.asked', sessionId: sessionID, at });
+      case 'permission.asked': {
+        if (sessionID === null) return out;
+        const requestId = id(data.id, 64);
+        push({
+          kind: 'permission.asked',
+          sessionId: sessionID,
+          at,
+          ...(requestId !== null ? { requestId } : {}),
+        });
         return out;
-      case 'permission.replied':
-        if (sessionID !== null) push({ kind: 'permission.replied', sessionId: sessionID, at });
+      }
+      case 'permission.replied': {
+        if (sessionID === null) return out;
+        const requestId = id(data.requestID, 64);
+        push({
+          kind: 'permission.replied',
+          sessionId: sessionID,
+          at,
+          ...(requestId !== null ? { requestId } : {}),
+        });
         return out;
+      }
       case 'form.created': {
         const formSession = id(data.form?.sessionID, MAX_SESSION_ID);
-        if (formSession !== null) push({ kind: 'question.asked', sessionId: formSession, at });
+        if (formSession === null) return out;
+        const requestId = id(data.form?.id, 64);
+        push({
+          kind: 'question.asked',
+          sessionId: formSession,
+          at,
+          ...(requestId !== null ? { requestId } : {}),
+        });
         return out;
       }
       case 'form.replied':
-      case 'form.cancelled':
-        if (sessionID !== null) push({ kind: 'question.replied', sessionId: sessionID, at });
+      case 'form.cancelled': {
+        if (sessionID === null) return out;
+        const requestId = id(data.id, 64);
+        push({
+          kind: 'question.replied',
+          sessionId: sessionID,
+          at,
+          ...(requestId !== null ? { requestId } : {}),
+        });
         return out;
+      }
       case 'session.compaction.started':
         if (sessionID !== null) push({ kind: 'compaction.started', sessionId: sessionID, at });
         return out;
@@ -256,9 +287,9 @@ export function createProjector() {
           mcp.set(name, status);
           mcpDirty = true;
         }
-        if (mcp.size > MAX_SERVERS) {
+        if (mcp.size > 256) {
           for (const key of mcp.keys()) {
-            if (mcp.size <= MAX_SERVERS) break;
+            if (mcp.size <= 256) break;
             mcp.delete(key);
           }
         }
@@ -274,22 +305,37 @@ export function createProjector() {
     takeMcp() {
       if (!mcpDirty) return null;
       mcpDirty = false;
-      const servers = [...mcp.entries()].slice(0, MAX_SERVERS).map(([name, status]) => ({ name, status }));
+      const all = [...mcp.entries()];
+      // Totals cover the complete verified list; the detail array is bounded
+      // because the USB protocol carries at most eight entries. Connected
+      // servers come first so the radar shows the most useful detail.
+      const detail = [
+        ...all.filter(([, status]) => status === 'connected'),
+        ...all.filter(([, status]) => status !== 'connected'),
+      ]
+        .slice(0, MAX_SERVERS)
+        .map(([name, status]) => ({ name, status }));
       return {
         kind: 'mcp.status',
         at: Date.now(),
-        online: servers.filter((entry) => entry.status === 'connected').length,
-        total: servers.length,
-        servers,
+        online: all.filter(([, status]) => status === 'connected').length,
+        total: all.length,
+        servers: detail,
       };
     },
     seedMcp(servers) {
+      // An authoritative replacement, never an accumulation: a server removed
+      // from ctx.mcp.list() must disappear from the radar.
+      const next = new Map();
       for (const server of servers) {
+        if (next.size >= 256) break;
         const name = id(server?.name, 64);
         const status = typeof server?.status === 'string' ? server.status : server?.status?.status;
         if (name === null || typeof status !== 'string') continue;
-        mcp.set(name, status);
+        if (!['connected', 'pending', 'disabled', 'failed', 'needs_auth'].includes(status)) continue;
+        next.set(name, status);
       }
+      mcp = next;
       mcpDirty = true;
     },
     reset() {
@@ -303,10 +349,12 @@ export function createProjector() {
 // and cumulative usage that the device can display immediately. Terminal outcome
 // is deliberately not replayed: a finished session must not flash SUCCESS on a
 // reconnect.
-export function projectSessionSnapshot(session) {
+export function projectSessionSnapshot(session, snapshotAt) {
   const sessionID = id(session?.id, MAX_SESSION_ID);
   if (sessionID === null) return [];
-  const at = Date.now();
+  // One timestamp for the whole snapshot, captured before listing: live events
+  // that arrive during the list are newer and must not be overwritten by it.
+  const at = typeof snapshotAt === 'number' ? snapshotAt : Date.now();
   const out = [{ kind: 'session.started', sessionId: sessionID, at }];
   // A bridge that (re)connects in the middle of an execution has missed
   // session.execution.started. Session.Info.time.busy is the start of the

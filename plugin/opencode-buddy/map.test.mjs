@@ -55,11 +55,12 @@ test('permissions and forms use the session that owns them', () => {
     kind: 'permission.asked',
     sessionId: S,
     at: 1_700_000_000_000,
+    requestId: 'perm_1',
   });
-  assert.equal(p.project(ev('permission.replied', { sessionID: S, requestID: 'perm_1', reply: 'once' }))[0].kind, 'permission.replied');
-  assert.equal(p.project(ev('form.created', { form: { id: 'form_1', sessionID: S, title: 'Pick', fields: [] } }))[0].kind, 'question.asked');
-  assert.equal(p.project(ev('form.replied', { id: 'form_1', sessionID: S, answer: {} }))[0].kind, 'question.replied');
-  assert.equal(p.project(ev('form.cancelled', { id: 'form_1', sessionID: S }))[0].kind, 'question.replied');
+  assert.equal(p.project(ev('permission.replied', { sessionID: S, requestID: 'perm_1', reply: 'once' }))[0].requestId, 'perm_1');
+  assert.equal(p.project(ev('form.created', { form: { id: 'form_1', sessionID: S, title: 'Pick', fields: [] } }))[0].requestId, 'form_1');
+  assert.equal(p.project(ev('form.replied', { id: 'form_1', sessionID: S, answer: {} }))[0].requestId, 'form_1');
+  assert.equal(p.project(ev('form.cancelled', { id: 'form_1', sessionID: S }))[0].requestId, 'form_1');
 });
 
 test('usage keeps the cumulative counters including the cache split', () => {
@@ -146,7 +147,25 @@ test('mcp aggregate is produced once per change and stays bounded', () => {
     p.project(ev('mcp.status.changed', { server: { name: `server-${i}`, status: 'disabled' } }));
   }
   const bounded = p.takeMcp();
-  assert.equal(bounded.total, 16);
+  assert.equal(bounded.total, 42, 'totals cover the complete list');
+  assert.equal(bounded.servers.length, 16, 'details stay bounded');
+});
+
+test('an MCP snapshot replaces the list and removes vanished servers', () => {
+  const p = createProjector();
+  p.seedMcp([
+    { name: 'a', status: { status: 'connected' } },
+    { name: 'b', status: { status: 'disabled' } },
+  ]);
+  let mcp = p.takeMcp();
+  assert.equal(mcp.total, 2);
+  assert.equal(mcp.online, 1);
+
+  p.seedMcp([{ name: 'a', status: { status: 'failed' } }]);
+  mcp = p.takeMcp();
+  assert.equal(mcp.total, 1);
+  assert.equal(mcp.online, 0);
+  assert.deepEqual(mcp.servers.map((entry) => entry.name), ['a']);
 });
 
 test('a reconnect snapshot restores model and usage but never a terminal state', () => {

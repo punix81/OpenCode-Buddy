@@ -6,15 +6,25 @@
 // @opencode/plugin 2.0.16, so importing it would only add version coupling.
 //
 // Failure policy: this plugin must never disturb OpenCode. Every I/O error is
-// swallowed, the socket reconnects with a bounded backoff, and the event loop
-// keeps draining so the server is never blocked by us.
+// swallowed, the socket reconnects with a bounded backoff, the event
+// subscription is supervised, and the event loop keeps draining so the server is
+// never blocked by us.
 
 import { createConnection } from 'node:net';
-import { appendFileSync, readFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { createProjector, projectSessionSnapshot } from './map.js';
+import { eventOwnership } from './isolation.js';
+import { shouldDropForBackpressure, frameTooLarge } from './wire.js';
 
 export const PLUGIN_ID = 'opencode-buddy';
 export const PLUGIN_VERSION = '0.1.0';
@@ -23,25 +33,19 @@ export const IPC_VERSION = 1;
 const HEARTBEAT_MS = 5000;
 const RECONNECT_MIN_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
+const RESUBSCRIBE_MAX_MS = 15000;
 const MCP_THROTTLE_MS = 750;
 const MAX_QUEUE = 500;
-const MAX_LINE_BYTES = 8192;
+
 const SNAPSHOT_TIMEOUT_MS = 3000;
 const SNAPSHOT_WINDOW_MS = 15 * 60 * 1000;
+const MAX_DEBUG_BYTES = 1 * 1024 * 1024;
 
 const DEBUG = process.env['OPENCODE_BUDDY_DEBUG'] === '1';
 // The OpenCode server detaches its stderr, so debug output goes to a file when
-// the developer asks for it. Never enabled by default.
-const DEBUG_FILE = process.env['OPENCODE_BUDDY_DEBUG_FILE'] ?? '/tmp/opencode-buddy-debug.log';
-
-function debug(message) {
-  if (!DEBUG) return;
-  try {
-    appendFileSync(DEBUG_FILE, `${new Date().toISOString()} ${message}\n`);
-  } catch {
-    // Diagnostics must never disturb OpenCode.
-  }
-}
+// the developer asks for it. Never enabled by default, and private when enabled.
+const DEBUG_FILE = process.env['OPENCODE_BUDDY_DEBUG_FILE'] ?? null;
+let debugDisabled = false;
 
 // Must stay identical to bridge/src/ipc/paths.ts.
 export function ipcPaths(env = process.env) {
@@ -56,6 +60,34 @@ export function ipcPaths(env = process.env) {
         ? join(base, 'opencode-buddy')
         : join(base, `opencode-buddy-${uid}`);
   return { dir, socket: join(dir, 'bridge.sock'), tokenFile: join(dir, 'token') };
+}
+
+export function sanitize(message) {
+  return String(message)
+    .replace(/(?:[A-Za-z]:)?(?:[\\/](?:[^\\/\s"']+)){2,}[\\/]?/g, '<path>')
+    .replace(/\b(?:ses|perm|form|msg|evt|tool|call)_[A-Za-z0-9]+/g, '<id>')
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, 400);
+}
+
+function debug(message) {
+  if (!DEBUG || debugDisabled) return;
+  try {
+    const file = DEBUG_FILE ?? join(ipcPaths().dir, 'plugin-debug.log');
+    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    if (!existsSync(file)) {
+      appendFileSync(file, '', { mode: 0o600 });
+      chmodSync(file, 0o600);
+    }
+    if (statSync(file).size > MAX_DEBUG_BYTES) {
+      debugDisabled = true;
+      return;
+    }
+    appendFileSync(file, `${new Date().toISOString()} ${sanitize(message)}\n`);
+  } catch {
+    // Diagnostics must never disturb OpenCode.
+    debugDisabled = true;
+  }
 }
 
 function readToken(path) {
@@ -85,7 +117,6 @@ async function withTimeout(promise, ms) {
 export default {
   id: PLUGIN_ID,
   async setup(ctx) {
-    const controller = new AbortController();
     const projector = createProjector();
     const paths = ipcPaths();
     // One OpenCode server serves several projects and its public stream carries
@@ -104,17 +135,8 @@ export default {
       if (typeof data?.form?.sessionID === 'string') return data.form.sessionID;
       return null;
     };
-    const belongs = (event) => {
-      const location = locationOf(event);
-      const session = sessionOf(event);
-      if (location !== null) {
-        if (ownDirectory === null || location === ownDirectory) return true;
-        if (session !== null) ownSessions.delete(session);
-        return false;
-      }
-      if (session !== null) return ownSessions.has(session) || event?.type === 'session.created';
-      return true;
-    };
+    const belongs = (event) =>
+      eventOwnership(event, ownDirectory, (session) => ownSessions.has(session));
 
     let socket = null;
     let connected = false;
@@ -125,88 +147,68 @@ export default {
     let mcpTimer = null;
     let lastMcpSentAt = 0;
     let closed = false;
+    let snapshotPending = false;
+    let generation = 0;
+    let droppedQueue = 0;
+    let droppedOversized = 0;
+    let droppedBackpressure = 0;
 
-    const send = (message) => {
-      const line = `${JSON.stringify({ v: IPC_VERSION, ...message })}\n`;
+    let sourceState = 'unknown';
+    let sourceController = null;
+    let resubscribeTimer = null;
+    let resubscribeDelay = RECONNECT_MIN_MS;
+
+    const enqueue = (line) => {
+      queue.push(line);
+      if (queue.length > MAX_QUEUE) {
+        queue = queue.slice(queue.length - MAX_QUEUE);
+        ++droppedQueue;
+      }
+    };
+
+    // Writes one frame without ever growing the socket's internal buffer beyond
+    // a bound. The check runs on UTF-8 bytes, not on JavaScript code units.
+    const writeLine = (line, type) => {
       if (!connected || socket === null) {
-        queue.push(line);
-        if (queue.length > MAX_QUEUE) queue = queue.slice(queue.length - MAX_QUEUE);
+        enqueue(line);
         return;
       }
-      if (line.length > MAX_LINE_BYTES) {
-        debug(`dropped oversized message type=${message.type}`);
+      if (frameTooLarge(line)) {
+        ++droppedOversized;
+        return;
+      }
+      if (shouldDropForBackpressure(socket.writableLength, type)) {
+        ++droppedBackpressure;
         return;
       }
       try {
         socket.write(line);
       } catch (error) {
-        debug(`write failed: ${error?.message ?? error}`);
+        debug(`write failed type=${String(type)}`);
       }
+    };
+
+    const sendNow = (message) =>
+      writeLine(`${JSON.stringify({ v: IPC_VERSION, ...message })}\n`, message.type);
+
+    const send = (message) => {
+      const line = `${JSON.stringify({ v: IPC_VERSION, ...message })}\n`;
+      if (snapshotPending) {
+        enqueue(line);
+        return;
+      }
+      writeLine(line, message.type);
     };
 
     const flush = () => {
       const pending = queue;
       queue = [];
       for (const line of pending) {
-        try {
-          socket.write(line);
-        } catch {
+        if (!connected || socket === null) {
+          enqueue(line);
           return;
         }
-      }
-    };
-
-    const takeSnapshot = async () => {
-      try {
-        // Only this location, and only sessions that changed recently: an old
-        // project session must not resurrect its lifetime totals on reconnect.
-        const cutoff = Date.now() - SNAPSHOT_WINDOW_MS;
-        const directory = ctx.location?.directory;
-        const page = await withTimeout(
-          ctx.session.list({ ...(typeof directory === 'string' ? { directory } : {}), limit: 20 }),
-          SNAPSHOT_TIMEOUT_MS,
-        );
-        const sessions = Array.isArray(page?.data) ? page.data : [];
-        debug(`snapshot directory=${directory ?? '<none>'} sessions=${sessions.length}`);
-        for (const session of sessions) {
-          const sessionDir = session?.location?.directory;
-          if (ownDirectory !== null && typeof sessionDir === 'string' && sessionDir !== ownDirectory) continue;
-          const updated = session?.time?.updated;
-          if (typeof updated === 'number' && updated < cutoff) continue;
-          if (typeof session?.id === 'string') ownSessions.add(session.id);
-          for (const event of projectSessionSnapshot(session)) send({ type: 'event', event });
-        }
-      } catch (error) {
-        debug(`session snapshot skipped: ${error?.message ?? error}`);
-      }
-      try {
-        const page = await withTimeout(ctx.mcp.list(), SNAPSHOT_TIMEOUT_MS);
-        const servers = Array.isArray(page?.data) ? page.data : [];
-        debug(`mcp snapshot servers=${servers.length} sample=${JSON.stringify(servers[0]?.status ?? null)}`);
-        projector.seedMcp(servers);
-        flushMcp();
-      } catch (error) {
-        debug(`mcp snapshot skipped: ${error?.message ?? error}`);
-      }
-      // permission.list is session-scoped: ask only for the sessions this
-      // instance just restored, and only a bounded number of them.
-      let restored = 0;
-      for (const session of ownSessions) {
-        if (restored >= 8) break;
-        ++restored;
-        try {
-          const page = await withTimeout(
-            ctx.permission.list({ sessionID: session }),
-            SNAPSHOT_TIMEOUT_MS,
-          );
-          const requests = Array.isArray(page?.data) ? page.data : [];
-          for (const request of requests) {
-            if (request?.sessionID !== session) continue;
-            send({ type: 'event', event: { kind: 'permission.asked', sessionId: session, at: Date.now() } });
-          }
-        } catch (error) {
-          debug(`permission snapshot skipped: ${error?.message ?? error}`);
-        }
+        writeLine(line, 'queued');
       }
     };
 
@@ -228,8 +230,85 @@ export default {
         debug(`mcp refresh servers=${servers.length}`);
         projector.seedMcp(servers);
         flushMcp();
-      } catch (error) {
-        debug(`mcp refresh skipped: ${error?.message ?? error}`);
+      } catch {
+        debug('mcp refresh skipped');
+      }
+    };
+
+    const takeSnapshot = async (gen) => {
+      // One timestamp for the whole snapshot, captured before listing: live
+      // events that arrive during the list are newer and must not be overwritten
+      // by stale snapshot data.
+      const snapshotAt = Date.now();
+      const sendSnapshot = (event) => {
+        if (!connected || gen !== generation) return;
+        sendNow({ type: 'event', event });
+      };
+      const restored = [];
+      try {
+        // Only this location, and only sessions that changed recently: an old
+        // project session must not resurrect its lifetime totals on reconnect.
+        const cutoff = snapshotAt - SNAPSHOT_WINDOW_MS;
+        const directory = ctx.location?.directory;
+        const page = await withTimeout(
+          ctx.session.list({ ...(typeof directory === 'string' ? { directory } : {}), limit: 20 }),
+          SNAPSHOT_TIMEOUT_MS,
+        );
+        const sessions = Array.isArray(page?.data) ? page.data : [];
+        debug(`snapshot sessions=${sessions.length}`);
+        for (const session of sessions) {
+          const sessionDir = session?.location?.directory;
+          if (ownDirectory !== null && typeof sessionDir === 'string' && sessionDir !== ownDirectory) continue;
+          const updated = session?.time?.updated;
+          if (typeof updated === 'number' && updated < cutoff) continue;
+          if (typeof session?.id === 'string') {
+            ownSessions.add(session.id);
+            if (restored.length < 8) restored.push(session.id);
+          }
+          for (const event of projectSessionSnapshot(session, snapshotAt)) sendSnapshot(event);
+        }
+      } catch {
+        debug('session snapshot skipped');
+      }
+      try {
+        const page = await withTimeout(ctx.mcp.list(), SNAPSHOT_TIMEOUT_MS);
+        const servers = Array.isArray(page?.data) ? page.data : [];
+        debug(`mcp snapshot servers=${servers.length}`);
+        projector.seedMcp(servers);
+        const mcp = projector.takeMcp();
+        if (mcp !== null) {
+          if (mcp.total > 0) lastMcpSentAt = Date.now();
+          sendSnapshot(mcp);
+        }
+      } catch {
+        debug('mcp snapshot skipped');
+      }
+      // Permissions are authoritative per session: replace the pending set with
+      // the identifiers the API reports, so a reconnect can never double-count
+      // a prompt that is already gone.
+      for (const session of restored) {
+        try {
+          const page = await withTimeout(
+            ctx.permission.list({ sessionID: session }),
+            SNAPSHOT_TIMEOUT_MS,
+          );
+          const requests = Array.isArray(page?.data) ? page.data : [];
+          const requestIds = [];
+          for (const request of requests) {
+            if (request?.sessionID !== session) continue;
+            if (typeof request?.id === 'string' && request.id.length > 0) {
+              requestIds.push(request.id.slice(0, 64));
+            }
+          }
+          sendSnapshot({
+            kind: 'permission.sync',
+            sessionId: session,
+            at: snapshotAt,
+            requestIds: requestIds.slice(0, 64),
+          });
+        } catch {
+          debug('permission snapshot skipped');
+        }
       }
     };
 
@@ -248,7 +327,7 @@ export default {
       if (closed) return;
       const token = readToken(paths.tokenFile);
       if (token === null) {
-        debug(`no token at ${paths.tokenFile}; bridge not running`);
+        debug('bridge token unavailable');
         scheduleReconnect();
         return;
       }
@@ -260,44 +339,83 @@ export default {
       socket.on('connect', () => {
         connected = true;
         reconnectDelay = RECONNECT_MIN_MS;
-        debug('connected');
-        socket.write(
-          `${JSON.stringify({
-            v: IPC_VERSION,
-            type: 'hello',
-            token,
-            pid: process.pid,
-            app: ctx.app?.name ?? 'opencode',
-            appVersion: ctx.app?.version ?? '--',
-            plugin: PLUGIN_ID,
-            pluginVersion: PLUGIN_VERSION,
-          })}\n`,
-        );
-        flush();
-        void takeSnapshot();
+        ++generation;
+        const gen = generation;
+        // The backlog predates this connection and is superseded by the
+        // snapshot; live events that arrive during the snapshot are queued.
+        if (queue.length > 0) {
+          droppedQueue += queue.length;
+          queue = [];
+        }
+        snapshotPending = true;
+        debug(`connected generation=${gen}`);
+        sendNow({
+          v: IPC_VERSION,
+          type: 'hello',
+          token,
+          pid: process.pid,
+          app: ctx.app?.name ?? 'opencode',
+          appVersion: ctx.app?.version ?? '--',
+          plugin: PLUGIN_ID,
+          pluginVersion: PLUGIN_VERSION,
+        });
+        // The health of the event source is told again on every connection: a
+        // degraded state reached while the bridge was down must not be lost.
+        sendNow({
+          type: 'source',
+          status: sourceState === 'degraded' ? 'degraded' : 'ok',
+          at: Date.now(),
+        });
+        void (async () => {
+          try {
+            await takeSnapshot(gen);
+          } finally {
+            if (connected && gen === generation) {
+              snapshotPending = false;
+              flush();
+            }
+          }
+        })();
       });
       socket.on('data', () => {
         // The bridge never replies; reading keeps the socket flowing.
       });
-      socket.on('error', (error) => {
-        debug(`socket error: ${error?.message ?? error}`);
+      socket.on('error', () => {
+        debug('socket error');
       });
       socket.on('close', () => {
         connected = false;
+        snapshotPending = false;
         socket = null;
         scheduleReconnect();
       });
     };
 
-    heartbeatTimer = setInterval(() => {
-      send({ type: 'heartbeat', at: Date.now() });
-    }, HEARTBEAT_MS);
-    heartbeatTimer.unref?.();
+    const setSource = (status) => {
+      if (sourceState === status) return;
+      sourceState = status;
+      debug(`event source ${status}`);
+      sendNow({ type: 'source', status, at: Date.now() });
+    };
 
-    connect();
+    const scheduleResubscribe = () => {
+      if (closed || resubscribeTimer !== null) return;
+      const delay = resubscribeDelay;
+      resubscribeDelay = Math.min(RESUBSCRIBE_MAX_MS, resubscribeDelay * 2);
+      resubscribeTimer = setTimeout(() => {
+        resubscribeTimer = null;
+        void runSubscription();
+      }, delay);
+      resubscribeTimer.unref?.();
+    };
 
-    void (async () => {
+    const runSubscription = async () => {
+      if (closed) return;
+      const controller = new AbortController();
+      sourceController = controller;
       try {
+        setSource('ok');
+        resubscribeDelay = RECONNECT_MIN_MS;
         for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
           if (!belongs(event)) continue;
           const session = sessionOf(event);
@@ -306,9 +424,7 @@ export default {
             if (event?.type === 'session.deleted') ownSessions.delete(session);
           }
           const projected = projector.project(event);
-          debug(
-            `event ${String(event?.type)} loc=${locationOf(event) ?? '-'} same=${locationOf(event) === ownDirectory} session=${sessionOf(event) ?? '-'} projected=${projected.length}`,
-          );
+          debug(`event type=${String(event?.type)} projected=${projected.length}`);
           for (const normalized of projected) send({ type: 'event', event: normalized });
 
           if (event?.type === 'mcp.status.changed') {
@@ -326,19 +442,37 @@ export default {
             }
           }
         }
-      } catch (error) {
-        if (!controller.signal.aborted) debug(`event stream ended: ${error?.message ?? error}`);
+        if (!closed && !controller.signal.aborted) {
+          debug('event stream ended');
+          setSource('degraded');
+          scheduleResubscribe();
+        }
+      } catch {
+        if (!closed && !controller.signal.aborted) {
+          debug('event stream failed');
+          setSource('degraded');
+          scheduleResubscribe();
+        }
       }
-    })();
+    };
+
+    heartbeatTimer = setInterval(() => {
+      sendNow({ type: 'heartbeat', at: Date.now() });
+    }, HEARTBEAT_MS);
+    heartbeatTimer.unref?.();
+
+    connect();
+    void runSubscription();
 
     return () => {
       closed = true;
       // A short run may end inside the MCP throttle window: push what we have.
       flushMcp();
-      controller.abort();
+      sourceController?.abort();
       if (heartbeatTimer !== null) clearInterval(heartbeatTimer);
       if (reconnectTimer !== null) clearTimeout(reconnectTimer);
       if (mcpTimer !== null) clearTimeout(mcpTimer);
+      if (resubscribeTimer !== null) clearTimeout(resubscribeTimer);
       try {
         socket?.end();
         socket?.destroy();
@@ -348,6 +482,11 @@ export default {
       socket = null;
       connected = false;
       projector.reset();
+      if (droppedQueue + droppedOversized + droppedBackpressure > 0) {
+        debug(
+          `dropped queue=${droppedQueue} oversized=${droppedOversized} backpressure=${droppedBackpressure}`,
+        );
+      }
     };
   },
 };
