@@ -137,6 +137,7 @@ All timestamps are UTC, from the bridge `interaction` frames; the bridge log is 
 | English six-screen tour | `short screen=1..5` at 17:22:53–17:22:58, back to 0 at 17:22:59 |
 | First (too short) long attempt | `long screen=0` at 17:08:05; explained to the owner, retried |
 | Very-long reset | exactly one `very_long screen=0` at 17:09:44; no following `long` |
+| Double press | `double screen=0` at 19:01:55 on the restored Phase 3.1 image; the first attempt was two slow short presses and was correctly not a double |
 | Quiet toggle | `long screen=1` at 17:42:05; no `very_long` |
 | Auto-return 90 s | `short screen=1` at 17:23:45; owner confirmed still on Session at ~69 s and back on Buddy by ~109 s |
 | Auto-return 20 s / timer reset | `short screen=1` at 17:39:18, `short screen=2` at 17:39:20; owner measured ~20 s after the second press (reset works) |
