@@ -104,6 +104,7 @@ export class Bridge {
   private mcpDue = false;
   private lastMcpKey: string | null = null;
   private handshakeAcked = false;
+  private opencodeVersion: string | null = null;
   private readonly handshakeSeqs = new Set<number>();
   private tickTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -185,6 +186,12 @@ export class Bridge {
     }
     this.registry.apply(event);
     return true;
+  }
+
+  // The OpenCode peer reports its version in the IPC hello. `null` clears it
+  // when no peer is connected so the System screen never shows a stale value.
+  setOpenCodeVersion(version: string | null): void {
+    this.opencodeVersion = version;
   }
 
   private async openTransport(): Promise<void> {
@@ -492,7 +499,7 @@ export class Bridge {
     const language = this.options.config.language ?? (partial ? null : 'en');
     const quietMode = this.options.config.quietMode ?? (partial ? null : false);
     const config: ConfigData = {
-      autoReturnSeconds: 60,
+      autoReturnSeconds: this.options.config.autoReturnSeconds,
       gestures: { ...DEFAULT_GESTURES },
       source: this.options.config.source,
       ...(language !== null ? { language } : {}),
@@ -525,8 +532,14 @@ export class Bridge {
       source: this.options.config.source,
       bridgeVersion: this.bridgeVersion,
       protocol: PROTOCOL_MAJOR,
+      opencodeVersion: this.opencodeVersion,
     };
     const state = this.privacy.projectState(this.registry.snapshot(context));
+    // An older firmware rejects unknown keys in `versions`; only a device that
+    // advertised the capability receives the optional OpenCode version.
+    if (!this.deviceCaps.has('state.opencodeVersion')) {
+      delete state.versions.opencode;
+    }
     this.send({ v: 1, type: 'state', seq: this.seqOut.next(), data: state });
     this.lastStateMs = now;
     this.onState?.(state);

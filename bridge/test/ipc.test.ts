@@ -207,7 +207,10 @@ test('mcp names are anonymised before they can reach the device', () => {
 
 test('live source aliases mcp names and closes sessions when the plugin leaves', async () => {
   const events: NormalizedEvent[] = [];
-  const bridge = { ingest: (event: NormalizedEvent) => events.push(event) } as unknown as Bridge;
+  const bridge = {
+    ingest: (event: NormalizedEvent) => events.push(event),
+    setOpenCodeVersion: () => undefined,
+  } as unknown as Bridge;
   const dir = await tempDir();
   const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
   const live = new LiveSource({ bridge, config: DEFAULT_CONFIG, logger: new NullLogger(), paths });
@@ -332,7 +335,7 @@ test('the IPC line limit is measured in UTF-8 bytes', async () => {
 });
 
 test('MCP declared totals survive while details stay bounded', () => {
-  const servers = Array.from({ length: 10 }, (_, index) => ({
+  const servers = Array.from({ length: 12 }, (_, index) => ({
     name: `server-${index}`,
     status: index < 7 ? 'connected' : 'disabled',
   }));
@@ -369,7 +372,10 @@ test('one peer disconnecting closes only its own sessions', async () => {
   const dir = await tempDir();
   const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
   const events: NormalizedEvent[] = [];
-  const bridge = { ingest: (event: NormalizedEvent) => events.push(event) } as unknown as Bridge;
+  const bridge = {
+    ingest: (event: NormalizedEvent) => events.push(event),
+    setOpenCodeVersion: () => undefined,
+  } as unknown as Bridge;
   const live = new LiveSource({
     bridge,
     config: { ...DEFAULT_CONFIG, source: 'live' },
@@ -403,7 +409,10 @@ test('a degraded source invalidates its sessions and reports OpenCode offline', 
   const dir = await tempDir();
   const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
   const events: NormalizedEvent[] = [];
-  const bridge = { ingest: (event: NormalizedEvent) => events.push(event) } as unknown as Bridge;
+  const bridge = {
+    ingest: (event: NormalizedEvent) => events.push(event),
+    setOpenCodeVersion: () => undefined,
+  } as unknown as Bridge;
   const live = new LiveSource({
     bridge,
     config: { ...DEFAULT_CONFIG, source: 'live' },
@@ -433,7 +442,10 @@ test('a terminal notification survives the peer that produced it', async () => {
   const dir = await tempDir();
   const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
   const events: NormalizedEvent[] = [];
-  const bridge = { ingest: (event: NormalizedEvent) => events.push(event) } as unknown as Bridge;
+  const bridge = {
+    ingest: (event: NormalizedEvent) => events.push(event),
+    setOpenCodeVersion: () => undefined,
+  } as unknown as Bridge;
   const live = new LiveSource({
     bridge,
     config: { ...DEFAULT_CONFIG, source: 'live' },

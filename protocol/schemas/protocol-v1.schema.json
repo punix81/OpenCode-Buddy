@@ -104,7 +104,12 @@
               "items": { "type": "integer", "minimum": 1, "maximum": 255 }
             },
             "maxLine": { "type": "integer", "minimum": 256, "maximum": 2048 },
-            "boot": { "$ref": "#/$defs/uint32" }
+            "boot": { "$ref": "#/$defs/uint32" },
+            "caps": {
+              "type": "array",
+              "maxItems": 8,
+              "items": { "type": "string", "maxLength": 24 }
+            }
           }
         }
       }
@@ -248,7 +253,8 @@
               "required": ["bridge", "protocol"],
               "properties": {
                 "bridge": { "type": "string", "maxLength": 16 },
-                "protocol": { "type": "integer", "minimum": 1, "maximum": 255 }
+                "protocol": { "type": "integer", "minimum": 1, "maximum": 255 },
+                "opencode": { "type": "string", "maxLength": 16 }
               }
             },
             "source": { "$ref": "#/$defs/source" },

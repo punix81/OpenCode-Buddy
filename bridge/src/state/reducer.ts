@@ -18,6 +18,9 @@ export interface ReduceContext {
   source: Source;
   bridgeVersion: string;
   protocol: number;
+  // Version reported by the OpenCode peer over IPC. Optional: the field is
+  // omitted until a peer has identified itself.
+  opencodeVersion?: string | null;
 }
 
 const PRIORITY: Record<Status, number> = {
@@ -185,7 +188,11 @@ export function reduceState(
           categories: { ...focus.tools.categories },
         },
     connection: { bridge: context.bridge, opencode },
-    versions: { bridge: context.bridgeVersion, protocol: context.protocol },
+    versions: {
+      bridge: context.bridgeVersion,
+      protocol: context.protocol,
+      ...(context.opencodeVersion ? { opencode: context.opencodeVersion } : {}),
+    },
     source: context.source,
   };
 

@@ -68,6 +68,14 @@ test('interrupted expires after its TTL', () => {
   assert.equal(registry.snapshot(ctx(2000 + 10001)).status, 'idle');
 });
 
+test('interruption freezes the duration for its notification, then clears it', () => {
+  const registry = liveRegistry();
+  registry.apply({ kind: 'execution.started', sessionId: 's1', at: 1000 });
+  registry.apply({ kind: 'execution.interrupted', sessionId: 's1', at: 11000 });
+  assert.equal(registry.snapshot(ctx(12000)).elapsedSeconds, 10);
+  assert.equal(registry.snapshot(ctx(11000 + 10001)).elapsedSeconds, 0);
+});
+
 test('token usage keeps the maximum cumulative value', () => {
   const registry = liveRegistry();
   registry.apply({ kind: 'execution.started', sessionId: 's1', at: 1000 });
@@ -78,6 +86,15 @@ test('token usage keeps the maximum cumulative value', () => {
   assert.equal(state.tokens?.input, 120);
   assert.equal(state.tokens?.output, 60);
   assert.equal(state.tokens?.total, 180);
+});
+
+test('cumulative session tokens never become a context percentage', () => {
+  const registry = liveRegistry();
+  registry.apply({ kind: 'execution.started', sessionId: 's1', at: 1000 });
+  registry.apply({ kind: 'usage', sessionId: 's1', at: 1100, input: 900000, output: 100000 });
+  const state = registry.snapshot(ctx(1200));
+  assert.equal(state.tokens?.total, 1000000);
+  assert.equal(state.tokens?.contextPct, null);
 });
 
 test('tool calls are deduplicated', () => {

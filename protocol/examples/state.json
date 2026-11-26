@@ -41,7 +41,8 @@
     },
     "versions": {
       "bridge": "0.2.0",
-      "protocol": 1
+      "protocol": 1,
+      "opencode": "2.4.1"
     },
     "source": "live",
     "diagnostic": {

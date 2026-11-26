@@ -101,6 +101,7 @@ export class LiveSource {
   }
 
   private setOpenCode(value: 'connected' | 'offline' | 'unknown'): void {
+    if (value !== 'connected') this.options.bridge.setOpenCodeVersion(null);
     if (value === this.opencode) return;
     this.opencode = value;
     if (value === 'connected') this.options.bridge.ingest({ kind: 'opencode.connected', at: Date.now() });
@@ -120,6 +121,7 @@ export class LiveSource {
     this.options.logger.info(
       `opencode peer=${peer} app=${hello.app} version=${hello.appVersion} plugin=${hello.plugin} version=${hello.pluginVersion}`,
     );
+    this.options.bridge.setOpenCodeVersion(hello.appVersion);
     this.setOpenCode('connected');
   }
 

@@ -71,6 +71,15 @@ test('an invalid diagnostic code is dropped', () => {
   assert.equal(output.diagnostic, undefined);
 });
 
+test('a total wider than uint32 is omitted so the device derives it', () => {
+  const input = baseState();
+  input.tokens = { input: 0xffffffff, output: 0xffffffff, total: 0x1fffffffe, contextPct: null };
+  const output = new PrivacyFilter().projectState(input);
+  assert.equal(output.tokens?.input, 0xffffffff);
+  assert.equal(output.tokens?.output, 0xffffffff);
+  assert.equal(output.tokens?.total, undefined);
+});
+
 test('missing bridge version is rendered as unavailable', () => {
   const input = baseState();
   input.versions = { bridge: '', protocol: 1 };

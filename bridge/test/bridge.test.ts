@@ -293,12 +293,19 @@ class RecordingTransport implements Transport {
   }
 }
 
-const hello = (boot: number, seq = 1): string =>
+const hello = (boot: number, seq = 1, caps?: string[]): string =>
   JSON.stringify({
     v: 1,
     type: 'hello',
     seq,
-    data: { device: 'opencode-buddy', fw: '0.2.0', proto: [1], maxLine: 2048, boot },
+    data: {
+      device: 'opencode-buddy',
+      fw: '0.2.0',
+      proto: [1],
+      maxLine: 2048,
+      boot,
+      ...(caps !== undefined ? { caps } : {}),
+    },
   });
 
 test('buffered duplicate hellos do not trigger repeated snapshots', async () => {
@@ -645,6 +652,157 @@ test('the MCP detail is staggered after the state frame', async () => {
   } finally {
     await bridge.stop();
     await simulator.stop();
+  }
+});
+
+test('an unchanged MCP detail is not resent on every state tick', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: { ...config(), linkTimeoutMs: 60000 },
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(11));
+    await settle();
+    bridge.ingest({
+      kind: 'mcp.status',
+      at: clock.now,
+      online: 1,
+      total: 2,
+      servers: [{ alias: 'MCP-1', status: 'connected' }],
+    });
+    for (let i = 0; i < 6; ++i) {
+      clock.now += 100;
+      bridge.tick(clock.now);
+      await settle();
+    }
+    assert.equal(transport.count('mcp_status'), 1, 'one detail frame for an unchanged list');
+
+    bridge.ingest({
+      kind: 'mcp.status',
+      at: clock.now,
+      online: 2,
+      total: 2,
+      servers: [
+        { alias: 'MCP-1', status: 'connected' },
+        { alias: 'MCP-2', status: 'connected' },
+      ],
+    });
+    clock.now += 100;
+    bridge.tick(clock.now);
+    await settle();
+    clock.now += 100;
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(transport.count('mcp_status'), 2, 'a changed list is sent again');
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('the OpenCode version is optional and capability-gated', async () => {
+  const capableTransport = new RecordingTransport();
+  const capableClock = { now: 1000 };
+  const capable = new Bridge({
+    transport: capableTransport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => capableClock.now,
+  });
+  const legacyTransport = new RecordingTransport();
+  const legacy = new Bridge({
+    transport: legacyTransport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => capableClock.now,
+  });
+  try {
+    capable.setOpenCodeVersion('2.4.1');
+    await capable.start();
+    capableTransport.feed(hello(7, 1, ['state.opencodeVersion']));
+    await settle();
+    capable.tick(capableClock.now);
+    await settle();
+    const capableState = capableTransport.writes
+      .map((line) => JSON.parse(line) as { type?: string; data?: { versions?: { opencode?: string } } })
+      .filter((message) => message.type === 'state')
+      .pop();
+    assert.equal(capableState?.data?.versions?.opencode, '2.4.1');
+
+    legacy.setOpenCodeVersion('2.4.1');
+    await legacy.start();
+    legacyTransport.feed(hello(8));
+    await settle();
+    legacy.tick(capableClock.now);
+    await settle();
+    const legacyState = legacyTransport.writes
+      .map((line) => JSON.parse(line) as { type?: string; data?: { versions?: { opencode?: string } } })
+      .filter((message) => message.type === 'state')
+      .pop();
+    assert.equal(legacyState?.data?.versions?.opencode, undefined);
+  } finally {
+    await capable.stop();
+    await legacy.stop();
+  }
+});
+
+test('twelve MCP servers keep eight details, complete totals and bounded frames', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(9));
+    await settle();
+    const statuses = ['connected', 'pending', 'disabled', 'failed', 'needs_auth', 'connected', 'pending', 'failed'] as const;
+    bridge.ingest({
+      kind: 'mcp.status',
+      at: clock.now,
+      online: 5,
+      total: 12,
+      servers: statuses.map((status, index) => ({ alias: `MCP-${index + 1}`, status })),
+    });
+    clock.now += 100;
+    bridge.tick(clock.now);
+    await settle();
+    clock.now += 100;
+    bridge.tick(clock.now);
+    await settle();
+
+    const lines = transport.writes.map((line) => line.trimEnd());
+    const mcpLine = lines
+      .map((line) => JSON.parse(line) as { type?: string; data?: { servers?: unknown[]; total?: number; online?: number } })
+      .filter((message) => message.type === 'mcp_status')
+      .pop();
+    assert.equal(mcpLine?.data?.servers?.length, 8);
+    assert.equal(mcpLine?.data?.total, 12);
+    assert.equal(mcpLine?.data?.online, 5);
+
+    const stateLine = lines
+      .filter((line) => line.includes('"type":"state"'))
+      .pop();
+    const mcpRaw = lines
+      .filter((line) => line.includes('"type":"mcp_status"'))
+      .pop();
+    assert.ok(stateLine !== undefined && mcpRaw !== undefined);
+    assert.ok(Buffer.byteLength(`${stateLine}\n`, 'utf8') < 1024, 'state frame fits the device RX queue');
+    assert.ok(Buffer.byteLength(`${mcpRaw}\n`, 'utf8') < 1024, 'MCP frame fits the device RX queue');
+    assert.notEqual(stateLine, mcpRaw, 'state and MCP are carried by separate frames');
+  } finally {
+    await bridge.stop();
   }
 });
 

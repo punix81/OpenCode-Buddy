@@ -9,6 +9,8 @@ export interface BridgeConfig {
   heartbeatMs: number;
   linkTimeoutMs: number;
   stateIntervalMs: number;
+  // Seconds before a non-Buddy dashboard returns to Buddy. Device default 60.
+  autoReturnSeconds: number;
   reconnectDelaysMs: number[];
   logLevel: LogLevel;
   allowRealMcpNames: boolean;
@@ -24,6 +26,7 @@ export const DEFAULT_CONFIG: BridgeConfig = {
   heartbeatMs: 2000,
   linkTimeoutMs: 6000,
   stateIntervalMs: 1000,
+  autoReturnSeconds: 60,
   reconnectDelaysMs: [1000, 2000, 4000, 8000, 15000],
   logLevel: 'info',
   allowRealMcpNames: false,
@@ -61,6 +64,7 @@ export function parseConfig(value: unknown): BridgeConfig {
   config.heartbeatMs = positiveInt(config.heartbeatMs, 'heartbeatMs', 250, 60000);
   config.linkTimeoutMs = positiveInt(config.linkTimeoutMs, 'linkTimeoutMs', 500, 120000);
   config.stateIntervalMs = positiveInt(config.stateIntervalMs, 'stateIntervalMs', 100, 60000);
+  config.autoReturnSeconds = positiveInt(config.autoReturnSeconds, 'autoReturnSeconds', 10, 600);
   if (!Array.isArray(config.reconnectDelaysMs) || config.reconnectDelaysMs.length === 0) {
     throw new ConfigError('reconnectDelaysMs must be a non-empty array');
   }

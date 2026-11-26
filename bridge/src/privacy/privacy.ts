@@ -38,7 +38,13 @@ export class PrivacyFilter {
       tokens: {
         input: nullableClamp(input.tokens?.input, 0, 0xffffffff),
         output: nullableClamp(input.tokens?.output, 0, 0xffffffff),
-        total: nullableClamp(input.tokens?.total, 0, 0xffffffff),
+        // The protocol field is a uint32. When the wide sum exceeds it, omit the
+        // field: the firmware derives total = input + output in 64-bit. Sending
+        // the clamped value would understate the total and contradict IN/OUT.
+        ...(input.tokens?.total !== null && input.tokens?.total !== undefined &&
+        input.tokens.total >= 0 && input.tokens.total <= 0xffffffff
+          ? { total: Math.trunc(input.tokens.total) }
+          : {}),
         contextPct:
           contextPct === null || contextPct === undefined
             ? null
@@ -64,6 +70,9 @@ export class PrivacyFilter {
       versions: {
         bridge: cleanText(input.versions.bridge, 16) ?? '--',
         protocol: clamp(input.versions.protocol, 1, 255, 1),
+        ...(input.versions.opencode !== undefined
+          ? { opencode: cleanText(input.versions.opencode, 16) ?? '--' }
+          : {}),
       },
       source: input.source,
     };

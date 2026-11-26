@@ -61,6 +61,21 @@
       }
     },
     {
+      "name": "state_opencode_version",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 5,
+        "data": {
+          "status": "idle",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "connected" },
+          "versions": { "bridge": "0.2.0", "protocol": 1, "opencode": "2.4.1" },
+          "source": "live"
+        }
+      }
+    },
+    {
       "name": "state_unavailable_tokens",
       "message": {
         "v": 1,
@@ -275,6 +290,22 @@
         }
       },
       "error": "E_PARSE"
+    },
+    {
+      "name": "opencode_version_too_long",
+      "message": {
+        "v": 1,
+        "type": "state",
+        "seq": 5,
+        "data": {
+          "status": "idle",
+          "activeSessions": 1,
+          "connection": { "bridge": "ready", "opencode": "connected" },
+          "versions": { "bridge": "0.2.0", "protocol": 1, "opencode": "12345678901234567" },
+          "source": "live"
+        }
+      },
+      "error": "E_BOUNDS"
     }
   ]
 }

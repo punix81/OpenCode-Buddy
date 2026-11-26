@@ -62,9 +62,15 @@ handshake: that is a buffered duplicate, not a new session. A different `boot` a
 
 `boot` is the device's reset-persistent boot counter, used by the bridge to detect a restart even if
 USB re-enumeration is missed. `proto` is the set of supported majors. `caps` is an optional array of at
-most eight capability strings: `config.partial` means the device accepts a `config` without
-`language`/`quietMode` and keeps its stored preference. A firmware that sends no `caps` needs the
-legacy fields, and the bridge keeps sending them.
+most eight capability strings:
+
+- `config.partial`: the device accepts a `config` without `language`/`quietMode` and keeps its stored
+  preference.
+- `state.opencodeVersion`: the device accepts the optional `versions.opencode` string in a `state`
+  snapshot and can display it.
+
+A firmware that sends no `caps` needs the legacy `config` fields and rejects unknown keys in
+`versions`; the bridge keeps sending the legacy config and omits the optional version.
 
 ### `ready` (B→D, seq = 1)
 
@@ -118,7 +124,7 @@ Complete snapshot, never a delta. Idempotent: applying the same snapshot twice i
              "categories": { "read": 9, "edit": 4, "shell": 3, "search": 2, "mcp": 2, "other": 1 } },
   "mcp": { "online": 10, "total": 12 },
   "connection": { "bridge": "ready", "opencode": "connected" },
-  "versions": { "bridge": "0.2.0", "protocol": 1 },
+  "versions": { "bridge": "0.2.0", "protocol": 1, "opencode": "2.4.1" },
   "source": "live",
   "diagnostic": { "code": "E_PARSE" } } }
 ```
@@ -131,15 +137,23 @@ Field ownership:
 | `connection.bridge` | Bridge | `ready` or `degraded` from its own link view |
 | `connection.opencode` | Bridge | `connected`, `offline` or `unknown` |
 | `versions.bridge`, `versions.protocol` | Bridge | Bridge version and negotiated major |
+| `versions.opencode` | Bridge | Optional, only with the `state.opencodeVersion` capability; version reported by the OpenCode peer over IPC |
 | **USB link** | **Device** | The device derives it locally; it is never sent on the wire |
 | **Firmware version** | **Device** | Compiled in; never imposed by the bridge |
 
 `status` enum: `offline`, `idle`, `thinking`, `generating`, `working`, `permission_required`,
 `user_input_required`, `success`, `error`, `compacting`, `retrying`, `interrupted`.
 
-`tokens.total = input + output`; reasoning and cache are not included. `contextPct` is `null` unless a
-reliable limit and a reliable used-token count are both known. `notifications` is the number of
-unacknowledged user-visible alerts raised while the link was connected, capped at 99.
+`tokens.total = input + output`; reasoning and cache are not included and are never counted twice. The
+field is optional and bounded to uint32: when the wide sum exceeds 4294967295, the bridge omits `total`
+and the device derives it from `input + output` in 64-bit, so a very large session cannot understate
+its total. The
+plugin and bridge keep the provider's `reasoning`, `cache.read` and `cache.write` counters internally
+for diagnostics, but they do not travel in v1 and their overlap with `input` is provider-dependent and
+not verified for the current provider. `contextPct` is `null` unless both a reliable current-context
+occupancy and a reliable model capacity are known; the cumulative session counters are not a context
+measurement. `notifications` is the number of unacknowledged user-visible alerts raised while the link
+was connected, capped at 99.
 
 `connection.opencode` adds `unknown` so "no data yet" is never confused with "offline".
 

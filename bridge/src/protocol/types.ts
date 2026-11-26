@@ -71,7 +71,9 @@ export interface StateData {
   tools?: Tools;
   mcp?: { online: number; total: number };
   connection: { bridge: BridgeLink; opencode: OpenCodeLink };
-  versions: { bridge: string; protocol: number };
+  // `opencode` is optional and only sent to a device that advertises
+  // `state.opencodeVersion`; older firmware rejects unknown keys.
+  versions: { bridge: string; protocol: number; opencode?: string };
   source: Source;
   diagnostic?: { code: ErrorCode };
 }

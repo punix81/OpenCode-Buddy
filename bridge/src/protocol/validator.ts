@@ -230,9 +230,12 @@ function validateState(data: Obj): StateData {
   );
 
   const versions = asObj(data['versions'], 'versions');
-  onlyKeys(versions, ['bridge', 'protocol'], 'versions');
+  onlyKeys(versions, ['bridge', 'protocol', 'opencode'], 'versions');
   result.versions.bridge = str(versions['bridge'], 'versions.bridge', 16);
   result.versions.protocol = u8(versions['protocol'], 'versions.protocol', 1, 255);
+  if ('opencode' in versions) {
+    result.versions.opencode = str(versions['opencode'], 'versions.opencode', 16);
+  }
 
   if ('tokens' in data) result.tokens = validateTokens(data['tokens']);
   if ('tools' in data) result.tools = validateTools(data['tools']);
@@ -269,7 +272,7 @@ function validateHello(data: Obj): HelloData {
     if (!Array.isArray(rawCaps) || rawCaps.length > 8) {
       fail('E_PARSE', 'hello.caps must be an array of at most 8 entries');
     }
-    caps = rawCaps.map((value) => str(value, 'hello.caps', 16));
+    caps = rawCaps.map((value) => str(value, 'hello.caps', 24));
   }
   return {
     device: 'opencode-buddy',

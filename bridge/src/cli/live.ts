@@ -31,11 +31,18 @@ let bridge: Bridge | null = null;
 // here, not after resetting the device by opening its port. Events that arrive
 // before the serial bridge exists are queued and replayed in order.
 const pending: NormalizedEvent[] = [];
+let pendingVersion: string | null = null;
 const sink = {
   ingest: (event: NormalizedEvent): boolean => {
     if (bridge !== null) return bridge.ingest(event);
     if (pending.length < 500) pending.push(event);
     return true;
+  },
+  // The plugin can connect before the serial bridge exists. Keep the version so
+  // the first snapshot after creation still carries it.
+  setOpenCodeVersion: (version: string | null): void => {
+    pendingVersion = version;
+    if (bridge !== null) bridge.setOpenCodeVersion(version);
   },
 } as unknown as Bridge;
 
@@ -47,6 +54,7 @@ try {
   logger.info(`live session on ${path}`);
 
   bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config) });
+  if (pendingVersion !== null) bridge.setOpenCodeVersion(pendingVersion);
   bridge.onStatus = (status) => logger.info(`bridge ${status}`);
   bridge.onState = (state) => logger.info(`state ${describeState(state)}`);
   bridge.onMcpStatus = (mcp) => logger.info(`mcp online=${mcp.online} total=${mcp.total} source=${mcp.source}`);
