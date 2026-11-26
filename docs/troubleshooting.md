@@ -441,3 +441,31 @@ CDC RX blocker above. The Phase 3.1 control does not show it.
 The device buffers announcements while no host reads; opening the port flushes them. The bridge
 drains them for 2.5 s (`link settling`) before writing. This is expected; it was reduced by the
 settle but does not by itself fix the Phase 4 RX blocker.
+
+### Phase 4.1 — confirmed cause of the cold-boot no-ACK: self-received USB CDC fragment
+
+The Phase 4 blocker is explained. On a cold boot the ESP32-C3 USB Serial/JTAG delivers a short
+fragment (16–25 B, no newline) of the device's **own** transmission into its RX path. The fragment was
+prefixed to the bridge's first `ready`, so the parser saw `garbage{"v":1,"type":"ready",...}` and
+rejected it; the next `config` was a sequence gap and no ACK was generated. Error frames are
+suppressed before the link is ready, so the bridge only saw silence. While no host was connected the
+fragments also accumulated in the line buffer and could grow it past 2048 B, swallowing the first
+real frame.
+
+Corrections (`a68fc1f`, `2509de8`):
+- the parser recovers a complete peer frame behind an invalid prefix (≤4 `{` candidates, first 192 B,
+  counter `framingResyncs()`), with validation unchanged;
+- the firmware drains RX while `hostConnected()` is false;
+- the bridge replays `ready`/`config` after 2 s (max 3) before the 7 s reopen.
+
+Diagnosis in the bridge log:
+- `WARN handshake retry N (no ACK)` means ready/config were sent and not acknowledged; the replay is
+  normal after a difficult boot, but a session that needs a reopen is a failure to report.
+- `WARN invalid message code=E_PARSE` at port open is a corrupted line in the boot backlog; the bridge
+  ignores it and continues. A recurring rate is a defect.
+- `bridge status=reconnecting` after `handshake not acknowledged` means the 7 s fallback fired; the
+  reopen resets the device and usually handshakes.
+
+Do not raise timeouts or buffer sizes to hide it. If a cold boot still fails after the corrections,
+capture the boot with the probe build (`26ebecfa…`, `framing=` counter) and report the boot counter,
+the retry count and the first parsed line.

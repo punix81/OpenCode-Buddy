@@ -8,6 +8,15 @@ accept `ready`/`config` after boot and cannot be accepted. The previously valida
 `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` is installed and verified. No
 diagnostic image remains. No GitHub operation; Phase 5/6 not started.
 
+> **Postscript — Phase 4.1 (2026-11-26).** The blocker was root-caused and corrected after this
+> report was written. The device receives a fragment of its own USB CDC transmission at cold boot,
+> which was glued in front of the first `ready` and rejected by the parser. The corrections are a
+> bounded frame resynchronisation, RX drain while no host is connected, and a bridge handshake
+> replay. The Phase 4 functionality is preserved; the current image is
+> `2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2` and the bridge is LIVE.
+> See [docs/phase-4-1-report.md](phase-4-1-report.md). The original failure report below is kept as
+> historical evidence and is not rewritten.
+
 ## 1. Verdict
 
 **Phase 4 hardware gate: FAIL (BLOCKER).** The six dashboards, EN/FR/DE localization, preferences,
@@ -210,3 +219,13 @@ pushed, fetched or published. GitHub remains the Product Owner's responsibility.
 - Phase 4 gate: **FAIL / BLOCKER**; Phase 5 must isolate the USB RX regression.
 - Phase 5 and Phase 6: not started.
 - No GitHub operation, no secret, no global OpenCode configuration change.
+
+## 13. Phase 4.1 resolution and current state
+
+- Mechanism: self-received USB CDC fragment prefixed to the first host frame (physical evidence in
+  `docs/evidence/phase-4-1-usb-diagnostics.md`).
+- Corrections: `a68fc1f` (parser resynchronisation + RX drain while disconnected), `2509de8`
+  (bridge handshake replay).
+- Current image: `2ff67b71…`, verified at `0x10000`; bridge LIVE with real OpenCode 2.4.1 data.
+- Remaining: 20 cold boots and the 3600 s soak on this image (owner stopped the session).
+- Verdict for Phase 4.1: **PASS WITH RESERVATIONS** (`docs/phase-4-1-report.md`).

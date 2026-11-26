@@ -91,7 +91,7 @@ one transient USB power-cycle handshake error is documented with automatic recov
 `docs/phase-3-1-report.md` and `docs/audit-phase-3-1.md`. Phase 4 has not started and awaits the
 Product Owner's approval.
 
-## Phase 4 — Developer dashboard — FAIL / BLOCKER (hardware gate)
+## Phase 4 — Developer dashboard — PASS WITH RESERVATIONS (Phase 4.1)
 
 **Goal:** complete, readable six-screen experience.
 
@@ -101,20 +101,21 @@ counters; MCP complete totals with an eight-detail subset caption; System with t
 version; English/French/German with composed accents and switching without reboot; device-owned
 preferences plus explicit host overrides; unchanged gestures; native preview sheets.
 
-**Blocker:** the Phase 4 image (`741dcb5b…`) was flashed and verified, but on multiple cold boots its
-USB CDC RX never ACKed `ready`/`config`; the same host/cable/bridge with the Phase 3.1 image
-handshakes immediately. The bridge now drains the boot backlog, primes the endpoint, delays the
-handshake and reopens on missing ACKs; the blocker remained. The Phase 4 image was removed and the
-validated Phase 3.1 image (`280166…e12ad`) restored; the bridge is LIVE.
+**Phase 4.1 resolution.** The cold-boot no-ACK was caused by a fragment of the device's own USB CDC
+transmission being delivered into its RX and prefixed to the first `ready`. The parser now recovers a
+complete frame behind an invalid prefix, the firmware drains RX while no host is connected, and the
+bridge replays an unacknowledged handshake before reopening. Image
+`2ff67b71…` is installed and verified; the bridge is LIVE with real OpenCode 2.4.1 data. The original
+Phase 4 failure report is preserved in `docs/phase-4-report.md`.
 
-Tests: bridge **102/102**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
+Tests: bridge **103/103**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
 preview 8/8. Performance: Buddy 47–48 ms / 20 FPS; Session/Tokens ~90–100 ms (Phase 5 optimization);
 heap within 176 B of Phase 3.1; 0 TX drops.
 
-Phase 5 must isolate the USB RX regression with a minimal A/B image before Phase 4 acceptance is
-retried. See `docs/phase-4-report.md`, `docs/evidence/phase-4-hardware-validation.md`,
-`docs/evidence/phase-4-performance.md`, `docs/dashboard-metrics.md`, `docs/localization.md` and
-`docs/device-preferences.md`.
+**Reservations:** the 20-cold-boot series, the 10 reboots/bridge restarts/reconnects and the 3600 s
+soak on the installed image were not completed (the owner stopped the hardware session). These are
+the entry gates for Phase 5. See `docs/phase-4-1-report.md`, the four `docs/evidence/phase-4-1-*.md`
+files, `docs/dashboard-metrics.md`, `docs/localization.md` and `docs/device-preferences.md`.
 
 ## Phase 5 — Quality, privacy and stability
 

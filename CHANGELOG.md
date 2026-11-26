@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Fixed — Phase 4.1 USB CDC cold-boot handshake
+
+- Root cause of the Phase 4 hardware blocker: a fragment of the device's own USB CDC transmission is
+  delivered into its RX at cold boot and prefixes the first host frame. The parser rejected the
+  merged `ready`; `config` became a gap and no ACK was sent.
+- `a68fc1f` firmware: bounded frame resynchronisation behind an invalid prefix (at most four `{`
+  candidates in the first 192 bytes, peer type required, `framingResyncs()` counter); RX is drained
+  while `hostConnected()` is false so self-echo never reaches the line buffer.
+- `2509de8` bridge: an unacknowledged `ready`/`config` is replayed every 2 s (max 3, `ready` restarting
+  at seq 1) before the 7 s reopen; cleared by the handshake ACK.
+- Tests: bridge **103/103**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four
+  suites (protocol incl. new prefix cases), preview 8/8.
+- Final image `2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2` (411 232 B,
+  22 604 B RAM / 376 734 B flash) written at `0x10000` and verified; bridge LIVE with real OpenCode
+  2.4.1 data, 0 device error, 0 resync.
+- Evidence: `docs/phase-4-1-report.md`, `docs/evidence/phase-4-1-usb-diagnostics.md`,
+  `phase-4-1-ab-matrix.md`, `phase-4-1-hardware-validation.md`, `phase-4-1-soak-test.md`.
+- Verdict: **PASS WITH RESERVATIONS** — the 20-cold-boot series and the 3600 s soak on the installed
+  image were not completed; they are the Phase 5 entry gates.
+
 ### Added — Phase 4 developer dashboard and localization
 
 - Six-dashboard completion: session-scoped model/agent/duration/status, `SESSION TOTAL` (never

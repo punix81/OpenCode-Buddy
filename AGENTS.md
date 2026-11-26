@@ -208,10 +208,16 @@ These are hard rules for future changes, established by the independent audit.
    supported configuration workflow is the local configuration file.
 6. **Optional fields are capability-gated.** `versions.opencode` is sent only to a firmware that
    advertises `state.opencodeVersion`; a legacy firmware receives the legacy config fields.
-7. **No Phase 4 image is flashed without approval.** The Phase 3.1 release stays on the device until
-   the Product Owner approves the flash and hardware validation plan.
-8. **Phase 4 is blocked on USB CDC RX.** The Phase 4 image (`741dcb5b…`) was flashed with approval and
-   its UI was physically reviewed, but it did not reliably ACK `ready`/`config` after cold boots; the
-   Phase 3.1 control image handshakes immediately. Phase 3.1 is installed; the Phase 4 image is
-   preserved. Do not retry Phase 4 acceptance before the Phase 5 A/B isolation; do not leave a
-   diagnostic image on the device.
+7. **No firmware is flashed without approval.** The Product Owner authorizes application-only
+   flashes at `0x10000`; bootloader, partitions and NVS are never rewritten.
+8. **The USB CDC self-echo is a permanent constraint.** The ESP32-C3 delivers a fragment of the
+   device's own transmission into its RX at cold boot. Three protections must stay: the parser
+   recovers a complete peer frame behind an invalid prefix (`ProtocolParser::findFrameStart`, bounded,
+   counter `framingResyncs()`), the firmware drains RX while `!hostConnected()`, and the bridge
+   replays an unacknowledged `ready`/`config` (ready restarting at seq 1) before the 7 s reopen.
+   Never "fix" a handshake by raising timeouts or buffer sizes.
+9. **Phase 4.1 is installed and LIVE.** Image
+   `2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2` is verified on the device and
+   the bridge runs `2509de8`. The cold-boot series and the 3600 s soak on this image remain the
+   Phase 5 entry gates; do not start Phase 5 before them. No diagnostic image may stay installed.
+   The original Phase 4 failure report is historical evidence and is never rewritten.
