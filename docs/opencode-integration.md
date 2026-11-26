@@ -79,3 +79,14 @@ One plugin instance runs per OpenCode location; the public stream carries every 
 server, so the plugin filters events on `location.directory` and restores only sessions of its own
 location updated in the last 15 minutes. Without that filter the Buddy received another project's
 31.9 M input-token total at connect time — measured, then fixed.
+
+## 10. Phase 3.1 behaviour changes
+
+| Area | Behaviour |
+| --- | --- |
+| Event source health | The plugin sends `source=ok|degraded`. Degraded closes that peer's sessions and reports OpenCode offline; the plugin resubscribes with 1 s → 15 s backoff |
+| Permissions and forms | Request identifiers are forwarded and deduplicated; `permission.sync` replaces the pending set from `ctx.permission.list()` on every reconnect. Resolution restores the underlying activity |
+| Metrics scope | The state carries the focus session's tokens and tools; unknown counters are `null`; at equal priority the most recently active session wins |
+| MCP | Snapshots replace the server list; totals cover the complete verified list while the detail array stays capped for the protocol |
+| Snapshots | One timestamp per snapshot and a connection generation; the backlog is dropped on connect and live events are queued during the snapshot |
+| Preferences | `config` may omit `language`/`quietMode` for a firmware that advertises `config.partial`; the device keeps its stored preference |

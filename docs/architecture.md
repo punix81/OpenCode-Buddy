@@ -202,7 +202,7 @@ specification: `protocol/protocol-v1.md`.
 | ADR-004 | LovyanGFX + GC9A01 panel driver, PlatformIO | TFT_eSPI; Arduino IDE only | Library already proven with this exact panel and pins; PlatformIO gives reproducible pinned builds. |
 | ADR-005 | 8-bit full-frame sprite with dirty regions where possible | Full 16-bit double buffer | 240×240×1 B = 57.6 kB fits comfortably; 16-bit would double memory and risk fragmentation. |
 | ADR-006 | Firmware independent of OpenCode semantics | Firmware parses OpenCode events | Normalization stays in TypeScript where iteration is cheap; firmware stays stable and testable. |
-| ADR-007 | Loopback HTTP/IPC between plugin and bridge, bound to 127.0.0.1 | Named pipe only; unix socket only | Works on Windows and Linux with one code path; must bind loopback explicitly and never 0.0.0.0. |
+| ADR-007 | Loopback HTTP/IPC between plugin and bridge | Named pipe only; unix socket only | **Superseded in Phase 3:** the loopback HTTP API answers `UnauthorizedError` without credentials; the plugin uses a per-run-token Unix socket in a 0700 directory. Windows named pipes remain unimplemented. |
 | ADR-008 | Alias MCP server names by default | Always show real names | Avoids leaking internal tooling names on a desk device in shared spaces; opt-in to real names. |
 | ADR-009 | Quiet mode in firmware, driven by config | Bridge stops sending events | Device stays responsive and can still show alerts; bridge remains the single source of truth for state. |
 
@@ -224,3 +224,25 @@ specification: `protocol/protocol-v1.md`.
 4. Can the 27 MHz SPI clock sustain 30 FPS with partial refresh on this panel? (Phase 1 measurement)
 5. Is GPIO0 usable as display reset without boot-strap interference in practice? (reference works;
    confirm on our unit in Phase 1)
+
+
+## 10. Phase 3.1 invariants
+
+These rules were established by the independent audit and are enforced by tests.
+
+1. **Activity and interaction are separate.** `SessionState.status` only carries execution activity;
+   `effectiveStatus` derives `permission_required` / `user_input_required` from pending identifiers.
+   A later phase or tool event can never erase a prompt, and resolving it restores the activity.
+2. **One session owns the screen.** Model, agent, chronometer, tokens and tools all come from the same
+   focus session; at equal priority the most recently updated session wins. Unknown token counters are
+   `null`, never zero.
+3. **One peer owns its sessions.** Disconnect, stale timeout and `source=degraded` close only that
+   peer's sessions; a terminal notification stays observable for its TTL. Ownership is bounded.
+4. **The bridge is single-instance.** A PID lock is taken before the token or socket is touched. The
+   runtime directory is a real 0700 directory; symlinks and non-socket paths are refused.
+5. **The plugin is bounded.** Queue, socket buffer and frame size are bounded; frames are measured in
+   UTF-8 bytes; snapshots carry one timestamp and a generation so older data cannot win.
+6. **The device owns its display preferences.** `config.language` and `config.quietMode` are optional;
+   a firmware advertises `caps: ["config.partial"]` and keeps its stored values when they are absent.
+7. **Serial frames are staged.** The firmware writes complete frames into a bounded TX buffer and
+   retries partial driver writes; no truncated NDJSON line can reach the wire.

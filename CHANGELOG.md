@@ -6,6 +6,41 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Fixed — Phase 3.1 independent audit remediation
+
+- **F01** — pending permissions and questions are derived priority, not a stored status; request
+  identifiers are deduplicated and synchronized from `ctx.permission.list()`.
+- **F02** — sessions are owned per OpenCode peer; one peer disappearing no longer hides another peer's
+  sessions, and a terminal notification survives its producer for the TTL.
+- **F03** — tokens are the focus session's, not a sum over every session; unknown counters stay `null`.
+- **F04** — one lifecycle per tool call: missing start, duplicate outcome, interruption, session removal
+  and deterministic bounded eviction are covered.
+- **F05** — the plugin supervises `ctx.event.subscribe()`, reports `source=ok|degraded` and resubscribes
+  with bounded backoff without ever blocking OpenCode.
+- **F06** — connection generations and one snapshot timestamp order reconnects; the backlog is dropped
+  on connect, live events are queued during a snapshot, and queue/socket buffers are bounded.
+- **F07** — a PID lock protects the token and socket; the runtime directory must be a real user-owned
+  0700 directory; symlinks and non-socket paths are refused; IPC limits are UTF-8 bytes.
+- **F08** — firmware frames are staged in a bounded 2048-byte `TxBuffer` and partial serial writes are
+  retried; the bridge clears ACKs per protocol session and expires unacknowledged frames after 10 s.
+- **F09** — MCP snapshots replace the list, totals cover the complete list, details stay capped, and
+  MCP values are cleared when OpenCode goes offline.
+- **F10** — `config.language`/`quietMode` are optional behind `caps:["config.partial"]`; the device keeps
+  its preferences and the bridge sends legacy fields only to older firmware.
+- **F11** — the most recently active session wins at equal priority; model, agent, timer, tokens and
+  tools describe the same session.
+- **F12** — NVS preferences are written only when the value changes.
+- **F13** — plugin diagnostics are opt-in, private (0700/0600), capped and sanitized; docs contain no
+  paths, proxy or board identifiers.
+- **F14** — explicit ownership: foreign locations, unknown sessions and location-less `session.created`
+  are rejected; only `mcp.status.changed` is a global allowlist entry.
+- Additional: USB discovery is re-run on reconnect, terminal notifications survive peer loss, reordered
+  events cannot revive a session, sessions expire after 30 minutes (bounded registry).
+- Tests: bridge **81/81**, plugin **24/24**, protocol PASS, firmware host PASS (protocol, gestures, TX),
+  firmware build SUCCESS (22 572 B RAM, 372 182 B flash, sha256 `2801668…`).
+- **The firmware was not flashed.** Hardware validation of F08/F10/F12 is pending approval; the current
+  image keeps receiving the legacy config fields and remains operational.
+
 ### Added — Phase 3, real OpenCode v2 integration
 
 - `plugin/opencode-buddy`: dependency-free OpenCode 2.4.1 server plugin. Subscribes to

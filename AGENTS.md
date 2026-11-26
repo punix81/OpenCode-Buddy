@@ -153,3 +153,30 @@ project rule, not a temporary workaround.
 - Use monotonic state-entry time for one-shot effects. Keep quiet frames still and repeated
   snapshots idempotent. Rebuild the native preview and review both contact sheets after layout edits.
 - Distinguish host pixel verification from panel measurements in design reports.
+
+## 11. Phase 3.1 invariants (verified 2026-11-26)
+
+These are hard rules for future changes, established by the independent audit.
+
+1. **One bridge per runtime directory.** `IpcServer` takes a PID lock before touching the token or
+   socket. Never delete `bridge.lock`, the socket or the token of a live bridge. The runtime directory
+   must be a real 0700 directory owned by the user; refuse symlinks and non-socket paths.
+2. **Activity and interactions are separate.** `SessionState.status` is execution activity;
+   `permission_required` and `user_input_required` are derived from pending identifiers. Never store an
+   interaction state in `status`.
+3. **Metrics are session-scoped.** The device receives the focus session's tokens and tools. Unknown
+   counters stay `null`; never turn them into zero. At equal priority the most recently updated session
+   is the focus.
+4. **One peer owns its sessions.** A disconnect, stale timeout or `source=degraded` closes only that
+   peer's sessions; terminal notifications survive for their TTL. Ownership is bounded (64 per peer).
+5. **The plugin output is bounded.** Queue, socket buffer and frame size are bounded; sizes are
+   measured in UTF-8 bytes (`Buffer.byteLength`). Snapshots carry one timestamp and a generation.
+6. **The device owns display preferences.** `language`/`quietMode` are optional in `config`; a firmware
+   advertises `caps:["config.partial"]`. The bridge sends legacy fields only to a firmware without it.
+7. **Serial frames go through `TxBuffer`.** Never write a frame directly to `Serial`; a partial driver
+   write must be retried from the buffer, and no frame may block the rendering loop.
+8. **Plugin diagnostics are private and sanitized.** Opt-in only, runtime directory 0700, file 0600,
+   1 MiB cap, no paths, session IDs, request IDs or raw errors.
+9. **Firmware has not been flashed since the audit.** F08/F10/F12 hardware behaviour is compile- and
+   host-test-verified only until the Product Owner approves a flash and the procedure in
+   `docs/phase-3-1-report.md` §5 is executed.

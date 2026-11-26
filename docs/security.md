@@ -174,3 +174,23 @@ alternatives if native builds are unavailable in enterprise images.
 4. Verify the listener is bound to loopback only (`ss -lntp`) and rejects unauthenticated state changes.
 5. Verify logs contain no secret-like pattern across a full session.
 6. Verify OpenCode latency is unchanged with the plugin loaded and the bridge absent.
+
+
+## 12. Phase 3.1 hardening
+
+- **Single instance.** `bridge.lock` (0600, PID) is created with `O_EXCL` before the token or socket
+  is touched. A live PID refuses startup; a stale lock is removed once. A failed instance never
+  removes another bridge's files.
+- **Filesystem.** The runtime directory must be a real directory (no symlink), owned by the current
+  user and 0700. The socket and token are 0600. A non-socket at the socket path is refused, never
+  unlinked.
+- **Bounds in bytes.** IPC line and buffer limits are measured with `Buffer.byteLength`, so multi-byte
+  UTF-8 cannot bypass the 8 KiB cap.
+- **Plugin diagnostics.** Debug output is opt-in, goes to the private runtime directory, is created
+  0600, capped at 1 MiB and sanitized (absolute paths, session/request/tool identifiers and control
+  characters are removed). Locations and session IDs are no longer logged.
+- **Ownership.** A located event must match the plugin's directory. A location-less event is accepted
+  only for an already-owned session; `session.created` without a location is rejected; the only global
+  allowlist entry is `mcp.status.changed`.
+- **Preferences.** The device owns quiet mode and language. The host overrides them only when
+  explicitly configured and the firmware advertises `config.partial`.

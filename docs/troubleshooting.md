@@ -299,3 +299,50 @@ Free-form diagnostics must be off. The release build compiles out `BUDDY_DIAGNOS
 Planned (`buddy doctor`, Phase 2): prints OpenCode version and connection, plugin presence, bridge
 version, protocol version, candidate ports, device handshake, and the last sanitized error code. It must
 never print configuration values, environment variables or payloads.
+
+## Phase 3.1 (audit remediation)
+
+### `another bridge is running (pid N)`
+
+A second bridge is refused before it touches the token or socket. Stop the first one, or point the new
+one at a different runtime directory with `OPENCODE_BUDDY_RUNTIME_DIR`. A crashed bridge leaves
+`bridge.lock`; a dead PID is detected and the lock is removed automatically.
+
+### `refusing to replace a non-socket path`
+
+Something replaced `bridge.sock` with a regular file or a symlink. The bridge refuses to unlink it.
+Inspect the runtime directory and remove the unexpected file manually before restarting.
+
+### `opencode peer=N source=degraded`
+
+The plugin is alive but its event subscription ended. The bridge closes that peer's sessions, keeps any
+terminal notification for its TTL, and the plugin resubscribes with 1 s → 15 s backoff. If it never
+recovers, restart OpenCode; the plugin never blocks the server.
+
+### `ack timeout seq=N`
+
+A state or MCP frame was not acknowledged within 10 s. It is forgotten and counted in
+`stats.expiredAcks`; the next periodic snapshot replaces it. Repeated timeouts mean a saturated or
+half-open USB link.
+
+### Preferences keep resetting (quiet mode, language)
+
+With the pre-Phase-3.1 firmware, the bridge sends the legacy `language`/`quietMode` fields because the
+device does not advertise `config.partial`. Flash the Phase 3.1 firmware (with approval) to let the
+device own those preferences.
+
+### Device re-enumerates on a different `ttyACM`
+
+The bridge re-runs Espressif USB discovery before each reconnection and opens the new port; it no longer
+reopens the stale path. If no Espressif device is found, the normal absence backoff applies.
+
+### Diagnosing dropped plugin frames
+
+With `OPENCODE_BUDDY_DEBUG=1`, the plugin writes a private `plugin-debug.log` in the runtime directory
+(0600, 1 MiB cap). The summary line reports `dropped queue=… oversized=… backpressure=…`. Dropped state
+frames are replaced by the next snapshot; dropped terminal events are not replayed by design.
+
+### Token and tool counters look session-scoped
+
+This is intentional since Phase 3.1: the Buddy shows the focus session's tokens and tools, matching the
+model, agent and chronometer on screen. A session switch changes all of them together.
