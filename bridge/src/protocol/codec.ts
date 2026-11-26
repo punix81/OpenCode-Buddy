@@ -122,6 +122,13 @@ export class OutboundSequence {
     this.value = 0;
   }
 
+  // Align the next outbound sequence with the value the device expects after a
+  // resynchronisation. The device sends its expected next peer sequence.
+  setNext(value: number): void {
+    if (!Number.isInteger(value) || value < 1 || value > 0x7fffffff) return;
+    this.value = value - 1;
+  }
+
   next(): number {
     ++this.value;
     if (this.value > 0x7fffffff) {

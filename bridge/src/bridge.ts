@@ -101,6 +101,8 @@ export class Bridge {
   private deviceBoot = -1;
   private deviceCaps = new Set<string>();
   private snapshotPending = false;
+  private mcpDue = false;
+  private lastMcpKey: string | null = null;
   private handshakeAcked = false;
   private readonly handshakeSeqs = new Set<number>();
   private tickTimer: NodeJS.Timeout | null = null;
@@ -363,7 +365,14 @@ export class Bridge {
         this.sendAck(message.seq);
         return;
       case 'resync':
-        this.options.logger.warn(`device resync reason=${message.data.reason}`);
+        this.options.logger.warn(
+          `device resync reason=${message.data.reason} expected=${message.data.expected ?? '-'} received=${message.data.received ?? '-'}`,
+        );
+        if (message.data.expected !== undefined) {
+          // The device tells us the next peer sequence it expects; adopt it so a
+          // lost frame cannot turn the resync into an endless loop.
+          this.seqOut.setNext(message.data.expected);
+        }
         this.sendConfig();
         this.snapshotPending = true;
         this.sendAck(message.seq);
@@ -415,21 +424,24 @@ export class Bridge {
       this.setStatus('degraded');
       this.emitState(true);
     }
-    if (this.statusValue === 'ready' && this.snapshotPending && this.handshakeAcked) {
-      this.snapshotPending = false;
-      this.emitState(true);
-    }
-    if (this.statusValue !== 'ready') return;
-
     if (now - this.lastHeartbeatMs >= this.options.config.heartbeatMs) {
       this.lastHeartbeatMs = now;
       this.send({ v: 1, type: 'heartbeat', seq: this.seqOut.next() });
     }
-    // Respect the configured snapshot cadence. Sending on every event made the
-    // bridge emit ~10 state frames per second under load, which overflowed the
-    // device RX queue during rendering (observed as E_PARSE + resync in the
-    // Phase 3.1 stress soak).
-    if (this.handshakeAcked && now - this.lastStateMs >= this.options.config.stateIntervalMs) {
+    if (this.statusValue !== 'ready') return;
+
+    if (this.snapshotPending && this.handshakeAcked) {
+      this.snapshotPending = false;
+      this.emitState(true);
+    } else if (this.mcpDue) {
+      // Send the MCP detail on its own tick. With eight servers the state and
+      // mcp frames together exceed the device's 1024-byte RX queue while it
+      // renders, which produced E_PARSE + resync on the live link.
+      this.sendMcp();
+    } else if (this.handshakeAcked && now - this.lastStateMs >= this.options.config.stateIntervalMs) {
+      // Respect the configured snapshot cadence. Sending on every tick made the
+      // bridge emit ~10 state frames per second under load, which overflowed the
+      // device RX queue during rendering (Phase 3.1 stress soak).
       this.emitState(false);
     }
   }
@@ -516,10 +528,21 @@ export class Bridge {
     };
     const state = this.privacy.projectState(this.registry.snapshot(context));
     this.send({ v: 1, type: 'state', seq: this.seqOut.next(), data: state });
-    const mcp = this.privacy.projectMcp(this.registry.mcpStatus(this.options.config.source));
-    this.send({ v: 1, type: 'mcp_status', seq: this.seqOut.next(), data: mcp });
     this.lastStateMs = now;
     this.onState?.(state);
+
+    const mcp = this.privacy.projectMcp(this.registry.mcpStatus(this.options.config.source));
+    const key = JSON.stringify(mcp);
+    if (force || key !== this.lastMcpKey) {
+      this.mcpDue = true;
+    }
+  }
+
+  private sendMcp(): void {
+    const mcp = this.privacy.projectMcp(this.registry.mcpStatus(this.options.config.source));
+    this.send({ v: 1, type: 'mcp_status', seq: this.seqOut.next(), data: mcp });
+    this.mcpDue = false;
+    this.lastMcpKey = JSON.stringify(mcp);
     this.onMcpStatus?.(mcp);
   }
 }

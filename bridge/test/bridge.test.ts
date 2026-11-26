@@ -616,3 +616,62 @@ test('state frames are paced by stateIntervalMs during an event burst', async ()
     await simulator.stop();
   }
 });
+
+test('the MCP detail is staggered after the state frame', async () => {
+  const [bridgeSide, deviceSide] = MemoryTransport.pair();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport: bridgeSide,
+    config: { ...config(), stateIntervalMs: 50, linkTimeoutMs: 60000 },
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  const simulator = new Simulator({ transport: deviceSide, logger: new NullLogger(), autoTimers: false });
+  try {
+    await bridge.start();
+    await simulator.start();
+    await settle();
+    bridge.tick(clock.now);
+    await settle();
+
+    assert.ok(simulator.lastState, 'the state frame is sent first');
+    assert.equal(simulator.lastMcp, null, 'the MCP frame is not in the same burst');
+
+    clock.now += 100;
+    bridge.tick(clock.now);
+    await settle();
+    assert.ok(simulator.lastMcp, 'the MCP frame follows on the next tick');
+  } finally {
+    await bridge.stop();
+    await simulator.stop();
+  }
+});
+
+test('a resync realigns the outbound sequence to the expected value', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(7));
+    await settle();
+    transport.feed(
+      JSON.stringify({ v: 1, type: 'resync', seq: 4, data: { reason: 'seq_gap', expected: 5, received: 9 } }),
+    );
+    await settle();
+    const config = transport.writes
+      .map((line) => JSON.parse(line) as { type?: string; seq?: number })
+      .filter((message) => message.type === 'config')
+      .pop();
+    assert.equal(config?.seq, 5);
+  } finally {
+    await bridge.stop();
+  }
+});
