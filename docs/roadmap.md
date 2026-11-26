@@ -91,15 +91,23 @@ one transient USB power-cycle handshake error is documented with automatic recov
 `docs/phase-3-1-report.md` and `docs/audit-phase-3-1.md`. Phase 4 has not started and awaits the
 Product Owner's approval.
 
-## Phase 4 — Developer dashboard
+## Phase 4 — Developer dashboard — SOFTWARE COMPLETE (awaiting flash approval)
 
 **Goal:** complete, readable six-screen experience.
 
-Scope: all screens with real metrics; token/context handling; tool categories; MCP radar with aliases;
-system screen; English/French/German; quiet mode; preferences; layout polish on hardware.
+Delivered: six dashboards with localized labels and state vocabulary; `SESSION TOTAL` with compact
+k/M/B and a 64-bit wide sum, `CTX --` until a verified occupancy/capacity exists; tool categories and
+deduplicated counters; MCP complete totals with an eight-detail subset caption; System includes the
+optional OpenCode version behind `state.opencodeVersion`; English/French/German with composed accents
+and switching without reboot; device-owned preferences plus explicit host overrides; unchanged
+gestures; native preview sheets for every language and profile.
 
-Exit criteria: every screen legible on the device; no invented value; language switch without reboot;
-quiet mode semantics honoured; UI review approved.
+Tests: bridge **94/94**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
+preview 8/8. Release build SUCCESS; **not flashed** — the Phase 3.1 image remains on the device.
+
+Exit criteria still require hardware legibility review after an approved flash. See
+`docs/phase-4-report.md`, `docs/dashboard-metrics.md`, `docs/localization.md` and
+`docs/device-preferences.md`.
 
 ## Phase 5 — Quality, privacy and stability
 

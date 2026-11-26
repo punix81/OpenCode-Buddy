@@ -194,3 +194,6 @@ alternatives if native builds are unavailable in enterprise images.
   allowlist entry is `mcp.status.changed`.
 - **Preferences.** The device owns quiet mode and language. The host overrides them only when
   explicitly configured and the firmware advertises `config.partial`.
+- **Optional OpenCode version.** `versions.opencode` is the peer's bounded `appVersion` from the IPC
+  hello (16 characters after the privacy filter). It contains a version string only, never a path,
+  URL, token or hostname, and is sent only to firmware advertising `state.opencodeVersion`.

@@ -74,7 +74,8 @@ The bridge side is `bridge/src/ipc` (server, token, framing, rate limit) plus `b
 | `ProtocolParser` | NDJSON parse (ArduinoJson), version and type dispatch, safe rejection. |
 | `StateManager` | Holds normalized device model, applies config, tracks staleness. |
 | `DisplayManager` | LovyanGFX device, partial refresh regions, sprite lifecycle. |
-| `ScreenManager` | Six screens, layout helpers, circular safe area, transitions. |
+| `ScreenManager` | Six screens, layout helpers, circular safe area, transitions, localized repaint. |
+| `Localization` | Central `TextId` tables (en/fr/de), state/tool/MCP vocabulary, format helpers. |
 | `BuddyFace` | Procedural face: eyes, mouth, expressions shared across states. |
 | `AnimationEngine` | Frame scheduling, easing, per-state animation clips, 20–30 FPS. |
 | `TouchManager` | Debounced gesture state machine (short, double, long, very long). |
@@ -246,3 +247,10 @@ These rules were established by the independent audit and are enforced by tests.
    a firmware advertises `caps: ["config.partial"]` and keeps its stored values when they are absent.
 7. **Serial frames are staged.** The firmware writes complete frames into a bounded TX buffer and
    retries partial driver writes; no truncated NDJSON line can reach the wire.
+8. **Session totals are not context.** Tokens are cumulative provider counters; `CTX` stays `--` until
+   a verified current occupancy and capacity exist. Reasoning/cache stay internal and are never
+   double-counted.
+9. **MCP details are a bounded projection.** Complete totals travel separately from at most eight
+   graphical details; the radar states when the subset is incomplete.
+10. **Optional additions are capability-gated.** The OpenCode version is sent only to firmware that
+    advertises `state.opencodeVersion`; older firmware keeps working with the legacy fields.

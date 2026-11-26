@@ -384,3 +384,35 @@ in the same tick; the 1024-byte device RX queue overflowed while rendering and t
 `seq_gap`. The bridge now sends the MCP detail on the next tick, only when it changes, and aligns its
 outbound sequence to the `expected` value carried by a resync. A resync log should therefore show one
 recovery, not a loop.
+
+### `CTX --` on the Tokens screen
+
+Expected. The cumulative session token total is not a context measurement, and no verified current
+context occupancy/model capacity pair exists. The device never invents a percentage. See
+`docs/dashboard-metrics.md` §3.
+
+### Language does not change after editing `config.local.json`
+
+The bridge sends `language` only when the local configuration sets it explicitly (`"en"`, `"fr"` or
+`"de"`), and only a firmware advertising `config.partial` keeps its own value otherwise. Restart the
+bridge after editing the file; the device repaints within one frame and persists the value in NVS.
+A Phase 3.1 or older image has no localized tables and stays English. Accented letters are composed
+by the Phase 4 firmware from the pinned ASCII fonts; a `?` means a string outside the supported set,
+which the localization host test rejects.
+
+### `OpenCode v.` shows `--` on the System screen
+
+The row is optional: it appears only when the plugin's IPC hello provides `appVersion` **and** the
+firmware advertises `state.opencodeVersion`. The Phase 3.1 image does not advertise it, so the bridge
+omits the field by design. Unknown is rendered as `--`, never as `OK`.
+
+### MCP radar shows `n/total shown`
+
+The radar draws at most eight detail entries. The aggregate line still carries the complete
+`online / total`, so `8/12 shown` means the graphical subset is incomplete, not that four servers are
+missing.
+
+### Dashboards return to Buddy too quickly or too slowly
+
+`autoReturnSeconds` in `config.local.json` accepts 10–600 s (default 60). It is a host-side runtime
+setting; without a host the device keeps 60 s. Quiet mode disables the automatic return.

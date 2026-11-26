@@ -7,12 +7,11 @@ waiting for a permission, failing, compacting its context, or finishing successf
 animated virtual companion with a compact developer dashboard on a 1.28" round display, driven by an
 ESP32-C3 over USB.
 
-> **Project status: Phase 0 approved. Phase 1 complete — PASS WITH RESERVATIONS. Phase 2
-> implemented (ratified protocol, firmware parser, bridge, simulator, 33 tests); the Phase 2
-> firmware has not been flashed, so hardware validation is pending. No OpenCode plugin exists yet.**
-> See [docs/phase-0-report.md](docs/phase-0-report.md),
-> [docs/phase-1-report.md](docs/phase-1-report.md) and
-> [docs/phase-2-report.md](docs/phase-2-report.md).
+> **Project status: Phase 3.1 accepted and on the device. Phase 4 (developer dashboard,
+> localization, preferences) is software-complete and waiting for owner approval to flash and
+> hardware-validate. Phase 5 and Phase 6 have not started.** See
+> [docs/phase-3-1-report.md](docs/phase-3-1-report.md) and
+> [docs/phase-4-report.md](docs/phase-4-report.md).
 
 ## Why
 
@@ -74,20 +73,32 @@ transmitted. See [docs/architecture.md](docs/architecture.md).
 
 | Path | Purpose | Status |
 | --- | --- | --- |
-| `docs/` | Requirements, architecture, audits, reports | Phase 0 → 2 |
+| `docs/` | Requirements, architecture, audits, reports | Phase 0 → 4 |
 | `protocol/` | NDJSON protocol v1 specification, schema, examples, vectors | Ratified |
-| `firmware/` | ESP32-C3 firmware (PlatformIO, Arduino, C++) | Phase 1 + Phase 2 parser |
-| `bridge/` | TypeScript/Node.js local bridge, mock adapter and simulator CLI | Phase 2 |
-| `plugin/` | OpenCode v2 server plugin | Phase 3 — not started |
+| `firmware/` | ESP32-C3 firmware (PlatformIO, Arduino, C++), six screens, EN/FR/DE | Phase 4 |
+| `bridge/` | TypeScript/Node.js local bridge, mock adapter and simulator CLI | Phase 4 |
+| `plugin/` | OpenCode v2 server plugin | Phase 3 |
 | `simulator/` | Hardware-free device simulator (implemented in `bridge/`) | Phase 2 |
 | `hardware/` | Wiring, bill of materials, enclosure notes | Phase 0 |
 | `scripts/` | Reproducible maintenance scripts | Phase 0 |
+
+## Dashboard and preferences
+
+The six screens are Buddy, Session, Tokens, Tools, MCP Radar and System. All fixed labels are
+available in English, French and German; the language can be overridden in the local bridge
+configuration without a reboot and is persisted on the device. Tokens are labelled **SESSION TOTAL**
+and never presented as context occupancy (`CTX --`). The MCP radar shows at most eight details while
+keeping the complete online/total counts. See [dashboard metrics](docs/dashboard-metrics.md),
+[localization](docs/localization.md) and [device preferences](docs/device-preferences.md).
 
 ## Documentation
 
 - [Requirements](docs/requirements.md)
 - [Architecture and decisions](docs/architecture.md)
 - [UI and interaction design](docs/ui-design.md)
+- [Dashboard metrics](docs/dashboard-metrics.md)
+- [Localization](docs/localization.md)
+- [Device preferences](docs/device-preferences.md)
 - [Security and privacy](docs/security.md)
 - [Hardware audit](docs/hardware-audit.md)
 - [OpenCode v2 API audit](docs/opencode-api-audit.md)
@@ -96,7 +107,8 @@ transmitted. See [docs/architecture.md](docs/architecture.md).
 - [Roadmap](docs/roadmap.md)
 - [Installation](docs/installation.md) · [Troubleshooting](docs/troubleshooting.md)
 - [Phase 0 report](docs/phase-0-report.md) · [Phase 1 report](docs/phase-1-report.md) ·
-  [Phase 2 report](docs/phase-2-report.md)
+  [Phase 2 report](docs/phase-2-report.md) · [Phase 3.1 report](docs/phase-3-1-report.md) ·
+  [Phase 4 plan](docs/phase-4-plan.md) · [Phase 4 report](docs/phase-4-report.md)
 
 ## Contributing
 

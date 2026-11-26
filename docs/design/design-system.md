@@ -15,6 +15,8 @@ Each accent has a darker surround and a lighter lens fill. The lookup table is i
 
 **VERIFIED typography.** Font2 carries metadata. FreeSans 9 pt, FreeSans Bold 12 pt and FreeSans Bold 24 pt carry body text, state titles and hero metrics. All are bundled in the pinned graphics library. This change adds no font files. Fit starts with the selected font, measures textWidth and fontHeight, and intersects the requested column with the safe chord at the more distant text edge. Long strings step down through the type scale and receive a measured ellipsis. Each identity retains its own column when the combined line is too long.
 
-**VERIFIED layout.** Content fits a radius of 108 px. Text uses a 106 px radius. The six-position pager sits at sprite y=205. Arcs share a common center. A bright, wider dash identifies the current page. The footer identifies simulated data and quiet mode.
+**Phase 4 accented typography.** The bundled fonts cover ASCII only, so French and German accents are composed from the same font: the base glyph is drawn with the normal metrics and a small primitive mark is placed above the measured cap/x-height (or below the baseline for a cedilla). This preserves the FreeSans look and adds no font file. The fit uses the composed width; ASCII strings keep the single `drawString()` fast path. See `docs/localization.md`.
+
+**VERIFIED layout.** Content fits a radius of 108 px. Text uses a 106 px radius. The six-position pager sits at sprite y=205. Arcs share a common center. A bright, wider dash identifies the current page. The footer identifies the data source/status (`LIVE`, `MOCK`, `OFFLINE`, `STALE`) and quiet mode.
 
 **NOT VERIFIED** on the GC9A01 in its enclosure — perceived color separation, contrast and reading distance. The preview is for composition and motion review.

@@ -188,3 +188,25 @@ These are hard rules for future changes, established by the independent audit.
 12. **State and MCP never share a burst.** `state` and `mcp_status` are sent on separate ticks; the
     MCP detail is sent only when it changes, and a resync adopts the device's `expected` sequence.
     With eight MCP servers the two frames together exceed the 1024-byte device RX queue.
+
+## 12. Phase 4 invariants (verified 2026-11-26)
+
+1. **Localization is centralized.** Every fixed label is a `TextId` in `Localization.cpp` with an
+   English, French and German entry. Renderers never concatenate translated fragments. The three
+   tables are complete; `test_localization.cpp` fails on a missing or unsupported entry.
+2. **Accents are composed, not invented.** The bundled fonts are ASCII-only; Latin-1 letters use the
+   same font's base glyph plus a primitive mark placed on the measured cap/x-height (or below the
+   baseline for a cedilla). ASCII strings keep the single `drawString()` path.
+3. **Session totals are not context.** The Tokens page says `SESSION TOTAL`; `CTX` stays `--` until a
+   verified occupancy and capacity exist. Reasoning/cache counters stay internal and are never added
+   to the total. A wide token sum omits the uint32 `total` field and is derived in 64-bit on the
+   device.
+4. **MCP totals outrank details.** At most eight details are drawn; `n/total shown` is displayed when
+   the list is a subset. Real MCP names stay disabled by default.
+5. **Preferences are device-owned.** `language`/`quietMode` are optional in `config`; a host override
+   is explicit, applies without reboot and is persisted only on change. Gestures are unchanged; the
+   supported configuration workflow is the local configuration file.
+6. **Optional fields are capability-gated.** `versions.opencode` is sent only to a firmware that
+   advertises `state.opencodeVersion`; a legacy firmware receives the legacy config fields.
+7. **No Phase 4 image is flashed without approval.** The Phase 3.1 release stays on the device until
+   the Product Owner approves the flash and hardware validation plan.

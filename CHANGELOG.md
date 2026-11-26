@@ -6,6 +6,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Added — Phase 4 developer dashboard and localization
+
+- Six-dashboard completion: session-scoped model/agent/duration/status, `SESSION TOTAL` (never
+  context), deduplicated tool counters, complete MCP totals with an `n/total shown` subset caption,
+  and a seven-row System screen with the optional OpenCode version.
+- English/French/German localization centralized in `firmware/src/Localization.cpp`; composed Latin-1
+  accents over the pinned ASCII fonts; language switching without reboot; persisted NVS language.
+- Device preference workflow documented: existing gestures unchanged, local `config.local.json`
+  overrides for language/quiet, new bounded `autoReturnSeconds`, MCP names still private by default.
+- Optional protocol field `versions.opencode` behind the `state.opencodeVersion` hello capability; the
+  schema now documents the existing `hello.caps` array. Older firmware continues to work.
+- Wide token totals: when `input + output` exceeds uint32, the bridge omits `total` and the device
+  derives it in 64-bit instead of sending an understated value.
+- Native 240×240 preview sheets for EN/FR/DE, missing/extreme/offline/interaction/LIVE fixtures, the
+  12-server/8-detail MCP case, quiet mode and a Phase 3.1 before/after comparison.
+- Tests: bridge **94/94**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
+  preview 8/8. Release build SUCCESS: 22 604 B RAM, 376 260 B flash,
+  sha256 `741dcb5bd23f599be69296ab5c054abefdcff75c70fdf156389fc228e51ace6e`.
+- **No Phase 4 flash was performed.** The device keeps the Phase 3.1 release
+  `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` until owner approval.
+
 ### Verified — Phase 3.1 hardware validation
 
 - Release image `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` flashed
