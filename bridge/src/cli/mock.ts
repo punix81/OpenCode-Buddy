@@ -17,7 +17,7 @@ const logger = makeLogger(config.logLevel);
 try {
   const { transport, path } = await openSerial(config);
   logger.info(`mock session on ${path} scenario=${options.scenario}`);
-  const bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config) });
+  const bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config), handshakeDelayMs: 1000, linkSettleMs: 2500 });
   const adapter =
     options.scenario === 'stress'
       ? new StressAdapter(bridge)

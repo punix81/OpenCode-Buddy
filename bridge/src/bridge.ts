@@ -32,6 +32,14 @@ export interface BridgeOptions {
   // under a different port name, so the transport (and its discovery) must be
   // rebuilt instead of reopening the stale path forever.
   transportFactory?: () => Promise<Transport>;
+  // Delay between hello and the first ready/config write. USB CDC devices can
+  // drop the first frame when the host writes during their boot; the CLI uses a
+  // short delay, tests keep the default zero.
+  handshakeDelayMs?: number;
+  // Read and discard the frames a device buffered while no host was reading
+  // before writing the handshake. A long TX backlog can leave the CDC RX
+  // endpoint unresponsive (Phase 4 hardware); tests keep the default zero.
+  linkSettleMs?: number;
 }
 
 const DEFAULT_GESTURES = {
@@ -81,6 +89,11 @@ export class Bridge {
   private readonly privacy = new PrivacyFilter();
   private readonly now: () => number;
   private readonly bridgeVersion: string;
+  private readonly handshakeDelayMs: number;
+  private readonly linkSettleMs: number;
+  private readonly runId = randomUUID().replace(/-/g, '').slice(0, 8);
+  private handshakeAt: number | null = null;
+  private handshakeHelloSeq = 0;
   private readonly autoTimers: boolean;
   private transport: Transport;
 
@@ -121,6 +134,8 @@ export class Bridge {
     this.now = options.now ?? Date.now;
     this.bridgeVersion = options.bridgeVersion ?? '0.2.0';
     this.autoTimers = options.autoTimers ?? true;
+    this.handshakeDelayMs = Math.max(0, options.handshakeDelayMs ?? 0);
+    this.linkSettleMs = Math.max(0, options.linkSettleMs ?? 0);
   }
 
   get status(): BridgeStatus {
@@ -275,15 +290,21 @@ export class Bridge {
 
   private onData(chunk: Buffer): void {
     const framed = this.framer.push(chunk);
+    // Before the handshake a malformed line is normally the tail of a frame the
+    // device was already writing when the port opened. Sending an error back
+    // adds a pre-handshake sequence that the device must resync around; log it
+    // and let the device's hello establish the session (observed on the Phase 4
+    // flash as an avoidable error/resync pair).
+    const reportErrors = this.statusValue === 'ready' || this.statusValue === 'degraded';
     if (framed.overflows > 0) {
       this.options.logger.warn('oversized line discarded');
-      this.sendError('E_TOO_LONG', false, 'line too long');
+      if (reportErrors) this.sendError('E_TOO_LONG', false, 'line too long');
     }
     for (const line of framed.lines) {
       const result = validateLine(line);
       if (!result.ok) {
         this.options.logger.warn(`invalid message code=${result.code}`);
-        this.sendError(result.code, result.code === 'E_VERSION', result.detail);
+        if (reportErrors) this.sendError(result.code, result.code === 'E_VERSION', result.detail);
         continue;
       }
       this.options.logger.protocol('in', result.message.type, result.message.seq, Buffer.byteLength(line));
@@ -295,6 +316,13 @@ export class Bridge {
   private handleMessage(message: AnyMessage): void {
     const now = this.now();
     this.lastRxMs = now;
+
+    if (this.linkSettleMs > 0 &&
+        (this.statusValue === 'opening' || this.statusValue === 'handshaking') &&
+        now - this.lastOpenMs < this.linkSettleMs) {
+      this.options.logger.debug(`link settling, ignoring ${message.type}`);
+      return;
+    }
 
     if (message.type === 'hello') {
       const major = negotiateMajor(message.data.proto, PROTOCOL_MAJOR);
@@ -311,7 +339,7 @@ export class Bridge {
       if (
         (this.statusValue === 'ready' || this.statusValue === 'degraded') &&
         message.data.boot === this.deviceBoot &&
-        now - this.lastHandshakeMs < 2000
+        (!this.handshakeAcked || now - this.lastHandshakeMs < 2000)
       ) {
         this.options.logger.debug(`duplicate hello boot=${message.data.boot} ignored`);
         return;
@@ -329,14 +357,12 @@ export class Bridge {
       this.handshakeSeqs.clear();
       this.deviceSeq.accept(message.seq);
       this.setStatus('ready');
-      this.sendReady();
-      this.sendConfig();
-      // The snapshot is deferred to the next tick: sending ready, config, state,
-      // mcp_status and ack back-to-back is ~1.1 KB, which exceeds the device's
-      // 1024-byte CDC RX queue while it renders a frame (one lost frame per
-      // connection was observed on hardware).
-      this.snapshotPending = true;
-      this.sendAck(message.seq);
+      if (this.handshakeDelayMs > 0) {
+        this.handshakeAt = now + this.handshakeDelayMs;
+        this.handshakeHelloSeq = message.seq;
+      } else {
+        this.beginHandshake(message.seq);
+      }
       return;
     }
 
@@ -347,7 +373,10 @@ export class Bridge {
 
     const action = this.deviceSeq.accept(message.seq);
     if (action === 'duplicate') {
-      this.sendAck(message.seq);
+      // Heartbeats are never acknowledged; doing so for a buffered burst of
+      // duplicate heartbeats consumed the outbound sequence and could overflow
+      // the device RX queue before ready/config (observed on hardware boot).
+      if (message.type !== 'heartbeat') this.sendAck(message.seq);
       return;
     }
     if (action === 'stale') {
@@ -380,6 +409,13 @@ export class Bridge {
           // lost frame cannot turn the resync into an endless loop.
           this.seqOut.setNext(message.data.expected);
         }
+        // A booting device can lose the first CDC frame (observed after a USB
+        // replug: ready was lost, config arrived, the device resynced at
+        // expected=1). Re-send ready when the device has not passed the
+        // handshake yet; config alone would leave ready_ false forever.
+        this.handshakeAt = null;
+        const expected = message.data.expected;
+        if (expected !== undefined && expected >= 1 && expected <= 2) this.sendReady();
         this.sendConfig();
         this.snapshotPending = true;
         this.sendAck(message.seq);
@@ -415,6 +451,11 @@ export class Bridge {
   }
 
   tick(now: number): void {
+    if (this.handshakeAt !== null) {
+      if (now < this.handshakeAt) return;
+      this.handshakeAt = null;
+      this.beginHandshake(this.handshakeHelloSeq);
+    }
     for (const [seq, sentAt] of this.pendingAcks) {
       if (now - sentAt <= ACK_TIMEOUT_MS) continue;
       this.pendingAcks.delete(seq);
@@ -427,11 +468,28 @@ export class Bridge {
       );
       return;
     }
-    if (this.statusValue === 'ready' && now - this.lastRxMs > this.options.config.linkTimeoutMs) {
+    if (this.statusValue === 'ready' && !this.handshakeAcked &&
+        now - this.lastHandshakeMs >= HANDSHAKE_TIMEOUT_MS) {
+      // A hello arrived but ready/config were never acknowledged. This is the
+      // signature of a device whose CDC RX did not come up; reopen the port,
+      // which resets the board and gives the next boot a chance instead of
+      // waiting forever.
+      void this.releaseAndReconnect(
+        `handshake not acknowledged after ${now - this.lastHandshakeMs} ms`,
+      );
+      return;
+    }
+    if (this.statusValue === 'ready' && this.handshakeAcked &&
+        now - this.lastRxMs > this.options.config.linkTimeoutMs) {
       this.setStatus('degraded');
       this.emitState(true);
     }
-    if (now - this.lastHeartbeatMs >= this.options.config.heartbeatMs) {
+    // Never heartbeat before the device's hello: the installed firmware keeps
+    // `lastRxMs` alive on any bridge frame, so a pre-handshake heartbeat would
+    // prevent its 6 s timeout from firing and it would never re-announce. A
+    // restart then looped on the bridge's 7 s handshake timeout.
+    if (this.statusValue === 'ready' &&
+        now - this.lastHeartbeatMs >= this.options.config.heartbeatMs) {
       this.lastHeartbeatMs = now;
       this.send({ v: 1, type: 'heartbeat', seq: this.seqOut.next() });
     }
@@ -478,6 +536,27 @@ export class Bridge {
     });
   }
 
+  private beginHandshake(helloSeq: number): void {
+    // The first CDC write after a port open can be consumed by the device's
+    // USB-CDC endpoint setup. A blank line is ignored by its line framer and
+    // primes the endpoint before ready/config.
+    this.primeLink();
+    this.sendReady();
+    this.sendConfig();
+    // The snapshot is deferred to the next tick: sending ready, config, state,
+    // mcp_status and ack back-to-back is ~1.1 KB, which exceeds the device's
+    // 1024-byte CDC RX queue while it renders a frame (one lost frame per
+    // connection was observed on hardware).
+    this.snapshotPending = true;
+    this.sendAck(helloSeq);
+  }
+
+  private primeLink(): void {
+    void this.transport.write('\n').catch((error: Error) => {
+      this.options.logger.error(`prime write failed: ${error.message}`);
+    });
+  }
+
   private sendReady(): void {
     this.send({
       v: 1,
@@ -486,7 +565,7 @@ export class Bridge {
       data: {
         bridge: this.bridgeVersion,
         proto: PROTOCOL_MAJOR,
-        run: randomUUID().replace(/-/g, '').slice(0, 8),
+        run: this.runId,
       },
     });
   }

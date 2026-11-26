@@ -49,6 +49,7 @@ export class LiveSource {
   private readonly server: IpcServer;
   private readonly aliases = new Map<string, string>();
   private readonly peers = new Map<number, PeerState>();
+  private readonly versions = new Map<number, string>();
   private readonly sessionsByPeer = new Map<number, Set<string>>();
   private readonly owners = new Map<string, number>();
   private readonly terminal = new Set<string>();
@@ -100,8 +101,21 @@ export class LiveSource {
     if (state !== undefined) state.lastSeen = Date.now();
   }
 
+  // The System screen has one OpenCode row, while several located peers can be
+  // connected. Report a version only when every observed peer agrees; otherwise
+  // the row is unknown rather than the last hello winning by accident (V04).
+  private syncVersion(): void {
+    const distinct = new Set(this.versions.values());
+    this.options.bridge.setOpenCodeVersion(
+      distinct.size === 1 ? [...distinct][0] ?? null : null,
+    );
+  }
+
   private setOpenCode(value: 'connected' | 'offline' | 'unknown'): void {
-    if (value !== 'connected') this.options.bridge.setOpenCodeVersion(null);
+    // Keep the per-peer versions for a recovery, but hide the value while no
+    // healthy peer can vouch for it. A returning source restores it from the map.
+    if (value === 'connected') this.syncVersion();
+    else this.options.bridge.setOpenCodeVersion(null);
     if (value === this.opencode) return;
     this.opencode = value;
     if (value === 'connected') this.options.bridge.ingest({ kind: 'opencode.connected', at: Date.now() });
@@ -121,7 +135,8 @@ export class LiveSource {
     this.options.logger.info(
       `opencode peer=${peer} app=${hello.app} version=${hello.appVersion} plugin=${hello.plugin} version=${hello.pluginVersion}`,
     );
-    this.options.bridge.setOpenCodeVersion(hello.appVersion);
+    this.versions.set(peer, hello.appVersion);
+    this.syncVersion();
     this.setOpenCode('connected');
   }
 
@@ -142,6 +157,8 @@ export class LiveSource {
 
   private onDisconnect(peer: number): void {
     if (!this.peers.delete(peer)) return;
+    this.versions.delete(peer);
+    this.syncVersion();
     this.options.logger.info(`opencode peer=${peer} disconnected, peers=${this.peers.size}`);
     this.closePeerSessions(peer, 'disconnect');
     this.sessionsByPeer.delete(peer);
@@ -160,6 +177,8 @@ export class LiveSource {
 
   private dropPeer(peer: number, reason: string): void {
     if (!this.peers.delete(peer)) return;
+    this.versions.delete(peer);
+    this.syncVersion();
     this.options.logger.info(`opencode peer=${peer} dropped reason=${reason}`);
     this.closePeerSessions(peer, reason);
     this.sessionsByPeer.delete(peer);

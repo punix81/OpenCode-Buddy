@@ -240,6 +240,8 @@ test('a transport error schedules a reopen with backoff', async () => {
 class RecordingTransport implements Transport {
   handlers: TransportHandlers = {};
   writes: string[] = [];
+  primes = 0;
+  autoAck = true;
   private openState = false;
   private deviceSeq = 1;
 
@@ -260,6 +262,10 @@ class RecordingTransport implements Transport {
   }
 
   async write(data: string): Promise<void> {
+    if (data === '\n') {
+      ++this.primes;
+      return;
+    }
     this.writes.push(data);
     // Behave like the device: acknowledge ready/config so the bridge releases
     // the first snapshot (the snapshot is ACK-gated).
@@ -269,7 +275,7 @@ class RecordingTransport implements Transport {
     } catch {
       return;
     }
-    if ((message.type === 'ready' || message.type === 'config') && typeof message.seq === 'number') {
+    if (this.autoAck && (message.type === 'ready' || message.type === 'config') && typeof message.seq === 'number') {
       const seq = ++this.deviceSeq;
       queueMicrotask(() => {
         this.feed(
@@ -705,6 +711,141 @@ test('an unchanged MCP detail is not resent on every state tick', async () => {
   }
 });
 
+test('an unacknowledged handshake reopens the link instead of waiting forever', async () => {
+  const transport = new RecordingTransport();
+  transport.autoAck = false;
+  const clock = { now: 1000 };
+  const statuses: string[] = [];
+  const bridge = new Bridge({
+    transport,
+    config: { ...config(), linkTimeoutMs: 60000 },
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  bridge.onStatus = (status) => statuses.push(status);
+  try {
+    await bridge.start();
+    transport.feed(hello(15));
+    await settle();
+    clock.now += 3000;
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(bridge.status, 'ready');
+    // A duplicate hello for the same boot must not extend the deadline.
+    transport.feed(hello(15));
+    await settle();
+    clock.now += 5000;
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(bridge.status, 'reconnecting');
+    assert.ok(statuses.includes('reconnecting'));
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('duplicate heartbeats do not consume the outbound ACK sequence', async () => {
+  const transport = new RecordingTransport();
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(16));
+    await settle();
+    const before = transport.count('ack');
+    const heartbeat = JSON.stringify({ v: 1, type: 'heartbeat', seq: 2 });
+    transport.feed(heartbeat);
+    transport.feed(heartbeat);
+    await settle();
+    assert.equal(transport.count('ack'), before);
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('a blank line primes a new link before ready', async () => {
+  const transport = new RecordingTransport();
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(14));
+    await settle();
+    assert.equal(transport.primes, 1, 'one disposable write precedes the handshake');
+    assert.ok(transport.writes.some((line) => line.includes('"type":"ready"')));
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('a bridge restart does not keep the old device session alive', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: { ...config(), heartbeatMs: 1000 },
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    // No hello yet: the bridge must stay silent so the device's 6 s link timeout
+    // can fire and it can re-announce itself.
+    clock.now += 3000;
+    bridge.tick(clock.now);
+    assert.equal(transport.count('heartbeat'), 0, 'no heartbeat before the handshake');
+
+    transport.feed(hello(21));
+    await settle();
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(bridge.status, 'ready');
+    clock.now += 1500;
+    bridge.tick(clock.now);
+    await settle();
+    assert.ok(transport.count('heartbeat') >= 1, 'heartbeats resume after ready');
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('a malformed line before the handshake is logged but not answered', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed('{~');
+    await settle();
+    assert.equal(transport.count('error'), 0, 'no pre-handshake error frame');
+
+    transport.feed(hello(12));
+    await settle();
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(bridge.status, 'ready');
+    assert.ok(transport.count('state') >= 1);
+  } finally {
+    await bridge.stop();
+  }
+});
+
 test('the OpenCode version is optional and capability-gated', async () => {
   const capableTransport = new RecordingTransport();
   const capableClock = { now: 1000 };
@@ -801,6 +942,37 @@ test('twelve MCP servers keep eight details, complete totals and bounded frames'
     assert.ok(Buffer.byteLength(`${stateLine}\n`, 'utf8') < 1024, 'state frame fits the device RX queue');
     assert.ok(Buffer.byteLength(`${mcpRaw}\n`, 'utf8') < 1024, 'MCP frame fits the device RX queue');
     assert.notEqual(stateLine, mcpRaw, 'state and MCP are carried by separate frames');
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('a resync at the handshake boundary resends ready before config', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(13));
+    await settle();
+    // A booting device lost ready but received config: expected=1, received=2.
+    transport.feed(
+      JSON.stringify({ v: 1, type: 'resync', seq: 4, data: { reason: 'seq_gap', expected: 1, received: 2 } }),
+    );
+    await settle();
+    const messages = transport.writes.map(
+      (line) => JSON.parse(line) as { type?: string; seq?: number },
+    );
+    const ready = messages.filter((message) => message.type === 'ready').pop();
+    const config = messages.filter((message) => message.type === 'config').pop();
+    assert.equal(ready?.seq, 1, 'ready restarts the handshake at seq 1');
+    assert.equal(config?.seq, 2, 'config follows ready');
   } finally {
     await bridge.stop();
   }

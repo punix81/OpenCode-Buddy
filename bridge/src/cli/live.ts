@@ -53,7 +53,7 @@ try {
   const { transport, path } = await openSerial(config);
   logger.info(`live session on ${path}`);
 
-  bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config) });
+  bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config), handshakeDelayMs: 1000, linkSettleMs: 2500 });
   if (pendingVersion !== null) bridge.setOpenCodeVersion(pendingVersion);
   bridge.onStatus = (status) => logger.info(`bridge ${status}`);
   bridge.onState = (state) => logger.info(`state ${describeState(state)}`);

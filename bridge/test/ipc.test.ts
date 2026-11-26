@@ -41,14 +41,14 @@ function frame(value: unknown): string {
   return `${JSON.stringify(value)}\n`;
 }
 
-function hello(token: string): string {
+function hello(token: string, appVersion = '2.4.1'): string {
   return frame({
     v: 1,
     type: 'hello',
     token,
     pid: 1234,
     app: 'cli',
-    appVersion: '2.4.1',
+    appVersion,
     plugin: 'opencode-buddy',
     pluginVersion: '0.1.0',
   });
@@ -437,6 +437,45 @@ test('a degraded source invalidates its sessions and reports OpenCode offline', 
   }
 });
 
+
+test('multiple peers with different versions leave the version unknown', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  const events: NormalizedEvent[] = [];
+  const versions: (string | null)[] = [];
+  const bridge = {
+    ingest: (event: NormalizedEvent) => events.push(event),
+    setOpenCodeVersion: (version: string | null) => versions.push(version),
+  } as unknown as Bridge;
+  const live = new LiveSource({
+    bridge,
+    config: { ...DEFAULT_CONFIG, source: 'live' },
+    logger: new NullLogger(),
+    paths,
+  });
+  await live.start();
+  const token = (await readFile(paths.tokenFile, 'utf8')).trim();
+  const first = await connect(paths.socket);
+  const second = await connect(paths.socket);
+  try {
+    first.write(hello(token, '2.4.1'));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(versions.at(-1), '2.4.1');
+
+    second.write(hello(token, '2.5.0'));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(versions.at(-1), null, 'disagreeing peers are not presented as one version');
+
+    second.destroy();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    assert.equal(versions.at(-1), '2.4.1', 'the remaining peer wins again');
+  } finally {
+    first.destroy();
+    second.destroy();
+    await live.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test('a terminal notification survives the peer that produced it', async () => {
   const dir = await tempDir();

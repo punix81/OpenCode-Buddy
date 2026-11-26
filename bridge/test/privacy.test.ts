@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PrivacyFilter } from '../src/privacy/privacy.js';
+import { normalizeEvent } from '../src/normalize/normalizer.js';
 import type { StateData } from '../src/protocol/types.js';
 
 function baseState(): StateData {
@@ -69,6 +70,39 @@ test('an invalid diagnostic code is dropped', () => {
   input.diagnostic = { code: 'NOT_A_CODE' } as unknown as NonNullable<StateData['diagnostic']>;
   const output = new PrivacyFilter().projectState(input);
   assert.equal(output.diagnostic, undefined);
+});
+
+test('an individual token counter wider than uint32 is unknown, not clamped or dropped', () => {
+  const wideInput = normalizeEvent({
+    kind: 'usage',
+    sessionId: 's1',
+    at: 1,
+    input: 0x100000000,
+    output: 5,
+    total: 0x100000005,
+  });
+  assert.ok(wideInput !== null && wideInput.kind === 'usage');
+  assert.equal(wideInput?.kind === 'usage' ? wideInput.input : undefined, 0x100000000);
+
+  const input = baseState();
+  input.tokens = { input: 0x100000000, output: 5, total: 0x100000005, contextPct: null };
+  const inputProjection = new PrivacyFilter().projectState(input);
+  assert.equal(inputProjection.tokens?.input, null);
+  assert.equal(inputProjection.tokens?.output, 5);
+  assert.equal(inputProjection.tokens?.total, undefined);
+
+  input.tokens = { input: 5, output: 0x100000000, total: 0x100000005, contextPct: null };
+  const outputProjection = new PrivacyFilter().projectState(input);
+  assert.equal(outputProjection.tokens?.input, 5);
+  assert.equal(outputProjection.tokens?.output, null);
+  assert.equal(outputProjection.tokens?.total, undefined);
+
+  // Representable operands with a wide sum: both are kept, total is derived.
+  input.tokens = { input: 0xffffffff, output: 10, total: 0x100000009, contextPct: null };
+  const sumProjection = new PrivacyFilter().projectState(input);
+  assert.equal(sumProjection.tokens?.input, 0xffffffff);
+  assert.equal(sumProjection.tokens?.output, 10);
+  assert.equal(sumProjection.tokens?.total, undefined);
 });
 
 test('a total wider than uint32 is omitted so the device derives it', () => {

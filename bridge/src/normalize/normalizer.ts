@@ -56,6 +56,15 @@ function optionalInteger(value: unknown, min: number, max: number): number | und
   return value === undefined ? undefined : integer(value, min, max);
 }
 
+// Token counters are cumulative and can exceed the uint32 protocol field. The
+// normalizer must not drop the whole usage event in that case: the reducer keeps
+// the wide value and the privacy projection reports the unrepresentable field as
+// unknown (never a silently clamped number).
+const MAX_SAFE_COUNT = Number.MAX_SAFE_INTEGER;
+function optionalCount(value: unknown): number | undefined {
+  return value === undefined ? undefined : integer(value, 0, MAX_SAFE_COUNT);
+}
+
 // Default-deny normalization of mock/simulator events. It never accepts a
 // prompt, response, code, path, tool argument or shell command: unknown fields
 // are dropped and only the explicit projections below survive.
@@ -108,12 +117,12 @@ export function normalizeEvent(raw: unknown): NormalizedEvent | null {
           sessionId: text(raw['sessionId'], 64),
           at,
         };
-        const input = optionalInteger(raw['input'], 0, 0xffffffff);
-        const output = optionalInteger(raw['output'], 0, 0xffffffff);
-        const total = optionalInteger(raw['total'], 0, 0xffffffff);
-        const reasoning = optionalInteger(raw['reasoning'], 0, 0xffffffff);
-        const cacheRead = optionalInteger(raw['cacheRead'], 0, 0xffffffff);
-        const cacheWrite = optionalInteger(raw['cacheWrite'], 0, 0xffffffff);
+        const input = optionalCount(raw['input']);
+        const output = optionalCount(raw['output']);
+        const total = optionalCount(raw['total']);
+        const reasoning = optionalCount(raw['reasoning']);
+        const cacheRead = optionalCount(raw['cacheRead']);
+        const cacheWrite = optionalCount(raw['cacheWrite']);
         if (input !== undefined) usage.input = input;
         if (output !== undefined) usage.output = output;
         if (total !== undefined) usage.total = total;

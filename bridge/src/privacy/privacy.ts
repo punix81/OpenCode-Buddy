@@ -20,11 +20,23 @@ function nullableClamp(value: number | null | undefined, min: number, max: numbe
   return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
+// A token counter that v1 cannot represent is reported as unknown. Clamping it
+// would claim a value the provider never produced; dropping the whole usage
+// event would freeze every counter (V02).
+function u32OrUnknown(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  if (value < 0 || value > 0xffffffff) return null;
+  return Math.trunc(value);
+}
+
 // Final outbound projection. It rebuilds the object field by field, so a value
 // added upstream cannot reach the device without an explicit change here.
 export class PrivacyFilter {
   projectState(input: StateData): StateData {
     const contextPct = input.tokens?.contextPct;
+    const inputValue = input.tokens?.input;
+    const outputValue = input.tokens?.output;
+    const totalValue = input.tokens?.total;
     const state: StateData = {
       status: input.status,
       model: cleanText(input.model, 40),
@@ -36,14 +48,19 @@ export class PrivacyFilter {
       notifications: clamp(input.notifications, 0, 99, 0),
       retryAttempt: clamp(input.retryAttempt, 0, 255, 0),
       tokens: {
-        input: nullableClamp(input.tokens?.input, 0, 0xffffffff),
-        output: nullableClamp(input.tokens?.output, 0, 0xffffffff),
+        input: u32OrUnknown(inputValue),
+        output: u32OrUnknown(outputValue),
         // The protocol field is a uint32. When the wide sum exceeds it, omit the
-        // field: the firmware derives total = input + output in 64-bit. Sending
-        // the clamped value would understate the total and contradict IN/OUT.
-        ...(input.tokens?.total !== null && input.tokens?.total !== undefined &&
-        input.tokens.total >= 0 && input.tokens.total <= 0xffffffff
-          ? { total: Math.trunc(input.tokens.total) }
+        // field: the firmware derives total = input + output in 64-bit. An
+        // unrepresentable operand also forces the total to be unknown rather
+        // than letting a clamped operand contradict it.
+        ...(totalValue !== null && totalValue !== undefined &&
+        totalValue >= 0 && totalValue <= 0xffffffff &&
+        (inputValue === null || inputValue === undefined ||
+          (inputValue >= 0 && inputValue <= 0xffffffff)) &&
+        (outputValue === null || outputValue === undefined ||
+          (outputValue >= 0 && outputValue <= 0xffffffff))
+          ? { total: Math.trunc(totalValue) }
           : {}),
         contextPct:
           contextPct === null || contextPct === undefined

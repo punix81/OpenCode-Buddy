@@ -412,6 +412,25 @@ int main(int argc, char** argv) {
     check(tokens.total == 8589934590ull, "derived total is 64-bit");
   }
 
+  // One unrepresentable operand is unknown; the other stays usable and the
+  // total cannot be fabricated.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string unknownInput =
+        "{\"v\":1,\"type\":\"state\",\"seq\":1,\"data\":{\"status\":\"working\",\"activeSessions\":1,"
+        "\"tokens\":{\"input\":null,\"output\":5},"
+        "\"connection\":{\"bridge\":\"ready\",\"opencode\":\"connected\"},"
+        "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1},\"source\":\"live\"}}";
+    check(feed(parser, state, unknownInput) == buddy::ParseCode::Ok, "unknown input accepted");
+    const auto& tokens = state.metrics().tokens;
+    check(!tokens.inputKnown, "unknown input stays unknown");
+    check(tokens.outputKnown && tokens.output == 5, "known output survives");
+    check(!tokens.totalKnown, "total is not fabricated from one operand");
+  }
+
   // Optional OpenCode version behind the advertised capability.
   {
     buddy::ProtocolParser parser;
