@@ -11,6 +11,7 @@ export interface IpcPaths {
   dir: string;
   socket: string;
   tokenFile: string;
+  lockFile: string;
 }
 
 export const IPC_DIR_NAME = 'opencode-buddy';
@@ -31,5 +32,6 @@ export function ipcPaths(env: NodeJS.ProcessEnv = process.env): IpcPaths {
     dir,
     socket: join(dir, 'bridge.sock'),
     tokenFile: join(dir, 'token'),
+    lockFile: join(dir, 'bridge.lock'),
   };
 }

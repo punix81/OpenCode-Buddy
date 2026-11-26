@@ -1,5 +1,16 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
 
 import type { Logger } from '../logger.js';
@@ -20,6 +31,7 @@ export interface IpcServerOptions {
   onHello: (peer: number, hello: IpcHello) => void;
   onEvent: (peer: number, raw: Record<string, unknown>) => void;
   onHeartbeat: (peer: number) => void;
+  onSource?: (peer: number, status: 'ok' | 'degraded') => void;
   onDisconnect: (peer: number) => void;
 }
 
@@ -38,6 +50,17 @@ function constantTimeEquals(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
+function pidIsAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists but belongs to another user: still alive.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
 // Local-only event intake for the OpenCode plugin.
 //
 // Access control has two layers, both required:
@@ -47,12 +70,17 @@ function constantTimeEquals(a: string, b: string): boolean {
 //      in the first frame with a constant-time comparison.
 // Node and Bun expose no portable SO_PEERCRED, so the token is the second layer
 // that works on every platform. See docs/security.md.
+//
+// A second bridge must never replace the first one's token or socket: the lock
+// file is acquired before any shared file is touched and released on stop.
 export class IpcServer {
   private readonly server: Server;
   private readonly token: string;
   private readonly peers = new Map<number, Peer>();
   private nextPeerId = 1;
   private closed = false;
+  private lockHeld = false;
+  private started = false;
 
   constructor(private readonly options: IpcServerOptions) {
     this.token = randomBytes(IPC_TOKEN_BYTES).toString('hex');
@@ -67,34 +95,119 @@ export class IpcServer {
     return this.peers.size;
   }
 
-  async start(): Promise<void> {
-    const { dir, socket, tokenFile } = this.options.paths;
+  private prepareDirectory(): void {
+    const { dir } = this.options.paths;
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    chmodSync(dir, 0o700);
-    writeFileSync(tokenFile, `${this.token}\n`, { mode: 0o600 });
-    chmodSync(tokenFile, 0o600);
-
-    // A socket left behind by a crashed bridge would block listen().
-    try {
-      rmSync(socket, { force: true });
-    } catch {
-      // Ignored: listen() reports a real problem with a useful error.
+    const stat = lstatSync(dir);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(`ipc directory is not a real directory: ${dir}`);
     }
+    if (typeof process.getuid === 'function' && stat.uid !== process.getuid()) {
+      throw new Error(`ipc directory is owned by another user: ${dir}`);
+    }
+    chmodSync(dir, 0o700);
+  }
 
-    await new Promise<void>((resolve, reject) => {
-      const onError = (error: Error): void => reject(error);
-      this.server.once('error', onError);
-      this.server.listen(socket, () => {
-        this.server.off('error', onError);
-        chmodSync(socket, 0o600);
-        resolve();
+  private acquireLock(): void {
+    const { lockFile } = this.options.paths;
+    for (let attempt = 0; attempt < 2; ++attempt) {
+      try {
+        const fd = openSync(lockFile, 'wx', 0o600);
+        try {
+          writeSync(fd, `${process.pid}\n`);
+        } finally {
+          closeSync(fd);
+        }
+        this.lockHeld = true;
+        return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        let owner = '';
+        try {
+          owner = readFileSync(lockFile, 'utf8').trim();
+        } catch {
+          // Unreadable lock: treat as stale.
+        }
+        const pid = Number.parseInt(owner, 10);
+        if (pidIsAlive(pid)) {
+          throw new Error(`another bridge is running (pid ${pid})`);
+        }
+        // Stale lock from a crashed bridge: remove it and retry once.
+        try {
+          unlinkSync(lockFile);
+        } catch {
+          // The retry reports a real problem.
+        }
+      }
+    }
+    throw new Error('cannot acquire the bridge lock');
+  }
+
+  private releaseLock(): void {
+    if (!this.lockHeld) return;
+    this.lockHeld = false;
+    try {
+      const owner = readFileSync(this.options.paths.lockFile, 'utf8').trim();
+      if (Number.parseInt(owner, 10) === process.pid) {
+        unlinkSync(this.options.paths.lockFile);
+      }
+    } catch {
+      // Already gone.
+    }
+  }
+
+  async start(): Promise<void> {
+    const { socket, tokenFile } = this.options.paths;
+    this.prepareDirectory();
+    this.acquireLock();
+    try {
+      // A socket left behind by a crashed bridge would block listen(). Refuse to
+      // touch anything that is not a socket: a symlink or a regular file must
+      // never be unlinked on our behalf.
+      try {
+        const existing = lstatSync(socket);
+        if (!existing.isSocket()) {
+          throw new Error(`refusing to replace a non-socket path: ${socket}`);
+        }
+        unlinkSync(socket);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT') throw error;
+      }
+
+      try {
+        unlinkSync(tokenFile);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      writeFileSync(tokenFile, `${this.token}\n`, { mode: 0o600, flag: 'wx' });
+      chmodSync(tokenFile, 0o600);
+
+      await new Promise<void>((resolve, reject) => {
+        const onError = (error: Error): void => reject(error);
+        this.server.once('error', onError);
+        this.server.listen(socket, () => {
+          this.server.off('error', onError);
+          chmodSync(socket, 0o600);
+          resolve();
+        });
       });
-    });
-
+    } catch (error) {
+      this.releaseLock();
+      throw error;
+    }
+    this.started = true;
     this.options.logger.info(`ipc listening path=${socket}`);
   }
 
   async stop(): Promise<void> {
+    if (!this.started) {
+      // A second instance that failed to start owns nothing: never remove the
+      // live bridge's socket or token.
+      this.releaseLock();
+      return;
+    }
+    this.started = false;
     this.closed = true;
     for (const peer of this.peers.values()) peer.socket.destroy();
     this.peers.clear();
@@ -105,6 +218,7 @@ export class IpcServer {
     } catch {
       // Best effort: the directory is ours and 0700.
     }
+    this.releaseLock();
   }
 
   private accept(socket: Socket): void {
@@ -145,7 +259,8 @@ export class IpcServer {
       peer.lastRefill = now;
 
       buffer += chunk;
-      if (buffer.length > IPC_MAX_LINE_BYTES * 4) {
+      // Limits are defined in UTF-8 bytes, not in JavaScript UTF-16 code units.
+      if (Buffer.byteLength(buffer, 'utf8') > IPC_MAX_LINE_BYTES * 4) {
         reject('buffer_overflow');
         return;
       }
@@ -157,7 +272,7 @@ export class IpcServer {
         index = buffer.indexOf('\n');
 
         if (line.length === 0) continue;
-        if (line.length > IPC_MAX_LINE_BYTES) {
+        if (Buffer.byteLength(line, 'utf8') > IPC_MAX_LINE_BYTES) {
           reject('line_too_long');
           return;
         }
@@ -209,6 +324,9 @@ export class IpcServer {
         return true;
       case 'heartbeat':
         this.options.onHeartbeat(peer.id);
+        return true;
+      case 'source':
+        this.options.onSource?.(peer.id, message.status);
         return true;
       default:
         return true;

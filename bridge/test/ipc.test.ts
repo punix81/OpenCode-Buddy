@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createConnection, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -61,6 +61,7 @@ interface Harness {
   events: Record<string, unknown>[];
   heartbeats: number[];
   disconnects: number[];
+  sources: string[];
 }
 
 async function startServer(): Promise<Harness> {
@@ -73,6 +74,7 @@ async function startServer(): Promise<Harness> {
     events: [] as Record<string, unknown>[],
     heartbeats: [] as number[],
     disconnects: [] as number[],
+    sources: [] as string[],
   } as Harness;
 
   harness.server = new IpcServer({
@@ -81,6 +83,7 @@ async function startServer(): Promise<Harness> {
     onHello: (peer) => harness.hellos.push(peer),
     onEvent: (peer, raw) => harness.events.push({ peer, ...raw }),
     onHeartbeat: (peer) => harness.heartbeats.push(peer),
+    onSource: (_peer, status) => harness.sources.push(status),
     onDisconnect: (peer) => harness.disconnects.push(peer),
   });
   await harness.server.start();
@@ -247,6 +250,213 @@ test('live source aliases mcp names and closes sessions when the plugin leaves',
       'a stale session must be closed so its pending counters disappear',
     );
   } finally {
+    await live.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('a second bridge cannot steal the socket or the token', async () => {
+  const harness = await startServer();
+  const second = new IpcServer({
+    paths: harness.paths,
+    logger: new NullLogger(),
+    onHello: () => undefined,
+    onEvent: () => undefined,
+    onHeartbeat: () => undefined,
+    onDisconnect: () => undefined,
+  });
+  try {
+    await assert.rejects(() => second.start(), /another bridge is running/);
+    // The failed instance must not remove the live endpoint.
+    await second.stop();
+    const socket = await connect(harness.paths.socket);
+    socket.destroy();
+  } finally {
+    await second.stop();
+    await harness.server.stop();
+  }
+});
+
+test('a stale lock from a dead process is recovered', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  await writeFile(paths.lockFile, '999999\n', { mode: 0o600 });
+  const server = new IpcServer({
+    paths,
+    logger: new NullLogger(),
+    onHello: () => undefined,
+    onEvent: () => undefined,
+    onHeartbeat: () => undefined,
+    onDisconnect: () => undefined,
+  });
+  await server.start();
+  await server.stop();
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('a non-socket path is never unlinked to make room', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  await writeFile(paths.socket, 'do not delete me');
+  const server = new IpcServer({
+    paths,
+    logger: new NullLogger(),
+    onHello: () => undefined,
+    onEvent: () => undefined,
+    onHeartbeat: () => undefined,
+    onDisconnect: () => undefined,
+  });
+  await assert.rejects(() => server.start(), /non-socket/);
+  assert.equal(await readFile(paths.socket, 'utf8'), 'do not delete me');
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('the IPC line limit is measured in UTF-8 bytes', async () => {
+  const harness = await startServer();
+  try {
+    const socket = await connect(harness.paths.socket);
+    socket.write(hello(harness.token));
+    // 5000 two-byte characters: 5000 JS code units but 10 000 UTF-8 bytes.
+    const oversized = frame({
+      v: 1,
+      type: 'event',
+      event: { kind: 'usage', sessionId: 's', at: 1, input: 1, pad: 'é'.repeat(5000) },
+    });
+    socket.write(oversized);
+    await closed(socket);
+    assert.equal(harness.events.length, 0);
+  } finally {
+    await harness.server.stop();
+  }
+});
+
+test('MCP declared totals survive while details stay bounded', () => {
+  const servers = Array.from({ length: 10 }, (_, index) => ({
+    name: `server-${index}`,
+    status: index < 7 ? 'connected' : 'disabled',
+  }));
+  const result = normalizeMcpStatus(
+    { at: 1, online: 7, total: 12, servers },
+    { allowRealMcpNames: false, aliasFor: (name) => name },
+  ) as { online: number; total: number; servers: unknown[] };
+  assert.equal(result.online, 7);
+  assert.equal(result.total, 12);
+  assert.equal(result.servers.length, 8);
+
+  const contradictory = normalizeMcpStatus(
+    { at: 1, online: 1, total: 1, servers },
+    { allowRealMcpNames: false, aliasFor: (name) => name },
+  );
+  assert.equal(contradictory, null);
+});
+
+test('a source message reports the event-source health', async () => {
+  const harness = await startServer();
+  try {
+    const socket = await connect(harness.paths.socket);
+    socket.write(hello(harness.token));
+    socket.write(frame({ v: 1, type: 'source', status: 'degraded', at: 1 }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.deepEqual(harness.sources, ['degraded']);
+    socket.destroy();
+  } finally {
+    await harness.server.stop();
+  }
+});
+
+test('one peer disconnecting closes only its own sessions', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  const events: NormalizedEvent[] = [];
+  const bridge = { ingest: (event: NormalizedEvent) => events.push(event) } as unknown as Bridge;
+  const live = new LiveSource({
+    bridge,
+    config: { ...DEFAULT_CONFIG, source: 'live' },
+    logger: new NullLogger(),
+    paths,
+  });
+  await live.start();
+  const token = (await readFile(paths.tokenFile, 'utf8')).trim();
+  const first = await connect(paths.socket);
+  const second = await connect(paths.socket);
+  try {
+    first.write(hello(token));
+    second.write(hello(token));
+    first.write(frame({ v: 1, type: 'event', event: { kind: 'usage', sessionId: 'ses_a', at: 1, input: 1 } }));
+    second.write(frame({ v: 1, type: 'event', event: { kind: 'usage', sessionId: 'ses_b', at: 2, input: 1 } }));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    first.destroy();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    const closedSessions = events.filter((event) => event.kind === 'session.closed');
+    assert.deepEqual(closedSessions.map((event) => (event as { sessionId: string }).sessionId), ['ses_a']);
+  } finally {
+    first.destroy();
+    second.destroy();
+    await live.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('a degraded source invalidates its sessions and reports OpenCode offline', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  const events: NormalizedEvent[] = [];
+  const bridge = { ingest: (event: NormalizedEvent) => events.push(event) } as unknown as Bridge;
+  const live = new LiveSource({
+    bridge,
+    config: { ...DEFAULT_CONFIG, source: 'live' },
+    logger: new NullLogger(),
+    paths,
+  });
+  await live.start();
+  const token = (await readFile(paths.tokenFile, 'utf8')).trim();
+  const peer = await connect(paths.socket);
+  try {
+    peer.write(hello(token));
+    peer.write(frame({ v: 1, type: 'event', event: { kind: 'usage', sessionId: 'ses_x', at: 1, input: 1 } }));
+    peer.write(frame({ v: 1, type: 'source', status: 'degraded', at: 2 }));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    assert.ok(events.some((event) => event.kind === 'opencode.offline'));
+    assert.ok(events.some((event) => event.kind === 'session.closed'));
+  } finally {
+    peer.destroy();
+    await live.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+
+test('a terminal notification survives the peer that produced it', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  const events: NormalizedEvent[] = [];
+  const bridge = { ingest: (event: NormalizedEvent) => events.push(event) } as unknown as Bridge;
+  const live = new LiveSource({
+    bridge,
+    config: { ...DEFAULT_CONFIG, source: 'live' },
+    logger: new NullLogger(),
+    paths,
+  });
+  await live.start();
+  const token = (await readFile(paths.tokenFile, 'utf8')).trim();
+  const peer = await connect(paths.socket);
+  try {
+    peer.write(hello(token));
+    peer.write(frame({ v: 1, type: 'event', event: { kind: 'execution.started', sessionId: 'ses_done', at: 1 } }));
+    peer.write(frame({ v: 1, type: 'event', event: { kind: 'execution.succeeded', sessionId: 'ses_done', at: 2 } }));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    peer.destroy();
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    const closedSessions = events
+      .filter((event) => event.kind === 'session.closed')
+      .map((event) => (event as { sessionId: string }).sessionId);
+    assert.ok(!closedSessions.includes('ses_done'));
+    assert.ok(events.some((event) => event.kind === 'opencode.offline'));
+  } finally {
+    peer.destroy();
     await live.stop();
     await rm(dir, { recursive: true, force: true });
   }

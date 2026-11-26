@@ -21,7 +21,8 @@ export interface IpcHello {
 export type IpcMessage =
   | { type: 'hello'; token: string; hello: IpcHello }
   | { type: 'event'; raw: Record<string, unknown> }
-  | { type: 'heartbeat'; at: number };
+  | { type: 'heartbeat'; at: number }
+  | { type: 'source'; status: 'ok' | 'degraded'; at: number };
 
 export interface LiveNormalizeOptions {
   allowRealMcpNames: boolean;
@@ -63,16 +64,31 @@ export function normalizeMcpStatus(raw: Record<string, unknown>, options: LiveNo
     parsed.push({ alias: alias.slice(0, IPC_ALIAS_MAX), status: status as McpStatus });
   }
 
-  const connected = parsed.filter((entry) => entry.status === 'connected');
-  const detail = [...connected, ...parsed.filter((entry) => entry.status !== 'connected')].slice(
-    0,
-    IPC_MAX_DETAIL,
-  );
+  const connectedCount = parsed.filter((entry) => entry.status === 'connected').length;
+  // The plugin sees the complete list and declares the real totals; the detail
+  // array is capped for the protocol. Recompute only when the totals are absent
+  // (older plugin), and never let a declared total contradict the details.
+  const declaredOnline = raw['online'];
+  const declaredTotal = raw['total'];
+  const online =
+    typeof declaredOnline === 'number' && Number.isInteger(declaredOnline) && declaredOnline >= 0
+      ? Math.min(declaredOnline, 255)
+      : connectedCount;
+  const total =
+    typeof declaredTotal === 'number' && Number.isInteger(declaredTotal) && declaredTotal >= 0
+      ? Math.min(declaredTotal, 255)
+      : parsed.length;
+  if (total < parsed.length || online > total) return null;
+
+  const detail = [
+    ...parsed.filter((entry) => entry.status === 'connected'),
+    ...parsed.filter((entry) => entry.status !== 'connected'),
+  ].slice(0, IPC_MAX_DETAIL);
   return {
     kind: 'mcp.status',
     at: timestamp(raw['at']),
-    online: connected.length,
-    total: parsed.length,
+    online,
+    total,
     servers: detail,
   };
 }
@@ -120,6 +136,11 @@ export function parseIpcLine(line: string): ParsedLine {
     }
     case 'heartbeat':
       return { ok: true, message: { type: 'heartbeat', at: timestamp(value['at']) } };
+    case 'source': {
+      const status = value['status'];
+      if (status !== 'ok' && status !== 'degraded') return { ok: false, reason: 'shape' };
+      return { ok: true, message: { type: 'source', status, at: timestamp(value['at']) } };
+    }
     default:
       return { ok: false, reason: 'shape' };
   }
