@@ -8,7 +8,7 @@ Baseline: `e7a8cb71da0a049f7d09caa8eb5f95fa6af11943`. Firmware on the device was
 | Suite | Result |
 | --- | --- |
 | `npm run typecheck` (bridge, strict) | PASS, 0 diagnostics |
-| `npm test` (bridge) | **85/85** |
+| `npm test` (bridge) | **87/87** |
 | `npm run test:plugin` (plugin) | **24/24** |
 | `npm run validate:protocol` | PASS (11 valid, 13 invalid, examples verified) |
 | `bash firmware/test/host/run.sh` | protocol PASS, gestures PASS, **TX buffer PASS** |
@@ -93,3 +93,12 @@ request (none was open); deduplication is covered by synthetic tests only.
 | Very long reset | PASS (`interaction gesture=very_long`, RESET, QUIET off) |
 | Long press / short press | `gesture=long` and `gesture=short` logged on the release |
 | Final state | release firmware installed, bridge LIVE |
+
+
+## 6. LIVE burst defect found after the soak
+
+A live session with eight MCP servers sent `state` (578 B) and `mcp_status` (409 B) back-to-back every
+second, overflowing the device's 1024-byte RX queue while it rendered and causing an E_PARSE/resync
+storm. Fixed in `e800aae`: the MCP detail is sent on the next tick and only when it changes; a resync
+adopts the device's expected sequence. Live run after the fix: state then MCP 100 ms apart, **0 error,
+0 resync** with eight servers. The MOCK soak used two MCP servers, so it did not exercise this size.

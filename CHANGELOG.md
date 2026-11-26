@@ -20,12 +20,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
   press reset verified; long/short gestures logged on the release.
 - Tokens: bridge equals the focus session's `GET /api/session` values exactly (65 161 507/102 508 and
   68 329 545/104 045); no aggregation, no double counting.
-- Final test baseline: bridge **85/85**, plugin **24/24**, protocol PASS, firmware host PASS, release
+- Final test baseline: bridge **87/87**, plugin **24/24**, protocol PASS, firmware host PASS, release
   build SUCCESS.
 - Known limitation: a USB power-cycle can produce one transient `E_PARSE` + resync while the device
   boots; automatic recovery in ~2 s. Bridge restarts with the device running are clean.
 
 ### Fixed — Phase 3.1 validation follow-ups
+
+- A LIVE session with eight MCP servers exposed a 987-byte state+MCP burst every second that
+  overflowed the device RX queue and caused an E_PARSE/resync loop. The MCP detail is now sent on the
+  next tick and only when it changes; a resync adopts the device's `expected` sequence. Verified live
+  with 0 error / 0 resync (`e800aae`).
 
 - State frames respect `stateIntervalMs` instead of being sent on every 100 ms tick under load; this
   removed the stress `E_PARSE`/resync.

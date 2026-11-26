@@ -65,3 +65,8 @@ soak by the handshake-ACK gate (`be2b803`): state/mcp are withheld until the dev
 ready/config. Bridge restarts with the device already running are now clean (0 error, 0 resync).
 
 The bridge was stopped by the duration timer; the summary above is its own counter set.
+
+The MOCK stress used two MCP detail servers, while a live session with eight servers sends a 409-byte
+MCP frame. That larger live burst exposed an RX overflow/resync storm after the soak; it is fixed in
+`e800aae` (MCP on the next tick, only when changed; resync sequence alignment) and verified live with
+0 error / 0 resync. A full one-hour re-soak would only be needed if the MCP framing changes again.

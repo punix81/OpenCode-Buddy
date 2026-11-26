@@ -375,3 +375,12 @@ old adapter defect (fixed in `4ffb144`).
 The diagnostic build (`supermini-diag`) still emits hello/heartbeat frames while printing its
 diagnostics; this is a bench-only image, never the release. Parse from the `BUDDY-DIAG` marker when
 collecting measurements.
+
+
+### E_PARSE/resync loop with many MCP servers
+
+Before `e800aae`, a live session with eight MCP servers sent `state` (578 B) and `mcp_status` (409 B)
+in the same tick; the 1024-byte device RX queue overflowed while rendering and the link looped on
+`seq_gap`. The bridge now sends the MCP detail on the next tick, only when it changes, and aligns its
+outbound sequence to the `expected` value carried by a resync. A resync log should therefore show one
+recovery, not a loop.

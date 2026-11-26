@@ -95,7 +95,17 @@ capture was interrupted at 13:29:39 by a USB re-enumeration (the Product Owner's
 firmware was still alive (`boot=1`, `reset=poweron`). The release image has no diagnostics by design;
 the 61-minute release soak covers stability.
 
-## 9. Residual hardware limitation
+## 9. LIVE MCP burst and resync storm (found after the soak)
+
+With eight MCP servers, the live `state` (578 B) and `mcp_status` (409 B) frames were sent
+back-to-back every second (987 B) into the 1024-byte device RX queue while it rendered. At 13:56 the
+device reported `E_PARSE` and entered a `seq_gap` resync loop. Fixed in `e800aae`: the MCP detail is
+sent on the next 100 ms tick and only when it changes; a resync adopts the device's `expected`
+sequence. After the fix: `state` then MCP 100 ms apart, **0 device error, 0 resync** with eight
+servers. The MOCK soak used two MCP servers and could not reveal this size; the live 8-server run is
+the evidence.
+
+## 10. Residual hardware limitation
 
 A USB **power-cycle/replug** can produce one transient `E_PARSE` + resync while the device is still
 booting: at 13:50:18 the bridge had sent ready/config, the device had not acknowledged it, reported

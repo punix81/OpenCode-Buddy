@@ -185,3 +185,6 @@ These are hard rules for future changes, established by the independent audit.
     acknowledges `ready`/`config`; this prevents state reaching a device that is still booting.
 11. **MOCK stress cycles stay coherent.** One 12-phase cycle runs on one session, resolves every
     permission/question and every tool, and is never presented as LIVE behaviour.
+12. **State and MCP never share a burst.** `state` and `mcp_status` are sent on separate ticks; the
+    MCP detail is sent only when it changes, and a resync adopts the device's `expected` sequence.
+    With eight MCP servers the two frames together exceed the 1024-byte device RX queue.

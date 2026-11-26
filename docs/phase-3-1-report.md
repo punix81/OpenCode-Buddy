@@ -48,7 +48,7 @@ Before changes: bridge 56/56, plugin 13/13, protocol PASS, host PASS, firmware 3
 | Check | Result |
 | --- | --- |
 | TypeScript typecheck | PASS |
-| Bridge tests | **85/85** |
+| Bridge tests | **87/87** |
 | Plugin tests | **24/24** |
 | Protocol validation | PASS (11 valid, 13 invalid, examples verified) |
 | Firmware host tests | protocol PASS, gestures PASS, TX buffer PASS |
@@ -98,7 +98,15 @@ Heap 245 812 B constant, max block 225 268 B constant, FPS average 18 / max 21, 
 soak covers its stability. A full 15-minute diagnostic run remains an optional follow-up, not a
 blocker.
 
-## 8. Physical validation (Product Owner)
+## 8. LIVE MCP burst correction (post-soak)
+
+A live session with eight MCP servers exposed a 987-byte state+MCP burst every second; the device RX
+queue (1024 B) overflowed while rendering and entered an E_PARSE/resync loop. Fixed in `e800aae`:
+MCP details are sent on the next tick and only when they change, and a resync adopts the device's
+expected sequence. Verified live: state then MCP 100 ms apart, 0 error, 0 resync. The MOCK soak used
+two MCP servers and did not exercise this size.
+
+## 9. Physical validation (Product Owner)
 
 | Step | Result |
 | --- | --- |
@@ -113,7 +121,7 @@ the bridge resent `config`, the device acknowledged, and the LIVE view returned 
 error. Bridge restarts with the device already running are clean. Documented in
 `docs/evidence/phase-3-1-hardware-validation.md` §9.
 
-## 9. Firmware changes
+## 10. Firmware changes
 
 | File | Reason |
 | --- | --- |
@@ -123,7 +131,7 @@ error. Bridge restarts with the device already running are clean. Documented in
 | `PreferencesManager.cpp` | NVS writes only on change |
 | tests | TX buffer, config-without-preferences |
 
-## 10. Security
+## 11. Security
 
 IPC PID lock, 0700 real directory, no symlink, non-socket path refusal, 0600 token/socket, UTF-8
 bounds, rate limit. Plugin diagnostics private (0700/0600, 1 MiB cap, sanitized). Ownership policy
@@ -131,19 +139,22 @@ rejects foreign locations, unknown sessions and location-less `session.created`.
 approval, prompt, tool execution or file write added to the plugin. Documentation contains no home
 directory, proxy or board identifier.
 
-## 11. Remaining limitations
+## 12. Remaining limitations
 
 1. USB power-cycle: one transient handshake error, automatic recovery (documented).
 2. Diagnostic performance run: 4.5 valid minutes instead of 15 (physical USB interruption); optional
    follow-up.
-3. Live `permission.asked` / `form.created` prompts still not observed (no safe trigger).
-4. Two simultaneous **active** executions not induced.
-5. One provider (DeepSeek) end-to-end.
-6. Windows named pipes not implemented.
+3. The 61-minute soak used two MCP detail servers; the eight-server live burst was fixed and verified
+   live after the soak, but not re-soaked for a full hour.
+4. Live `permission.asked` / `form.created` prompts still not observed (no safe trigger).
+5. Two simultaneous **active** executions not induced.
+6. One provider (DeepSeek) end-to-end.
+7. Windows named pipes not implemented.
 
-## 12. Local commits
+## 13. Local commits
 
 ```
+e800aae fix(bridge): stagger MCP details and realign the sequence on resync
 be2b803 fix(bridge): gate the first snapshot on the handshake acknowledgement
 4ffb144 fix(test): make the stress soak resolve interactions and avoid late tool revival
 0d199ac fix(bridge): refuse a second bridge before opening USB and pace state frames
@@ -157,7 +168,7 @@ be2b803 fix(bridge): gate the first snapshot on the handshake acknowledgement
 The Phase 3.1 validation documentation is committed separately. Nothing was pushed; remote
 publication remains the Product Owner's responsibility.
 
-## 13. Recommendation
+## 14. Recommendation
 
 Accept Phase 3.1. The release firmware is installed, the bridge is LIVE, backups are preserved, and
 the only residual hardware item is the documented USB-power-cycle handshake transient with automatic

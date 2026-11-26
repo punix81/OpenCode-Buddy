@@ -272,7 +272,7 @@ OpenCode verified, **N** = not verified / not applicable to that layer.
 | F03 | yes | yes | n/a | **yes** | bridge tokens equal the focus session API value exactly (65 161 507/102 508, 68 329 545/104 045); no aggregation |
 | F04 | yes | yes | n/a | partial | counters move on real tools; missing-start/duplicate/interruption edges are automated-only |
 | F05 | yes | yes | n/a | partial | `source=ok` observed on both peers; a real subscription failure was not induced |
-| F06 | yes | yes | partial | partial | bridge restarts are clean; a USB power-cycle shows one transient handshake error, recovered in ~2 s; concurrent snapshot race automated-only |
+| F06 | yes | yes | partial | partial | bridge restarts clean; USB power-cycle shows one transient handshake error, recovered in ~2 s; a LIVE 8-server MCP burst caused a resync storm, fixed in `e800aae` and verified live at 0 error/resync |
 | F07 | yes | yes | **yes** | n/a | a second bridge is refused before opening the USB port; the first shows no reset/error |
 | F08 | yes | yes | partial | n/a | 61-min soak, 0 steady-state error, 0 resync; TX drops 0 in the diagnostic run; partial writes remain synthetic-only |
 | F09 | yes | yes | n/a | partial | live `online=8 total=12`; MCP reset on real disconnect not observed |
