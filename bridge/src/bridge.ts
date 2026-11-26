@@ -101,6 +101,8 @@ export class Bridge {
   private deviceBoot = -1;
   private deviceCaps = new Set<string>();
   private snapshotPending = false;
+  private handshakeAcked = false;
+  private readonly handshakeSeqs = new Set<number>();
   private tickTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
@@ -314,6 +316,8 @@ export class Bridge {
       this.seqOut.reset();
       this.deviceSeq.reset();
       this.pendingAcks.clear();
+      this.handshakeAcked = false;
+      this.handshakeSeqs.clear();
       this.deviceSeq.accept(message.seq);
       this.setStatus('ready');
       this.sendReady();
@@ -371,6 +375,12 @@ export class Bridge {
         this.sendAck(message.seq);
         return;
       case 'ack': {
+        if (this.handshakeSeqs.has(message.data.ack)) {
+          // The device has processed ready/config: it is safe to send the
+          // snapshot. A device still booting may miss the handshake and
+          // re-announce; sending state first used to provoke E_PARSE/resync.
+          this.handshakeAcked = true;
+        }
         const sentAt = this.pendingAcks.get(message.data.ack);
         if (sentAt !== undefined) {
           const latency = this.now() - sentAt;
@@ -405,7 +415,7 @@ export class Bridge {
       this.setStatus('degraded');
       this.emitState(true);
     }
-    if (this.statusValue === 'ready' && this.snapshotPending) {
+    if (this.statusValue === 'ready' && this.snapshotPending && this.handshakeAcked) {
       this.snapshotPending = false;
       this.emitState(true);
     }
@@ -419,7 +429,7 @@ export class Bridge {
     // bridge emit ~10 state frames per second under load, which overflowed the
     // device RX queue during rendering (observed as E_PARSE + resync in the
     // Phase 3.1 stress soak).
-    if (now - this.lastStateMs >= this.options.config.stateIntervalMs) {
+    if (this.handshakeAcked && now - this.lastStateMs >= this.options.config.stateIntervalMs) {
       this.emitState(false);
     }
   }
@@ -434,6 +444,9 @@ export class Bridge {
     }
     this.options.logger.protocol('out', message.type, message.seq, Buffer.byteLength(line));
     this.sentCounts[message.type] = (this.sentCounts[message.type] ?? 0) + 1;
+    if (message.type === 'ready' || message.type === 'config') {
+      this.handshakeSeqs.add(message.seq);
+    }
     if (message.type === 'state' || message.type === 'mcp_status') {
       this.pendingAcks.set(message.seq, this.now());
       if (this.pendingAcks.size > 128) {

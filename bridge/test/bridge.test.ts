@@ -241,6 +241,7 @@ class RecordingTransport implements Transport {
   handlers: TransportHandlers = {};
   writes: string[] = [];
   private openState = false;
+  private deviceSeq = 1;
 
   setHandlers(handlers: TransportHandlers): void {
     this.handlers = handlers;
@@ -260,9 +261,30 @@ class RecordingTransport implements Transport {
 
   async write(data: string): Promise<void> {
     this.writes.push(data);
+    // Behave like the device: acknowledge ready/config so the bridge releases
+    // the first snapshot (the snapshot is ACK-gated).
+    let message: { type?: string; seq?: number };
+    try {
+      message = JSON.parse(data) as { type?: string; seq?: number };
+    } catch {
+      return;
+    }
+    if ((message.type === 'ready' || message.type === 'config') && typeof message.seq === 'number') {
+      const seq = ++this.deviceSeq;
+      queueMicrotask(() => {
+        this.feed(
+          JSON.stringify({ v: 1, type: 'ack', seq, data: { ack: message.seq, warning: null } }),
+        );
+      });
+    }
   }
 
   feed(line: string): void {
+    try {
+      if ((JSON.parse(line) as { type?: string }).type === 'hello') this.deviceSeq = 1;
+    } catch {
+      // Not JSON: let the bridge reject it.
+    }
     this.handlers.onData?.(Buffer.from(`${line}\n`, 'utf8'));
   }
 
@@ -490,6 +512,14 @@ test('an unacknowledged frame expires instead of being tracked forever', async (
     );
     await settle();
     assert.equal(bridge.status, 'ready');
+    // No snapshot is sent until the device acknowledges the handshake.
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(bridge.stats.sent['state'], undefined);
+    await deviceSide.write(
+      `${encodeMessage({ v: 1, type: 'ack', seq: 2, data: { ack: 1, warning: null } })}\n`,
+    );
+    await settle();
     bridge.tick(clock.now);
     await settle();
     clock.now += 11000;
