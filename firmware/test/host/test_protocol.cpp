@@ -267,10 +267,27 @@ int main(int argc, char** argv) {
     check(feed(parser, state, config) == buddy::ParseCode::Ok, "config accepted");
     buddy::ProtocolConfig applied;
     check(parser.takeConfig(applied) && applied.valid, "config pending");
+    check(applied.languageSet && applied.quietSet, "config preferences explicit");
     check(applied.language == 1 && applied.quiet && applied.mock, "config values");
     check(applied.debounceMs == 10, "config clamp");
     const char* warning = nullptr;
     check(parser.takeWarning(warning) && strcmp(warning, "E_BOUNDS") == 0, "config warning");
+  }
+
+  // A host that does not own a preference omits it: the device keeps its value.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string config =
+        "{\"v\":1,\"type\":\"config\",\"seq\":1,\"data\":{\"autoReturnSeconds\":60,"
+        "\"gestures\":{\"debounceMs\":35,\"doublePressWindowMs\":350,"
+        "\"longPressMs\":1500,\"veryLongPressMs\":5000},\"source\":\"live\"}}";
+    check(feed(parser, state, config) == buddy::ParseCode::Ok, "config without preferences");
+    buddy::ProtocolConfig applied;
+    check(parser.takeConfig(applied) && applied.valid, "config without preferences pending");
+    check(!applied.languageSet && !applied.quietSet, "preferences stay owned by the device");
   }
 
   // Line boundary: 2047 bytes accepted, 2048 rejected.

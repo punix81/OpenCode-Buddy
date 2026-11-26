@@ -14,6 +14,7 @@ export interface SimulatorOptions {
   firmwareVersion?: string;
   bootCount?: number;
   protocols?: number[];
+  caps?: string[];
 }
 
 // Device-side simulator: speaks the ratified protocol over any transport. It is
@@ -27,6 +28,7 @@ export class Simulator {
   private readonly firmwareVersion: string;
   private readonly bootCount: number;
   private readonly protocols: number[];
+  private readonly caps: string[];
 
   statusValue: SimulatorStatus = 'idle';
   lastState: StateData | null = null;
@@ -43,6 +45,7 @@ export class Simulator {
     this.firmwareVersion = options.firmwareVersion ?? '0.2.0';
     this.bootCount = options.bootCount ?? 1;
     this.protocols = options.protocols ?? [1];
+    this.caps = options.caps ?? [];
   }
 
   async start(): Promise<void> {
@@ -98,6 +101,7 @@ export class Simulator {
         proto: this.protocols,
         maxLine: 2048,
         boot: this.bootCount,
+        ...(this.caps.length > 0 ? { caps: this.caps } : {}),
       },
     });
   }

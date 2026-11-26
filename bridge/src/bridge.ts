@@ -28,6 +28,10 @@ export interface BridgeOptions {
   autoTimers?: boolean;
   bridgeVersion?: string;
   now?: () => number;
+  // Called before every reconnection attempt. The USB device can re-enumerate
+  // under a different port name, so the transport (and its discovery) must be
+  // rebuilt instead of reopening the stale path forever.
+  transportFactory?: () => Promise<Transport>;
 }
 
 const DEFAULT_GESTURES = {
@@ -48,6 +52,9 @@ export const HANDSHAKE_TIMEOUT_MS = 7000;
 // A half-open CDC fd never reports close, so `transport.close()` can hang. Bound
 // it: shutdown and reconnection must always make progress.
 export const CLOSE_TIMEOUT_MS = 2000;
+// A frame the device never acknowledged is reported and forgotten; the periodic
+// snapshot re-sends the state, so there is nothing to retransmit blindly.
+export const ACK_TIMEOUT_MS = 10000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -75,6 +82,7 @@ export class Bridge {
   private readonly now: () => number;
   private readonly bridgeVersion: string;
   private readonly autoTimers: boolean;
+  private transport: Transport;
 
   private readonly sentCounts: Record<string, number> = {};
   private readonly receivedCounts: Record<string, number> = {};
@@ -82,6 +90,7 @@ export class Bridge {
   private ackCount = 0;
   private ackTotalMs = 0;
   private ackMaxMs = 0;
+  private expiredAcks = 0;
 
   private statusValue: BridgeStatus = 'idle';
   private lastRxMs = 0;
@@ -90,6 +99,7 @@ export class Bridge {
   private lastHandshakeMs = 0;
   private lastOpenMs = 0;
   private deviceBoot = -1;
+  private deviceCaps = new Set<string>();
   private snapshotPending = false;
   private dirty = true;
   private tickTimer: NodeJS.Timeout | null = null;
@@ -103,6 +113,7 @@ export class Bridge {
   onStatus?: (status: BridgeStatus) => void;
 
   constructor(private readonly options: BridgeOptions) {
+    this.transport = options.transport;
     this.now = options.now ?? Date.now;
     this.bridgeVersion = options.bridgeVersion ?? '0.2.0';
     this.autoTimers = options.autoTimers ?? true;
@@ -118,6 +129,7 @@ export class Bridge {
     sent: Record<string, number>;
     received: Record<string, number>;
     ackLatency: { count: number; avgMs: number; maxMs: number };
+    expiredAcks: number;
   } {
     return {
       sent: { ...this.sentCounts },
@@ -127,6 +139,7 @@ export class Bridge {
         avgMs: this.ackCount === 0 ? 0 : Math.round(this.ackTotalMs / this.ackCount),
         maxMs: this.ackMaxMs,
       },
+      expiredAcks: this.expiredAcks,
     };
   }
 
@@ -139,7 +152,7 @@ export class Bridge {
 
   async start(): Promise<void> {
     this.stopping = false;
-    this.options.transport.setHandlers({
+    this.transport.setHandlers({
       onData: (chunk) => this.onData(chunk),
       onError: (error) => this.onError(error),
       onClose: () => this.onClose(),
@@ -175,16 +188,27 @@ export class Bridge {
   private async openTransport(): Promise<void> {
     this.setStatus('opening');
     try {
-      await this.options.transport.open();
+      if (this.reconnectAttempt > 0 && this.options.transportFactory !== undefined) {
+        this.transport = await this.options.transportFactory();
+        this.transport.setHandlers({
+          onData: (chunk) => this.onData(chunk),
+          onError: (error) => this.onError(error),
+          onClose: () => this.onClose(),
+        });
+      }
+      // Reset before opening: a device that already re-enumerated can announce
+      // itself the instant the port accepts data, and that hello must not be
+      // erased by a reset performed after open() resolves.
       this.framer.reset();
       this.seqOut.reset();
       this.deviceSeq.reset();
       this.deviceBoot = -1;
       this.lastHandshakeMs = 0;
+      await this.transport.open();
       this.lastRxMs = this.now();
       this.lastOpenMs = this.lastRxMs;
       this.reconnectAttempt = 0;
-      this.setStatus('handshaking');
+      if (this.statusValue !== 'ready') this.setStatus('handshaking');
     } catch (error) {
       this.options.logger.error(`transport open failed: ${(error as Error).message}`);
       this.setStatus('reconnecting');
@@ -220,7 +244,7 @@ export class Bridge {
 
   private async closeTransport(): Promise<void> {
     try {
-      await withTimeout(this.options.transport.close(), CLOSE_TIMEOUT_MS, 'transport close');
+      await withTimeout(this.transport.close(), CLOSE_TIMEOUT_MS, 'transport close');
     } catch (error) {
       this.options.logger.warn(`transport close failed: ${(error as Error).message}`);
     }
@@ -284,9 +308,11 @@ export class Bridge {
         return;
       }
       this.deviceBoot = message.data.boot;
+      this.deviceCaps = new Set(message.data.caps ?? []);
       this.lastHandshakeMs = now;
       this.seqOut.reset();
       this.deviceSeq.reset();
+      this.pendingAcks.clear();
       this.deviceSeq.accept(message.seq);
       this.setStatus('ready');
       this.sendReady();
@@ -362,6 +388,12 @@ export class Bridge {
   }
 
   tick(now: number): void {
+    for (const [seq, sentAt] of this.pendingAcks) {
+      if (now - sentAt <= ACK_TIMEOUT_MS) continue;
+      this.pendingAcks.delete(seq);
+      ++this.expiredAcks;
+      this.options.logger.warn(`ack timeout seq=${seq}`);
+    }
     if (this.statusValue === 'handshaking' && now - this.lastOpenMs >= HANDSHAKE_TIMEOUT_MS) {
       void this.releaseAndReconnect(
         `handshake timeout after ${now - this.lastOpenMs} ms, no hello received`,
@@ -404,7 +436,7 @@ export class Bridge {
         if (!oldest.done) this.pendingAcks.delete(oldest.value);
       }
     }
-    void this.options.transport.write(`${line}\n`).catch((error: Error) => {
+    void this.transport.write(`${line}\n`).catch((error: Error) => {
       this.options.logger.error(`write failed: ${error.message}`);
     });
   }
@@ -423,12 +455,18 @@ export class Bridge {
   }
 
   private sendConfig(): void {
+    // An explicit host override always wins. Without one, a firmware that
+    // supports partial config keeps its stored preference; an older firmware
+    // rejects a config without these fields, so the legacy values are sent.
+    const partial = this.deviceCaps.has('config.partial');
+    const language = this.options.config.language ?? (partial ? null : 'en');
+    const quietMode = this.options.config.quietMode ?? (partial ? null : false);
     const config: ConfigData = {
-      language: 'en',
-      quietMode: false,
       autoReturnSeconds: 60,
       gestures: { ...DEFAULT_GESTURES },
       source: this.options.config.source,
+      ...(language !== null ? { language } : {}),
+      ...(quietMode !== null ? { quietMode } : {}),
     };
     this.send({ v: 1, type: 'config', seq: this.seqOut.next(), data: config });
   }

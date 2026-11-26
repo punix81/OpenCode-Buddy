@@ -26,6 +26,10 @@ enum class InteractionGesture : uint8_t { Short = 0, Double, Long, VeryLong };
 
 struct ProtocolConfig {
   bool valid = false;
+  // Absent fields mean "keep the device preference": the host does not own the
+  // quiet mode or the language unless it explicitly overrides them.
+  bool languageSet = false;
+  bool quietSet = false;
   uint8_t language = 0;
   bool quiet = false;
   uint16_t autoReturnSeconds = 60;

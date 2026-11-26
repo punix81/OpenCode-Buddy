@@ -144,7 +144,7 @@
         "data": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["language", "quietMode", "autoReturnSeconds", "gestures", "source"],
+          "required": ["autoReturnSeconds", "gestures", "source"],
           "properties": {
             "language": { "enum": ["en", "fr", "de"] },
             "quietMode": { "type": "boolean" },

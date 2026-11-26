@@ -2,7 +2,7 @@ import { MockAdapter } from '../adapters/mock.js';
 import { StressAdapter } from '../adapters/stress.js';
 import { Bridge } from '../bridge.js';
 import { loadConfig } from '../config.js';
-import { describeState, exitAfterStop, installShutdown, makeLogger, openSerial, parseCli } from './common.js';
+import { describeState, exitAfterStop, installShutdown, makeLogger, openSerial, openSerialTransport, parseCli } from './common.js';
 
 const options = parseCli(process.argv.slice(2));
 const base = loadConfig();
@@ -17,7 +17,7 @@ const logger = makeLogger(config.logLevel);
 try {
   const { transport, path } = await openSerial(config);
   logger.info(`mock session on ${path} scenario=${options.scenario}`);
-  const bridge = new Bridge({ transport, config, logger });
+  const bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config) });
   const adapter =
     options.scenario === 'stress'
       ? new StressAdapter(bridge)

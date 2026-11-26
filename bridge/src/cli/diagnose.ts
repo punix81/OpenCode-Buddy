@@ -1,6 +1,6 @@
 import { Bridge } from '../bridge.js';
 import { loadConfig } from '../config.js';
-import { describeState, exitAfterStop, installShutdown, makeLogger, openSerial, parseCli } from './common.js';
+import { describeState, exitAfterStop, installShutdown, makeLogger, openSerial, openSerialTransport, parseCli } from './common.js';
 
 const options = parseCli(process.argv.slice(2));
 const config = {
@@ -13,7 +13,7 @@ const logger = makeLogger(config.logLevel);
 try {
   const { transport, path } = await openSerial(config);
   logger.info(`diagnose port=${path} baud=${config.baudRate}`);
-  const bridge = new Bridge({ transport, config, logger });
+  const bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config) });
 
   bridge.onStatus = (status) => logger.info(`bridge ${status}`);
   bridge.onState = (state) => logger.info(`state ${describeState(state)}`);

@@ -12,6 +12,7 @@
 #include "ProtocolParser.h"
 #include "ScreenManager.h"
 #include "SerialManager.h"
+#include "TxBuffer.h"
 #include "StateManager.h"
 #include "TouchManager.h"
 
@@ -38,7 +39,7 @@ buddy::MockScenario gMock;
 char gLine[buddy::kSerialLineMax + 1];
 char gOut[320];
 
-// One complete NDJSON frame per write, never split, never blocking.
+// The serial driver, wrapped as a FrameSink for the bounded TX buffer.
 class SerialSink : public buddy::FrameSink {
  public:
   int availableForWrite() override { return Serial.availableForWrite(); }
@@ -48,7 +49,14 @@ class SerialSink : public buddy::FrameSink {
 };
 
 SerialSink gSink;
-buddy::FrameWriter gWriter(gSink);
+constexpr size_t kTxCapacity = 2048;
+char gTxStorage[kTxCapacity];
+buddy::TxBuffer gTx(gTxStorage, sizeof(gTxStorage));
+buddy::FrameWriter gWriter(gTx);
+
+// Retries the bytes a previous partial Serial.write could not accept. One call
+// per loop, bounded by Serial.availableForWrite(): never blocking.
+void flushTx() { gTx.flush(gSink); }
 
 uint32_t gLastLinkCheck = 0;
 uint32_t gLastHeartbeat = 0;
@@ -82,8 +90,8 @@ const char* resetReasonName(esp_reset_reason_t reason) {
 }
 
 void sendEncoded(size_t length) {
-  // The newline is appended inside the writer and both go out in one call, so a
-  // short write can never leave a partial frame on the wire.
+  // The frame and its newline are copied atomically into the TX buffer; the
+  // serial flush retries any partial write on the next loop.
   gWriter.send(gOut, length, sizeof(gOut));
 }
 
@@ -128,8 +136,8 @@ void flushProtocol(uint32_t now) {
 
   buddy::ProtocolConfig config;
   if (gProtocol.takeConfig(config) && config.valid) {
-    gPreferences.setLanguage(config.language);
-    gPreferences.setQuietMode(config.quiet);
+    if (config.languageSet) gPreferences.setLanguage(config.language);
+    if (config.quietSet) gPreferences.setQuietMode(config.quiet);
     buddy::GestureTimings timings;
     timings.debounceMs = config.debounceMs;
     timings.doubleWindowMs = config.doublePressWindowMs;
@@ -387,5 +395,6 @@ void loop() {
     emitDiagnostic(now, false, 0);
   }
 
+  flushTx();
   delay(1);
 }

@@ -35,14 +35,18 @@ bool PreferencesManager::begin() {
   return true;
 }
 
+// NVS has a finite write budget: never rewrite a value that did not change.
 void PreferencesManager::setLanguage(uint8_t value) {
-  language_ = value > 2 ? 0 : value;
+  const uint8_t next = value > 2 ? 0 : value;
+  if (next == language_) return;
+  language_ = next;
   if (ready_) {
     prefs_.putUChar(kKeyLanguage, language_);
   }
 }
 
 void PreferencesManager::setQuietMode(bool value) {
+  if (value == quiet_) return;
   quiet_ = value;
   if (ready_) {
     prefs_.putBool(kKeyQuiet, quiet_);
@@ -50,7 +54,9 @@ void PreferencesManager::setQuietMode(bool value) {
 }
 
 void PreferencesManager::setLastScreen(uint8_t value) {
-  lastScreen_ = value >= screenCount() ? 0 : value;
+  const uint8_t next = value >= screenCount() ? 0 : value;
+  if (next == lastScreen_) return;
+  lastScreen_ = next;
   if (ready_) {
     prefs_.putUChar(kKeyScreen, lastScreen_);
   }

@@ -94,6 +94,9 @@ export interface HelloData {
   proto: number[];
   maxLine: number;
   boot: number;
+  // Optional capabilities. An older firmware sends none: the bridge then keeps
+  // sending the legacy config fields it requires.
+  caps?: string[];
 }
 
 export interface ReadyData {
@@ -103,8 +106,10 @@ export interface ReadyData {
 }
 
 export interface ConfigData {
-  language: 'en' | 'fr' | 'de';
-  quietMode: boolean;
+  // Omitted when the device owns its preference: the host never resets quiet
+  // mode or language just by reconnecting.
+  language?: 'en' | 'fr' | 'de';
+  quietMode?: boolean;
   autoReturnSeconds: number;
   gestures: {
     debounceMs: number;

@@ -254,7 +254,7 @@ function validateState(data: Obj): StateData {
 }
 
 function validateHello(data: Obj): HelloData {
-  onlyKeys(data, ['device', 'fw', 'proto', 'maxLine', 'boot'], 'hello');
+  onlyKeys(data, ['device', 'fw', 'proto', 'maxLine', 'boot', 'caps'], 'hello');
   if (data['device'] !== 'opencode-buddy') {
     fail('E_BOUNDS', 'hello.device is unknown');
   }
@@ -263,12 +263,21 @@ function validateHello(data: Obj): HelloData {
     fail('E_PARSE', 'hello.proto must be an array');
   }
   const majors = proto.map((value) => u8(value, 'hello.proto', 1, 255));
+  const rawCaps = data['caps'];
+  let caps: string[] = [];
+  if (rawCaps !== undefined) {
+    if (!Array.isArray(rawCaps) || rawCaps.length > 8) {
+      fail('E_PARSE', 'hello.caps must be an array of at most 8 entries');
+    }
+    caps = rawCaps.map((value) => str(value, 'hello.caps', 16));
+  }
   return {
     device: 'opencode-buddy',
     fw: str(data['fw'], 'hello.fw', 16),
     proto: majors,
     maxLine: u32(data['maxLine'], 'hello.maxLine', 256, MAX_LINE_BYTES),
     boot: u32(data['boot'], 'hello.boot'),
+    caps,
   };
 }
 

@@ -61,7 +61,10 @@ handshake: that is a buffered duplicate, not a new session. A different `boot` a
 ```
 
 `boot` is the device's reset-persistent boot counter, used by the bridge to detect a restart even if
-USB re-enumeration is missed. `proto` is the set of supported majors.
+USB re-enumeration is missed. `proto` is the set of supported majors. `caps` is an optional array of at
+most eight capability strings: `config.partial` means the device accepts a `config` without
+`language`/`quietMode` and keeps its stored preference. A firmware that sends no `caps` needs the
+legacy fields, and the bridge keeps sending them.
 
 ### `ready` (B→D, seq = 1)
 
@@ -87,6 +90,10 @@ Device preferences and gesture timings. Sent after `ready` and whenever they cha
                 "longPressMs": 1500, "veryLongPressMs": 5000 },
   "source": "live" } }
 ```
+
+`language` and `quietMode` are optional. When a field is absent, the device keeps its stored
+preference: the device owns the display preferences, and the host overrides one only when it sends it
+explicitly. This keeps quiet mode and language across a USB reconnection or a bridge restart.
 
 Bounds: `debounceMs` 10–200, `doublePressWindowMs` 150–800, `longPressMs` 800–3000,
 `veryLongPressMs` 3000–10000, `autoReturnSeconds` 10–600. Out-of-range values are clamped and

@@ -57,6 +57,12 @@ export async function openSerial(
   };
 }
 
+// A reconnecting bridge must re-run discovery: the ESP32-C3 can re-enumerate as
+// ttyACM1 after a reset, and reopening the old path would fail forever.
+export async function openSerialTransport(config: BridgeConfig): Promise<Transport> {
+  return (await openSerial(config)).transport;
+}
+
 export function describeState(state: StateData): string {
   const hasTokens =
     state.tokens !== undefined &&

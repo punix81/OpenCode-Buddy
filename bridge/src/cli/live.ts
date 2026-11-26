@@ -7,6 +7,7 @@ import {
   installShutdown,
   makeLogger,
   openSerial,
+  openSerialTransport,
   parseCli,
 } from './common.js';
 
@@ -26,7 +27,7 @@ try {
   const { transport, path } = await openSerial(config);
   logger.info(`live session on ${path}`);
 
-  const bridge = new Bridge({ transport, config, logger });
+  const bridge = new Bridge({ transport, config, logger, transportFactory: () => openSerialTransport(config) });
   bridge.onStatus = (status) => logger.info(`bridge ${status}`);
   bridge.onState = (state) => logger.info(`state ${describeState(state)}`);
   bridge.onMcpStatus = (mcp) => logger.info(`mcp online=${mcp.online} total=${mcp.total} source=${mcp.source}`);

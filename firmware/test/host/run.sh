@@ -38,4 +38,12 @@ g++ -std=c++17 -O2 -Wall -Wextra \
 g++ -std=c++17 -O2 -Wall -Wextra \
   -I "$HERE/mock" -I "$ROOT/firmware/include" -I "$ROOT/firmware/src" \
   "$ROOT/firmware/src/TouchManager.cpp" "$HERE/test_touch.cpp" -o "$OUT-touch"
+
+g++ -std=c++17 -O2 -Wall -Wextra \
+  -I "$ROOT/firmware/include" \
+  -I "$ROOT/firmware/src" \
+  "$HERE/test_tx.cpp" \
+  -o "$OUT-tx"
+
 "$OUT-touch"
+"$OUT-tx"

@@ -329,13 +329,17 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
     static const char* const allowed[] = {"language", "quietMode", "autoReturnSeconds", "gestures",
                                           "source"};
     if (!onlyKeys(data, allowed)) return ParseCode::ParseError;
-    char language[3];
-    if (!readString(data["language"], language, sizeof(language))) return ParseCode::ParseError;
-    if (strcmp(language, "en") != 0 && strcmp(language, "fr") != 0 &&
-        strcmp(language, "de") != 0) {
-      return ParseCode::BoundsError;
+    const bool languageSet = !data["language"].isUnbound();
+    char language[3] = "en";
+    if (languageSet) {
+      if (!readString(data["language"], language, sizeof(language))) return ParseCode::ParseError;
+      if (strcmp(language, "en") != 0 && strcmp(language, "fr") != 0 &&
+          strcmp(language, "de") != 0) {
+        return ParseCode::BoundsError;
+      }
     }
-    if (!data["quietMode"].is<bool>()) return ParseCode::ParseError;
+    const bool quietSet = !data["quietMode"].isUnbound();
+    if (quietSet && !data["quietMode"].is<bool>()) return ParseCode::ParseError;
     uint32_t autoReturn = 0;
     if (!readU32(data["autoReturnSeconds"], autoReturn)) return ParseCode::ParseError;
     if (!data["gestures"].is<JsonObjectConst>()) return ParseCode::ParseError;
@@ -355,8 +359,10 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
     if (strcmp(source, "live") != 0 && strcmp(source, "mock") != 0) return ParseCode::BoundsError;
 
     bool clamped = false;
+    config_.languageSet = languageSet;
+    config_.quietSet = quietSet;
     config_.language = language[0] == 'f' ? 1 : (language[0] == 'd' ? 2 : 0);
-    config_.quiet = data["quietMode"].as<bool>();
+    config_.quiet = quietSet ? data["quietMode"].as<bool>() : false;
     config_.autoReturnSeconds = static_cast<uint16_t>(clampU32(autoReturn, 10, 600, clamped));
     config_.debounceMs = static_cast<uint16_t>(clampU32(debounce, 10, 200, clamped));
     config_.doublePressWindowMs =
@@ -681,7 +687,7 @@ size_t ProtocolParser::encodeHello(char* out, size_t capacity) {
   const int written = snprintf(
       out, capacity,
       "{\"v\":1,\"type\":\"hello\",\"seq\":%lu,\"data\":{\"device\":\"opencode-buddy\","
-      "\"fw\":\"%s\",\"proto\":[1],\"maxLine\":2048,\"boot\":%lu}}",
+      "\"fw\":\"%s\",\"proto\":[1],\"maxLine\":2048,\"boot\":%lu,\"caps\":[\"config.partial\"]}}",
       static_cast<unsigned long>(nextSeq()), firmware_, static_cast<unsigned long>(boot_));
   return written > 0 && static_cast<size_t>(written) < capacity ? static_cast<size_t>(written) : 0;
 }

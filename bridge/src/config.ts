@@ -12,6 +12,8 @@ export interface BridgeConfig {
   reconnectDelaysMs: number[];
   logLevel: LogLevel;
   allowRealMcpNames: boolean;
+  language: 'en' | 'fr' | 'de' | null;
+  quietMode: boolean | null;
   source: 'live' | 'mock';
 }
 
@@ -25,6 +27,8 @@ export const DEFAULT_CONFIG: BridgeConfig = {
   reconnectDelaysMs: [1000, 2000, 4000, 8000, 15000],
   logLevel: 'info',
   allowRealMcpNames: false,
+  language: null,
+  quietMode: null,
   source: 'live',
 };
 
@@ -68,6 +72,12 @@ export function parseConfig(value: unknown): BridgeConfig {
   }
   if (typeof config.allowRealMcpNames !== 'boolean') {
     throw new ConfigError('allowRealMcpNames must be a boolean');
+  }
+  if (config.language !== null && !['en', 'fr', 'de'].includes(config.language)) {
+    throw new ConfigError('language must be null, en, fr or de');
+  }
+  if (config.quietMode !== null && typeof config.quietMode !== 'boolean') {
+    throw new ConfigError('quietMode must be null or a boolean');
   }
   if (config.source !== 'live' && config.source !== 'mock') {
     throw new ConfigError('source must be live or mock');

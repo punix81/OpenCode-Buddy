@@ -5,6 +5,7 @@ import { Bridge, CLOSE_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS } from '../src/bridge.js
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { NullLogger } from '../src/logger.js';
 import { Simulator } from '../src/simulator/simulator.js';
+import { LineFramer, encodeMessage } from '../src/protocol/codec.js';
 import { MemoryTransport } from '../src/transport/memory.js';
 import type { Transport, TransportHandlers } from '../src/transport/types.js';
 
@@ -47,8 +48,12 @@ test('handshake completes and a snapshot reaches the device', async () => {
   assert.equal(bridge.status, 'ready');
   assert.equal(simulator.statusValue, 'ready');
   assert.ok(simulator.lastState);
-  assert.equal(simulator.lastState?.status, 'idle');
+  // LIVE without an OpenCode peer is OFFLINE, even though USB is ready.
+  assert.equal(simulator.lastState?.status, 'offline');
   assert.equal(simulator.lastState?.source, 'live');
+  // A legacy firmware (no caps) still receives the fields it requires.
+  assert.equal(simulator.lastConfig?.language, 'en');
+  assert.equal(simulator.lastConfig?.quietMode, false);
 
   await bridge.stop();
   await simulator.stop();
@@ -406,4 +411,143 @@ test('stop() completes when the transport never closes', async () => {
     `stop() returned before the close budget elapsed (${elapsed} ms)`,
   );
   assert.ok(elapsed < CLOSE_TIMEOUT_MS + 2000, `stop() took ${elapsed} ms`);
+});
+
+test('a link loss recreates the transport so a re-enumerated port is found', async () => {
+  const [initial, deviceA] = MemoryTransport.pair();
+  const simA = new Simulator({ transport: deviceA, logger: new NullLogger(), autoTimers: false });
+  let factoryCalls = 0;
+  const factory = async (): Promise<Transport> => {
+    ++factoryCalls;
+    const [bridgeSide, deviceSide] = MemoryTransport.pair();
+    const simulator = new Simulator({ transport: deviceSide, logger: new NullLogger(), autoTimers: false });
+    return {
+      setHandlers: (handlers) => bridgeSide.setHandlers(handlers),
+      open: async () => {
+        await bridgeSide.open();
+        await simulator.start();
+      },
+      close: async () => {
+        await simulator.stop();
+        await bridgeSide.close();
+      },
+      isOpen: () => bridgeSide.isOpen(),
+      write: (data: string) => bridgeSide.write(data),
+    };
+  };
+
+  const bridge = new Bridge({
+    transport: initial,
+    config: { ...config(), reconnectDelaysMs: [10] },
+    logger: new NullLogger(),
+    transportFactory: factory,
+  });
+  try {
+    await bridge.start();
+    await simA.start();
+    await settle();
+    assert.equal(bridge.status, 'ready');
+
+    await simA.stop();
+    await initial.close();
+    for (let i = 0; i < 100 && bridge.status !== 'ready'; ++i) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(factoryCalls, 1);
+    assert.equal(bridge.status, 'ready');
+  } finally {
+    await bridge.stop();
+    await simA.stop();
+  }
+});
+
+test('an unacknowledged frame expires instead of being tracked forever', async () => {
+  const [bridgeSide, deviceSide] = MemoryTransport.pair();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport: bridgeSide,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    await deviceSide.open();
+    await deviceSide.write(
+      `${encodeMessage({
+        v: 1,
+        type: 'hello',
+        seq: 1,
+        data: {
+          device: 'opencode-buddy',
+          fw: 'test',
+          proto: [1],
+          maxLine: 2048,
+          boot: 1,
+        },
+      })}\n`,
+    );
+    await settle();
+    assert.equal(bridge.status, 'ready');
+    bridge.tick(clock.now);
+    await settle();
+    clock.now += 11000;
+    bridge.tick(clock.now);
+    assert.ok(bridge.stats.expiredAcks > 0);
+  } finally {
+    await bridge.stop();
+    await deviceSide.close();
+  }
+});
+
+
+test('an explicit host override is the only way to change a device preference', async () => {
+  const [bridgeSide, deviceSide] = MemoryTransport.pair();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport: bridgeSide,
+    config: { ...config(), language: 'fr', quietMode: true },
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  const simulator = new Simulator({ transport: deviceSide, logger: new NullLogger(), autoTimers: false });
+  try {
+    await bridge.start();
+    await simulator.start();
+    await settle();
+    assert.equal(simulator.lastConfig?.language, 'fr');
+    assert.equal(simulator.lastConfig?.quietMode, true);
+  } finally {
+    await bridge.stop();
+    await simulator.stop();
+  }
+});
+
+
+test('a firmware with config.partial keeps its display preferences', async () => {
+  const [bridgeSide, deviceSide] = MemoryTransport.pair();
+  const bridge = new Bridge({
+    transport: bridgeSide,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+  });
+  const simulator = new Simulator({
+    transport: deviceSide,
+    logger: new NullLogger(),
+    autoTimers: false,
+    caps: ['config.partial'],
+  });
+  try {
+    await bridge.start();
+    await simulator.start();
+    await settle();
+    assert.equal(simulator.lastConfig?.language, undefined);
+    assert.equal(simulator.lastConfig?.quietMode, undefined);
+  } finally {
+    await bridge.stop();
+    await simulator.stop();
+  }
 });

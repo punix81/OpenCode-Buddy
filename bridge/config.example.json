@@ -8,5 +8,7 @@
   "reconnectDelaysMs": [1000, 2000, 4000, 8000, 15000],
   "logLevel": "info",
   "allowRealMcpNames": false,
+  "language": null,
+  "quietMode": null,
   "source": "live"
 }
