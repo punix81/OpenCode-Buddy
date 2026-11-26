@@ -551,3 +551,38 @@ test('a firmware with config.partial keeps its display preferences', async () =>
     await simulator.stop();
   }
 });
+
+
+test('state frames are paced by stateIntervalMs during an event burst', async () => {
+  const [bridgeSide, deviceSide] = MemoryTransport.pair();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport: bridgeSide,
+    config: { ...config(), stateIntervalMs: 1000, linkTimeoutMs: 60000 },
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  const simulator = new Simulator({ transport: deviceSide, logger: new NullLogger(), autoTimers: false });
+  try {
+    await bridge.start();
+    await simulator.start();
+    await settle();
+    bridge.tick(clock.now);
+    await settle();
+
+    let states = 0;
+    bridge.onState = () => ++states;
+    for (let i = 0; i < 10; ++i) {
+      clock.now += 100;
+      bridge.ingest({ kind: 'usage', sessionId: 's', at: clock.now, input: i + 1 });
+      bridge.tick(clock.now);
+      await settle();
+    }
+    // Nine ticks are inside the 1 s window; the tenth reaches it.
+    assert.equal(states, 1);
+  } finally {
+    await bridge.stop();
+    await simulator.stop();
+  }
+});

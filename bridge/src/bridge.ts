@@ -101,7 +101,6 @@ export class Bridge {
   private deviceBoot = -1;
   private deviceCaps = new Set<string>();
   private snapshotPending = false;
-  private dirty = true;
   private tickTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
@@ -181,7 +180,6 @@ export class Bridge {
       return false;
     }
     this.registry.apply(event);
-    this.dirty = true;
     return true;
   }
 
@@ -309,6 +307,9 @@ export class Bridge {
       }
       this.deviceBoot = message.data.boot;
       this.deviceCaps = new Set(message.data.caps ?? []);
+      this.options.logger.debug(
+        `hello boot=${message.data.boot} caps=${[...this.deviceCaps].join(',') || '-'}`,
+      );
       this.lastHandshakeMs = now;
       this.seqOut.reset();
       this.deviceSeq.reset();
@@ -322,7 +323,6 @@ export class Bridge {
       // 1024-byte CDC RX queue while it renders a frame (one lost frame per
       // connection was observed on hardware).
       this.snapshotPending = true;
-      this.dirty = true;
       this.sendAck(message.seq);
       return;
     }
@@ -362,11 +362,12 @@ export class Bridge {
         this.options.logger.warn(`device resync reason=${message.data.reason}`);
         this.sendConfig();
         this.snapshotPending = true;
-        this.dirty = true;
         this.sendAck(message.seq);
         return;
       case 'error':
-        this.options.logger.error(`device error code=${message.data.code} fatal=${message.data.fatal}`);
+        this.options.logger.error(
+          `device error code=${message.data.code} fatal=${message.data.fatal} detail=${message.data.detail ?? '-'}`,
+        );
         this.sendAck(message.seq);
         return;
       case 'ack': {
@@ -414,7 +415,11 @@ export class Bridge {
       this.lastHeartbeatMs = now;
       this.send({ v: 1, type: 'heartbeat', seq: this.seqOut.next() });
     }
-    if (this.dirty || now - this.lastStateMs >= this.options.config.stateIntervalMs) {
+    // Respect the configured snapshot cadence. Sending on every event made the
+    // bridge emit ~10 state frames per second under load, which overflowed the
+    // device RX queue during rendering (observed as E_PARSE + resync in the
+    // Phase 3.1 stress soak).
+    if (now - this.lastStateMs >= this.options.config.stateIntervalMs) {
       this.emitState(false);
     }
   }
@@ -501,7 +506,6 @@ export class Bridge {
     const mcp = this.privacy.projectMcp(this.registry.mcpStatus(this.options.config.source));
     this.send({ v: 1, type: 'mcp_status', seq: this.seqOut.next(), data: mcp });
     this.lastStateMs = now;
-    this.dirty = false;
     this.onState?.(state);
     this.onMcpStatus?.(mcp);
   }

@@ -16,6 +16,7 @@ import { createServer, type Server, type Socket } from 'node:net';
 import type { Logger } from '../logger.js';
 import type { IpcPaths } from './paths.js';
 import { IPC_MAX_LINE_BYTES, parseIpcLine, type IpcHello } from './messages.js';
+import { pidIsAlive, readLockOwner } from './lock.js';
 
 export const IPC_HELLO_TIMEOUT_MS = 2000;
 export const IPC_RATE_PER_SECOND = 200;
@@ -50,16 +51,6 @@ function constantTimeEquals(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-function pidIsAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // EPERM means the process exists but belongs to another user: still alive.
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
 
 // Local-only event intake for the OpenCode plugin.
 //
@@ -122,14 +113,8 @@ export class IpcServer {
         return;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-        let owner = '';
-        try {
-          owner = readFileSync(lockFile, 'utf8').trim();
-        } catch {
-          // Unreadable lock: treat as stale.
-        }
-        const pid = Number.parseInt(owner, 10);
-        if (pidIsAlive(pid)) {
+        const pid = readLockOwner(lockFile);
+        if (pid !== null && pidIsAlive(pid)) {
           throw new Error(`another bridge is running (pid ${pid})`);
         }
         // Stale lock from a crashed bridge: remove it and retry once.

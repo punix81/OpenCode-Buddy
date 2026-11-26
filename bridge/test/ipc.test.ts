@@ -10,6 +10,7 @@ import { DEFAULT_CONFIG } from '../src/config.js';
 import { normalizeMcpStatus, parseIpcLine } from '../src/ipc/messages.js';
 import { ipcPaths } from '../src/ipc/paths.js';
 import { IpcServer } from '../src/ipc/server.js';
+import { assertNoOtherBridge } from '../src/ipc/lock.js';
 import { LiveSource } from '../src/live/source.js';
 import { NullLogger } from '../src/logger.js';
 import type { NormalizedEvent } from '../src/state/types.js';
@@ -458,6 +459,24 @@ test('a terminal notification survives the peer that produced it', async () => {
   } finally {
     peer.destroy();
     await live.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+
+test('the preflight lock check refuses a live owner but allows a stale one', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  try {
+    await writeFile(paths.lockFile, `${process.pid}\n`, { mode: 0o600 });
+    assert.doesNotThrow(() => assertNoOtherBridge(paths));
+
+    await writeFile(paths.lockFile, '1\n', { mode: 0o600 });
+    assert.throws(() => assertNoOtherBridge(paths), /another bridge is running/);
+
+    await writeFile(paths.lockFile, '999999\n', { mode: 0o600 });
+    assert.doesNotThrow(() => assertNoOtherBridge(paths));
+  } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });

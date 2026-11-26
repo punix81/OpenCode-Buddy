@@ -3,6 +3,8 @@ import type { BridgeConfig } from '../config.js';
 import type { StateData } from '../protocol/types.js';
 import { DeviceDiscovery } from '../device/discovery.js';
 import { SerialTransport } from '../transport/serial.js';
+import { ipcPaths } from '../ipc/paths.js';
+import { assertNoOtherBridge } from '../ipc/lock.js';
 import type { Transport } from '../transport/types.js';
 
 export interface CliOptions {
@@ -49,6 +51,9 @@ export function makeLogger(level: BridgeConfig['logLevel']): Logger {
 export async function openSerial(
   config: BridgeConfig,
 ): Promise<{ transport: Transport; path: string }> {
+  // Never open the single-owner USB port while a live bridge owns it. A live
+  // bridge has already taken the lock with its own PID and passes this check.
+  assertNoOtherBridge(ipcPaths());
   const discovery = new DeviceDiscovery();
   const candidate = await discovery.select(config);
   return {
