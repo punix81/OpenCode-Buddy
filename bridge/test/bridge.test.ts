@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { Bridge, CLOSE_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS } from '../src/bridge.js';
+import { Bridge, CLOSE_TIMEOUT_MS, HANDSHAKE_RETRY_MS, HANDSHAKE_TIMEOUT_MS } from '../src/bridge.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { NullLogger } from '../src/logger.js';
 import { Simulator } from '../src/simulator/simulator.js';
@@ -242,6 +242,9 @@ class RecordingTransport implements Transport {
   writes: string[] = [];
   primes = 0;
   autoAck = true;
+  // Number of ready/config frames to swallow without acknowledging, modelling
+  // a device whose CDC RX still holds a fragment of its own boot output.
+  ignoreHandshakeAcks = 0;
   private openState = false;
   private deviceSeq = 1;
 
@@ -276,6 +279,10 @@ class RecordingTransport implements Transport {
       return;
     }
     if (this.autoAck && (message.type === 'ready' || message.type === 'config') && typeof message.seq === 'number') {
+      if (this.ignoreHandshakeAcks > 0) {
+        --this.ignoreHandshakeAcks;
+        return;
+      }
       const seq = ++this.deviceSeq;
       queueMicrotask(() => {
         this.feed(
@@ -706,6 +713,43 @@ test('an unchanged MCP detail is not resent on every state tick', async () => {
     bridge.tick(clock.now);
     await settle();
     assert.equal(transport.count('mcp_status'), 2, 'a changed list is sent again');
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('a handshake lost in the device RX is retried without reopening', async () => {
+  const transport = new RecordingTransport();
+  transport.ignoreHandshakeAcks = 2;
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(31));
+    await settle();
+    assert.equal(transport.count('ready'), 1, 'first handshake attempt');
+    assert.equal(transport.count('state'), 0, 'no snapshot before the ACK');
+
+    clock.now += HANDSHAKE_RETRY_MS;
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(transport.count('ready'), 2, 'the handshake is retried');
+    assert.equal(transport.count('config'), 2);
+    const readies = transport.writes
+      .filter((line) => line.includes('"type":"ready"'))
+      .map((line) => (JSON.parse(line) as { seq: number }).seq);
+    assert.deepEqual(readies, [1, 1], 'a retry restarts ready at seq 1');
+
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(bridge.status, 'ready');
+    assert.equal(transport.count('state'), 1, 'snapshot released after the retry ACK');
   } finally {
     await bridge.stop();
   }

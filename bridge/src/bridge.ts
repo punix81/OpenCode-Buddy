@@ -57,6 +57,13 @@ const DEFAULT_GESTURES = {
 // more than two announcement periods and take the port again.
 export const HANDSHAKE_TIMEOUT_MS = 7000;
 
+// A booting ESP32-C3 can lose the first ready/config when its CDC RX still
+// holds a fragment of its own transmission. Both frames are idempotent when
+// replayed with ready seq 1, which restarts the device's peer sequence. Retry
+// before giving up on the session; the 7 s timeout below stays the last resort.
+export const HANDSHAKE_RETRY_MS = 2000;
+export const HANDSHAKE_MAX_RETRIES = 3;
+
 // A half-open CDC fd never reports close, so `transport.close()` can hang. Bound
 // it: shutdown and reconnection must always make progress.
 export const CLOSE_TIMEOUT_MS = 2000;
@@ -117,6 +124,8 @@ export class Bridge {
   private mcpDue = false;
   private lastMcpKey: string | null = null;
   private handshakeAcked = false;
+  private handshakeRetryAt: number | null = null;
+  private handshakeRetries = 0;
   private opencodeVersion: string | null = null;
   private readonly handshakeSeqs = new Set<number>();
   private tickTimer: NodeJS.Timeout | null = null;
@@ -228,6 +237,8 @@ export class Bridge {
       this.deviceSeq.reset();
       this.deviceBoot = -1;
       this.lastHandshakeMs = 0;
+      this.handshakeRetryAt = null;
+      this.handshakeRetries = 0;
       await this.transport.open();
       this.lastRxMs = this.now();
       this.lastOpenMs = this.lastRxMs;
@@ -432,6 +443,7 @@ export class Bridge {
           // snapshot. A device still booting may miss the handshake and
           // re-announce; sending state first used to provoke E_PARSE/resync.
           this.handshakeAcked = true;
+          this.handshakeRetryAt = null;
         }
         const sentAt = this.pendingAcks.get(message.data.ack);
         if (sentAt !== undefined) {
@@ -455,6 +467,24 @@ export class Bridge {
       if (now < this.handshakeAt) return;
       this.handshakeAt = null;
       this.beginHandshake(this.handshakeHelloSeq);
+    }
+    if (this.handshakeRetryAt !== null) {
+      if (this.handshakeAcked) {
+        this.handshakeRetryAt = null;
+      } else if (now >= this.handshakeRetryAt) {
+        if (this.statusValue === 'ready' && this.handshakeRetries < HANDSHAKE_MAX_RETRIES) {
+          ++this.handshakeRetries;
+          this.options.logger.warn(`handshake retry ${this.handshakeRetries} (no ACK)`);
+          // ready seq 1 restarts the device's peer sequence, so the replay is
+          // accepted even when the first attempt already advanced it.
+          this.seqOut.reset();
+          this.sendReady();
+          this.sendConfig();
+          this.handshakeRetryAt = now + HANDSHAKE_RETRY_MS;
+        } else {
+          this.handshakeRetryAt = null;
+        }
+      }
     }
     for (const [seq, sentAt] of this.pendingAcks) {
       if (now - sentAt <= ACK_TIMEOUT_MS) continue;
@@ -549,6 +579,8 @@ export class Bridge {
     // connection was observed on hardware).
     this.snapshotPending = true;
     this.sendAck(helloSeq);
+    this.handshakeRetries = 0;
+    this.handshakeRetryAt = this.now() + HANDSHAKE_RETRY_MS;
   }
 
   private primeLink(): void {
