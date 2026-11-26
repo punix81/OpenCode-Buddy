@@ -6,6 +6,34 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Verified — Phase 3.1 hardware validation
+
+- Release image `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` flashed
+  application-only at `0x10000` with esptool 5.7.0 `--no-stub`, write and independent read-back
+  verified; bootloader, partitions and NVS untouched. Full pre-flash dump preserved.
+- 61-minute release soak (MOCK stress, explicit): 3 647 state frames, 7 295 ACKs (avg 65 ms, max
+  490 ms), 0 expired, 0 resync, 0 steady-state error, RSS constant at 56 404 kB, all nine states.
+- Diagnostic run: heap 245 812 B and max block 225 268 B constant; FPS average 18 / max 21; render
+  average 47.2 ms / max 48.1 ms; 0 TX drops. Partial duration (4.5 min) due to a physical USB
+  re-enumeration; documented.
+- Physical validation: QUIET persisted across bridge restart, MCU restart and USB replug; very-long
+  press reset verified; long/short gestures logged on the release.
+- Tokens: bridge equals the focus session's `GET /api/session` values exactly (65 161 507/102 508 and
+  68 329 545/104 045); no aggregation, no double counting.
+- Final test baseline: bridge **85/85**, plugin **24/24**, protocol PASS, firmware host PASS, release
+  build SUCCESS.
+- Known limitation: a USB power-cycle can produce one transient `E_PARSE` + resync while the device
+  boots; automatic recovery in ~2 s. Bridge restarts with the device running are clean.
+
+### Fixed — Phase 3.1 validation follow-ups
+
+- State frames respect `stateIntervalMs` instead of being sent on every 100 ms tick under load; this
+  removed the stress `E_PARSE`/resync.
+- A second bridge is refused before it opens the USB port (the lock is taken by LiveSource first).
+- The MOCK stress adapter stays on one session per 12-phase cycle, resolves every interaction/tool and
+  no longer leaves the display on Permission for the whole run.
+- The first snapshot is withheld until the device acknowledges `ready`/`config`.
+
 ### Fixed — Phase 3.1 independent audit remediation
 
 - **F01** — pending permissions and questions are derived priority, not a stored status; request

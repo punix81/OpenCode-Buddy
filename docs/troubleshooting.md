@@ -346,3 +346,32 @@ frames are replaced by the next snapshot; dropped terminal events are not replay
 
 This is intentional since Phase 3.1: the Buddy shows the focus session's tokens and tools, matching the
 model, agent and chronometer on screen. A session switch changes all of them together.
+
+
+## Phase 3.1 hardware validation notes
+
+### One `E_PARSE` + resync after a USB power-cycle
+
+After unplugging and replugging the USB cable, the device power-cycles and may report one
+`E_PARSE` while it is still booting; the bridge re-sends `config`, the device acknowledges, and the
+LIVE view returns in about 2 seconds. No error occurs afterwards. Bridge restarts with the device
+already running are clean (0 error, 0 resync). See
+`docs/evidence/phase-3-1-hardware-validation.md` §9.
+
+### No snapshot until the handshake is acknowledged
+
+Since `be2b803` the bridge withholds `state` and `mcp_status` until the device acknowledges
+`ready`/`config`. A short OFFLINE period after a connection is normal; if it never clears, check the
+device ACKs in the bridge debug log (`ack received`).
+
+### The MOCK stress scenario shows Permission
+
+The stress cycle deliberately enters `permission_required` and `user_input_required`; it now resolves
+them on the same session within the cycle. A permanently stuck Permission during a MOCK run is the
+old adapter defect (fixed in `4ffb144`).
+
+### Diagnostic `BUDDY-DIAG` lines interleave with NDJSON
+
+The diagnostic build (`supermini-diag`) still emits hello/heartbeat frames while printing its
+diagnostics; this is a bench-only image, never the release. Parse from the `BUDDY-DIAG` marker when
+collecting measurements.

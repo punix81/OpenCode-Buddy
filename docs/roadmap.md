@@ -74,7 +74,7 @@ Not validated live: a `permission.asked` and a `form.created` notification (no s
 interactive approval), a simultaneous pair of *active* executions (standalone runs serialize), a
 second provider, and the Phase 2 one-hour soak. See `docs/phase-3-report.md` §17.
 
-## Phase 3.1 — Independent audit remediation — CODE COMPLETE
+## Phase 3.1 — Independent audit remediation — COMPLETE (hardware validated)
 
 **Goal:** correct the independent audit findings without changing the visual design.
 
@@ -85,9 +85,11 @@ change; private sanitized plugin diagnostics; explicit cross-project isolation; 
 buffer; ACK expiry; USB re-discovery on reconnect; optional device-owned preferences behind a hello
 capability.
 
-Tests: bridge 81/81, plugin 24/24, protocol PASS, firmware host PASS, firmware build SUCCESS.
-**Hardware validation is pending: the firmware was not flashed.** See `docs/phase-3-1-report.md` and
-`docs/audit-phase-3-1.md`.
+Tests: bridge 85/85, plugin 24/24, protocol PASS, firmware host PASS, firmware build SUCCESS.
+Flash, soak (61 min), performance measurements and physical validation are recorded;
+one transient USB power-cycle handshake error is documented with automatic recovery. See
+`docs/phase-3-1-report.md` and `docs/audit-phase-3-1.md`. Phase 4 has not started and awaits the
+Product Owner's approval.
 
 ## Phase 4 — Developer dashboard
 

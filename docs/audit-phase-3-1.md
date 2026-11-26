@@ -259,3 +259,29 @@ session ownership.
    deduplication are verified from the OpenAPI schema and synthetic events.
 4. The one-hour soak and heap/FPS measurements remain open.
 5. One provider (DeepSeek) was exercised end to end.
+
+## Hardware validation dispositions (2026-11-26)
+
+Legend: **C** = code fixed, **A** = automated test verified, **H** = hardware verified, **L** = live
+OpenCode verified, **N** = not verified / not applicable to that layer.
+
+| ID | C | A | H | L | Evidence / remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| F01 | yes | yes | n/a | no | permission/form live prompts not triggered; identifiers and priority are automated-tested |
+| F02 | yes | yes | n/a | partial | two peers connected live; a peer disappearing was not induced on the real server |
+| F03 | yes | yes | n/a | **yes** | bridge tokens equal the focus session API value exactly (65 161 507/102 508, 68 329 545/104 045); no aggregation |
+| F04 | yes | yes | n/a | partial | counters move on real tools; missing-start/duplicate/interruption edges are automated-only |
+| F05 | yes | yes | n/a | partial | `source=ok` observed on both peers; a real subscription failure was not induced |
+| F06 | yes | yes | partial | partial | bridge restarts are clean; a USB power-cycle shows one transient handshake error, recovered in ~2 s; concurrent snapshot race automated-only |
+| F07 | yes | yes | **yes** | n/a | a second bridge is refused before opening the USB port; the first shows no reset/error |
+| F08 | yes | yes | partial | n/a | 61-min soak, 0 steady-state error, 0 resync; TX drops 0 in the diagnostic run; partial writes remain synthetic-only |
+| F09 | yes | yes | n/a | partial | live `online=8 total=12`; MCP reset on real disconnect not observed |
+| F10 | yes | yes | **yes** | n/a | QUIET persisted across bridge restart, MCU restart and USB replug; very-long reset verified |
+| F11 | yes | yes | n/a | partial | focus token/model match; two simultaneous active executions were not induced |
+| F12 | yes | no | partial | n/a | NVS writes only on change; persistence across resets seen through QUIET; no direct write counter |
+| F13 | yes | yes | n/a | n/a | debug is opt-in and was not enabled on the device |
+| F14 | yes | yes | n/a | partial | two peers and a probe session handled; a foreign-project event was not explicitly injected |
+
+Final hardware/soak/performance evidence: `docs/phase-3-1-report.md`,
+`docs/evidence/phase-3-1-hardware-validation.md`, `docs/evidence/phase-3-1-soak-test.md`,
+`docs/evidence/phase-3-1-performance.md`.

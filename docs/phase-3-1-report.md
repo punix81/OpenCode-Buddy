@@ -1,158 +1,164 @@
-# Phase 3.1 — audit remediation report
+# Phase 3.1 — audit remediation and hardware validation report
 
 Date: 2026-11-26
-Audited baseline: `e7a8cb71da0a049f7d09caa8eb5f95fa6af11943` (identical to HEAD at the start)
-Verdict: **code complete and tested; firmware flash and hardware validation pending explicit approval.**
-Companion documents: `docs/audit-phase-3-1.md` (finding-by-finding dispositions),
-`docs/evidence/phase-3-1-test-summary.md` (commands and outputs).
+Audited baseline: `e7a8cb71da0a049f7d09caa8eb5f95fa6af11943`
+Verdict: **PASS — Phase 3.1 is complete. Code, automated tests, firmware flash, soak and physical
+validation are recorded. Phase 4 has not started.**
+Companion documents: `docs/audit-phase-3-1.md` (finding dispositions),
+`docs/evidence/phase-3-1-test-summary.md`, `docs/evidence/phase-3-1-hardware-validation.md`,
+`docs/evidence/phase-3-1-soak-test.md`, `docs/evidence/phase-3-1-performance.md`.
 
-## 1. Summary
+## 1. Final state
 
-All fourteen findings were investigated. Every P1 defect that the source code confirmed is corrected
-with a regression test. Two claims were narrowed by evidence:
-
-- the Node `serialport` write path does **not** expose partial writes, so that part of F08 is a false
-  positive; the firmware side of F08 was real and is fixed with a bounded TX staging buffer;
-- the firmware currently flashed predates the optional `config` fields, so the bridge keeps sending
-  the legacy fields to it and keeps the device usable. The new behaviour activates after an approved
-  flash (hello capability `config.partial`).
-
-The visual design, the wiring, the panel configuration and NDJSON v1 are unchanged. The visual assets
-were not touched.
-
-## 2. Baseline and scope
-
-| Check | Before changes |
+| Item | Value |
 | --- | --- |
-| HEAD vs audited commit | identical |
-| Bridge typecheck | PASS |
-| Bridge tests | 56/56 |
-| Plugin tests | 13/13 |
-| Protocol validation | PASS (11 valid, 13 invalid) |
-| Firmware host tests | PASS (protocol, gestures) |
-| Firmware build | 371 804 B flash, 20 516 B RAM |
+| Firmware installed | Phase 3.1 release, sha256 `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` |
+| Firmware flash | application only at `0x10000`; bootloader, partitions and NVS untouched; write and read-back verified |
+| Bridge | LIVE, real OpenCode 2.4.1 data, `source=live`, `mcp online=8 total=12` |
+| Design | Codex Astra visual design unchanged; six screens and gestures intact |
+| GitHub | no operation performed |
+| Phase 4 | not started |
 
-No flash was performed; the ESP32-C3 kept its existing image for the whole phase.
+## 2. Disposition matrix
 
-## 3. What changed
+Legend: **C** code fixed, **A** automated test, **H** hardware verified, **L** live OpenCode verified.
 
-| Area | Change |
+| ID | C | A | H | L | Evidence / remaining gap |
+| --- | --- | --- | --- | --- | --- |
+| F01 | yes | yes | n/a | no | permission/form live prompts not triggered; priority and identifiers tested |
+| F02 | yes | yes | n/a | partial | two peers connected; a peer disappearing was not induced on the real server |
+| F03 | yes | yes | n/a | **yes** | bridge equals the focus session's API tokens exactly; no aggregation |
+| F04 | yes | yes | n/a | partial | real tool counters; lifecycle edges automated-only |
+| F05 | yes | yes | n/a | partial | `source=ok` live; a real subscription failure was not induced |
+| F06 | yes | yes | partial | partial | bridge restart clean; USB replug shows one transient handshake error, recovered in ~2 s |
+| F07 | yes | yes | **yes** | n/a | second bridge refused before opening the USB port |
+| F08 | yes | yes | partial | n/a | 61-min soak, 0 steady-state error; TX drops 0 in the diagnostic run; partial writes remain synthetic |
+| F09 | yes | yes | n/a | partial | live 8/12; MCP reset on real disconnect not observed |
+| F10 | yes | yes | **yes** | n/a | QUIET persisted across bridge restart, MCU restart, USB replug; very-long reset verified |
+| F11 | yes | yes | n/a | partial | focus tokens/model match; two simultaneous active executions not induced |
+| F12 | yes | no | partial | n/a | NVS only on change; persistence observed; no direct write counter |
+| F13 | yes | yes | n/a | n/a | debug opt-in, not enabled on the device |
+| F14 | yes | yes | n/a | partial | two peers and a probe session; a foreign-project event was not injected |
+
+## 3. Baseline and tests
+
+Before changes: bridge 56/56, plugin 13/13, protocol PASS, host PASS, firmware 371 804 B flash /
+20 516 B RAM. Final:
+
+| Check | Result |
 | --- | --- |
-| Interaction state | Pending permissions/questions are a derived priority; request identifiers are deduplicated and synchronized from `ctx.permission.list()` |
-| Metrics | Tokens and tools are per session, unknown counters stay `null`, tool calls have a real lifecycle, focus is the most recently active session |
-| Live ownership | Sessions belong to one peer; disconnect, stale timeout and degraded source close only that peer; terminal notifications survive their TTL |
-| IPC | PID lock before touching shared files, 0700 real directory, no symlink, no non-socket unlink, UTF-8 byte limits, `source` health message |
-| Plugin | Supervised subscription with bounded resubscription, ordered snapshots, bounded queue/buffer, request IDs, MCP replacement with true totals, private sanitized diagnostics, explicit ownership policy |
-| Transport | USB discovery is re-run on reconnect; ACKs are cleared per session and expire explicitly |
-| Firmware | Bounded TX staging buffer with partial-write retry; optional `config` fields behind a hello capability; NVS writes only on change |
-| Protocol | `config.language`/`quietMode` optional, `caps` optional in `hello`; both additive and documented |
+| TypeScript typecheck | PASS |
+| Bridge tests | **85/85** |
+| Plugin tests | **24/24** |
+| Protocol validation | PASS (11 valid, 13 invalid, examples verified) |
+| Firmware host tests | protocol PASS, gestures PASS, TX buffer PASS |
+| Simulator | PASS |
+| Firmware release build | SUCCESS — 22 572 B RAM, 372 182 B flash |
+| Diagnostic build | SUCCESS — 22 604 B RAM, 374 276 B flash, 408 512 B image |
 
-## 4. Commands and results (final)
+## 4. Flash and protocol
 
-```
-cd bridge
-npm run typecheck            PASS (0 diagnostics)
-npm test                     81/81
-npm run test:plugin          24/24
-npm run validate:protocol    PASS (11 valid, 13 invalid, examples verified)
+- Pre-flash full backup `246122bc…a702`; app-only backup `2ee37e26…8092`.
+- esptool **5.7.0**, `--no-stub`; app at `0x10000`; write hash verified; independent verify digest
+  matched; watchdog reset; USB re-enumeration normal.
+- New firmware hello: `caps:["config.partial"]`; the bridge sends a 176-byte `config` without
+  `language`/`quietMode`; the device keeps its stored preferences.
+- Handshake, heartbeats, ACK and snapshot verified; 0 configuration error and 0 resync on bridge
+  restarts with the device already running.
+- The release build directory was removed by the diagnostic build; the exact image was recovered from
+  the device (`read-flash`), hash matched, reflashed and verified. No ambiguity about the installed
+  image.
 
-bash firmware/test/host/run.sh
-  firmware protocol tests: PASS
-  firmware gestures with mock GPIO: PASS
-  firmware tx buffer tests: PASS
+## 5. Token verification
 
-cd bridge && npm run simulate -- --scenario all-states --duration 3000   PASS
-.venv/bin/pio run -d firmware -e supermini                               SUCCESS
-```
+Bridge and `GET /api/session` at the same instant:
 
-Live OpenCode 2.4.1 integration (new bridge, new plugin, existing firmware):
+| Instant | API | Bridge | All sessions sum |
+| --- | --- | --- | --- |
+| 10:04:07 | 65 161 507 / 102 508 | 65 161 507 / 102 508 | 145 348 804 |
+| 10:04:47 | 68 329 545 / 104 045 | 68 329 545 / 104 045 | 148 516 842 |
 
-```
-INFO  opencode peer=1 app=cli version=2.4.1 plugin=opencode-buddy version=0.1.0
-DEBUG opencode peer=1 source=ok
-DEBUG event kind=permission.sync
-INFO  state status=thinking sessions=1 elapsed=990s tokens=51138629/82663 tools=0/0/0 source=live
-INFO  mcp online=8 total=12 source=live
-```
+Cumulative per session, max per field, reasoning 133 182, cache 0/0, no context percentage. A probe
+session without execution reported 0/0 and was handled correctly. The calculation method was not
+changed.
 
-At startup, before any peer: `state status=offline sessions=0 elapsed=0s tokens=--/--`. The main
-companion state now reflects OpenCode being unavailable even though USB is ready.
+## 6. Soak
 
-## 5. Firmware changes
+`docs/evidence/phase-3-1-soak-test.md`: **PASS**, 3 660.4 s, stress MOCK (explicitly chosen; no
+DeepSeek cost), 3 647 state frames, 7 295 ACKs (avg 65 ms, max 490 ms), 0 expired, 0 resync, 0
+steady-state error, RSS constant at 56 404 kB, all nine states. One invalid line at the very first
+message (buffered hello burst) led to the handshake-ACK gate fix; the soak steady state is valid.
+
+## 7. Performance
+
+`docs/evidence/phase-3-1-performance.md`: **PARTIAL**, 4.5 min of valid diagnostic samples before a
+physical USB re-enumeration interrupted the capture (firmware alive, `boot=1`, `reset=poweron`).
+Heap 245 812 B constant, max block 225 268 B constant, FPS average 18 / max 21, render average
+47.2 ms / max 48.1 ms, 0 TX drops, all 12 states. The release image has no diagnostics; the 61-min
+soak covers its stability. A full 15-minute diagnostic run remains an optional follow-up, not a
+blocker.
+
+## 8. Physical validation (Product Owner)
+
+| Step | Result |
+| --- | --- |
+| Bridge restart with QUIET active | PASS — QUIET preserved |
+| MCU restart with QUIET active | PASS — QUIET preserved |
+| USB unplug/replug | PASS — `reconnecting` → 4 backoff attempts → hello/caps → ready; screen returned; QUIET preserved |
+| Very long press | PASS — `interaction gesture=very_long` logged; RESET, Buddy, QUIET disabled |
+| Long press | `interaction gesture=long` logged at 13:49:49 |
+
+Residual: the USB **power-cycle** produced one transient `E_PARSE` + resync while the device booted;
+the bridge resent `config`, the device acknowledged, and the LIVE view returned in about 2 s. No later
+error. Bridge restarts with the device already running are clean. Documented in
+`docs/evidence/phase-3-1-hardware-validation.md` §9.
+
+## 9. Firmware changes
 
 | File | Reason |
 | --- | --- |
-| `firmware/src/TxBuffer.h` (new) | Bounded 2048-byte staging buffer; a Serial partial write retries the remainder next loop and a truncated NDJSON line is impossible |
-| `firmware/src/main.cpp` | FrameWriter now targets the TX buffer; `flushTx()` once per loop, bounded by `Serial.availableForWrite()`; no blocking, watchdog fix untouched |
-| `firmware/src/ProtocolParser.h/.cpp` | `config.language`/`quietMode` optional with `languageSet`/`quietSet`; hello advertises `caps:["config.partial"]` |
-| `firmware/src/PreferencesManager.cpp` | NVS writes only when a preference actually changes |
-| `firmware/test/host/test_tx.cpp` (new) | Partial sink, lying sink, full buffer, zero-space sink |
-| `firmware/test/host/test_protocol.cpp` | Config without preferences keeps device ownership |
-| `firmware/test/host/run.sh` | Builds and runs the TX test |
+| `TxBuffer.h` (new) | bounded 2048-byte staging; partial Serial writes retried; no truncated NDJSON line |
+| `main.cpp` | FrameWriter targets TxBuffer; one bounded flush per loop; no blocking |
+| `ProtocolParser.*` | optional `config` preferences + `caps:["config.partial"]` |
+| `PreferencesManager.cpp` | NVS writes only on change |
+| tests | TX buffer, config-without-preferences |
 
-Build result (compile only, no upload):
+## 10. Security
 
-```
-RAM:   22 572 B / 327 680 B (6.9 %)   (+2 056 B vs baseline)
-Flash: 372 182 B / 1 310 720 B (28.4 %) (+378 B vs baseline)
-firmware.bin: 406 128 bytes
-sha256: 280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad
-```
+IPC PID lock, 0700 real directory, no symlink, non-socket path refusal, 0600 token/socket, UTF-8
+bounds, rate limit. Plugin diagnostics private (0700/0600, 1 MiB cap, sanitized). Ownership policy
+rejects foreign locations, unknown sessions and location-less `session.created`. No permission
+approval, prompt, tool execution or file write added to the plugin. Documentation contains no home
+directory, proxy or board identifier.
 
-**Flash is not approved by this report.** Current device image is unchanged and keeps working: the
-bridge detects the missing `config.partial` capability and sends the legacy config fields.
+## 11. Remaining limitations
 
-### Proposed hardware validation after approval
+1. USB power-cycle: one transient handshake error, automatic recovery (documented).
+2. Diagnostic performance run: 4.5 valid minutes instead of 15 (physical USB interruption); optional
+   follow-up.
+3. Live `permission.asked` / `form.created` prompts still not observed (no safe trigger).
+4. Two simultaneous **active** executions not induced.
+5. One provider (DeepSeek) end-to-end.
+6. Windows named pipes not implemented.
 
-1. Keep the current image restorable (`firmware.bin` of the current build is in `.pio/build`; the
-   Product Owner owns the previous full dump).
-2. `pio run -d firmware -e supermini -t upload --upload-port /dev/ttyACM0` only after explicit
-   approval; no other process may hold the port.
-3. Verify boot, USB enumeration and the OFFLINE screen; then `npm run diagnose -- --duration 15000`.
-4. Send a prompt: THINKING → GENERATING → WORKING → SUCCESS on screen, chronometer counting, tokens
-   and tools updating, MCP radar 8/12.
-5. Long press: quiet mode ON, unplug/replug USB, confirm quiet mode is still ON (the F10 fix).
-6. Run the outstanding one-hour soak and the heap/FPS measurement with the diagnostic build.
-
-## 6. Security
-
-- IPC: PID lock, 0700 real directory owned by the user, no symlink, non-socket paths never unlinked,
-  0600 token, 256-bit token, UTF-8 byte bounds, rate limit, 8 peers.
-- Plugin diagnostics: private runtime directory, 0600 file, 1 MiB cap, sanitized messages; debug is
-  opt-in.
-- Ownership: located events must match the plugin directory; location-less events require a known
-  session; `session.created` without a location is rejected; only `mcp.status.changed` is a global
-  allowlist entry.
-- No permission approval, no prompt, no tool execution and no file write was added to the plugin.
-- Documentation contains no home directory, proxy detail or board identifier; MAC addresses remain
-  local.
-
-## 7. Limitations and remaining work
-
-1. Firmware not flashed: F08/F10/F12 hardware behaviour and the new TX path are compile- and
-   host-test-verified only.
-2. Event-source resubscription and the concurrent snapshot race were exercised at unit/IPC level, not
-   by killing a live OpenCode subscription.
-3. Permission and form **live** prompts remain unobserved; identifiers come from the verified OpenAPI
-   schema.
-4. One-hour soak and heap/FPS measurements remain open (Phase 2 carry-over).
-5. One provider (DeepSeek) verified end to end.
-6. Windows named pipes remain unimplemented; Linux/macOS only.
-
-## 8. Local commits
+## 12. Local commits
 
 ```
+be2b803 fix(bridge): gate the first snapshot on the handshake acknowledgement
+4ffb144 fix(test): make the stress soak resolve interactions and avoid late tool revival
+0d199ac fix(bridge): refuse a second bridge before opening USB and pace state frames
+0cfcec5 docs: record the Phase 3.1 audit remediation
 2d22033 fix(firmware,bridge): stage serial frames, keep device preferences and recover the link
 8b1c895 fix(plugin): supervise the event stream and bound what leaves the server
 828d5d9 fix(ipc): enforce a single bridge and own sessions per OpenCode peer
 3ad8d48 fix(state): separate interactions from activity and scope metrics to one session
 ```
 
-Documentation for Phase 3.1 is committed separately. Nothing was pushed; remote publication remains
-the Product Owner's responsibility.
+The Phase 3.1 validation documentation is committed separately. Nothing was pushed; remote
+publication remains the Product Owner's responsibility.
 
-## 9. Recommendation
+## 13. Recommendation
 
-Accept the Phase 3.1 **code** baseline. Schedule the approved flash and the hardware validation
-procedure above, then close the remaining soak/heap measurements. Do not start later phases before
-that hardware pass.
+Accept Phase 3.1. The release firmware is installed, the bridge is LIVE, backups are preserved, and
+the only residual hardware item is the documented USB-power-cycle handshake transient with automatic
+recovery. Phase 4 may start only after the Product Owner's explicit approval.

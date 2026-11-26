@@ -8,7 +8,7 @@ Baseline: `e7a8cb71da0a049f7d09caa8eb5f95fa6af11943`. Firmware on the device was
 | Suite | Result |
 | --- | --- |
 | `npm run typecheck` (bridge, strict) | PASS, 0 diagnostics |
-| `npm test` (bridge) | **81/81** |
+| `npm test` (bridge) | **85/85** |
 | `npm run test:plugin` (plugin) | **24/24** |
 | `npm run validate:protocol` | PASS (11 valid, 13 invalid, examples verified) |
 | `bash firmware/test/host/run.sh` | protocol PASS, gestures PASS, **TX buffer PASS** |
@@ -76,3 +76,20 @@ request (none was open); deduplication is covered by synthetic tests only.
 - One-hour soak and heap/FPS measurements.
 - A second provider.
 - The new firmware on hardware (flash not approved).
+
+
+## 5. Hardware validation summary
+
+| Check | Result |
+| --- | --- |
+| Flash + independent verify | PASS (release `280166…e12ad`, read back and matched) |
+| Caps negotiation / partial config | PASS (`caps=config.partial`, 176 B config) |
+| Bridge restart with device running | 0 error, 0 resync |
+| 61-min soak | PASS: 3 647 states, 7 295 ACK, avg 65 ms, 0 resync, 0 steady-state error, RSS 56 404 kB constant |
+| Heap / max block (diagnostic) | 245 812 B / 225 268 B, constant over 4.5 min |
+| FPS / render | avg 18, max 21; render avg 47.2 ms, max 48.1 ms |
+| QUIET persistence | bridge restart, MCU restart, USB replug: PASS (Product Owner) |
+| USB reconnect | PASS; 4 backoff attempts, hello/caps/ready; one transient E_PARSE+resync while the device booted, recovered in ~2 s |
+| Very long reset | PASS (`interaction gesture=very_long`, RESET, QUIET off) |
+| Long press / short press | `gesture=long` and `gesture=short` logged on the release |
+| Final state | release firmware installed, bridge LIVE |

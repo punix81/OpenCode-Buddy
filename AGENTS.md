@@ -177,6 +177,11 @@ These are hard rules for future changes, established by the independent audit.
    write must be retried from the buffer, and no frame may block the rendering loop.
 8. **Plugin diagnostics are private and sanitized.** Opt-in only, runtime directory 0700, file 0600,
    1 MiB cap, no paths, session IDs, request IDs or raw errors.
-9. **Firmware has not been flashed since the audit.** F08/F10/F12 hardware behaviour is compile- and
-   host-test-verified only until the Product Owner approves a flash and the procedure in
-   `docs/phase-3-1-report.md` §5 is executed.
+9. **Firmware flash is validated.** The Phase 3.1 release (`sha256 280166…e12ad`) was flashed
+   application-only and hardware validated on 2026-11-26; the diagnostic image must never remain
+   installed. A USB power-cycle may show one transient `E_PARSE` + resync while the device boots; it
+   recovers in about 2 s (documented in `docs/evidence/phase-3-1-hardware-validation.md` §9).
+10. **The first snapshot is ACK-gated.** Never send `state` or `mcp_status` before the device
+    acknowledges `ready`/`config`; this prevents state reaching a device that is still booting.
+11. **MOCK stress cycles stay coherent.** One 12-phase cycle runs on one session, resolves every
+    permission/question and every tool, and is never presented as LIVE behaviour.
