@@ -394,6 +394,74 @@ int main(int argc, char** argv) {
     check(state.state() == buddy::BuddyState::Working, "state preserved after long agent");
   }
 
+  // A 64-bit total is derived when the bridge omits the uint32 field.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string wideTotal =
+        "{\"v\":1,\"type\":\"state\",\"seq\":1,\"data\":{\"status\":\"working\",\"activeSessions\":1,"
+        "\"tokens\":{\"input\":4294967295,\"output\":4294967295},"
+        "\"connection\":{\"bridge\":\"ready\",\"opencode\":\"connected\"},"
+        "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1},\"source\":\"live\"}}";
+    check(feed(parser, state, wideTotal) == buddy::ParseCode::Ok, "wide total accepted");
+    const auto& tokens = state.metrics().tokens;
+    check(tokens.inputKnown && tokens.outputKnown, "wide operands known");
+    check(tokens.totalKnown, "derived total known");
+    check(tokens.total == 8589934590ull, "derived total is 64-bit");
+  }
+
+  // Optional OpenCode version behind the advertised capability.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string withVersion =
+        "{\"v\":1,\"type\":\"state\",\"seq\":1,\"data\":{\"status\":\"idle\",\"activeSessions\":0,"
+        "\"connection\":{\"bridge\":\"ready\",\"opencode\":\"connected\"},"
+        "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1,\"opencode\":\"2.4.1\"},"
+        "\"source\":\"live\"}}";
+    check(feed(parser, state, withVersion) == buddy::ParseCode::Ok, "opencode version accepted");
+    check(state.versions().opencodeKnown, "opencode version known");
+    check(strcmp(state.versions().opencode, "2.4.1") == 0, "opencode version stored");
+
+    buddy::ProtocolParser noVersionParser;
+    noVersionParser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string withoutVersion =
+        "{\"v\":1,\"type\":\"state\",\"seq\":1,\"data\":{\"status\":\"idle\",\"activeSessions\":0,"
+        "\"connection\":{\"bridge\":\"ready\",\"opencode\":\"connected\"},"
+        "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1},\"source\":\"live\"}}";
+    check(feed(noVersionParser, state, withoutVersion) == buddy::ParseCode::Ok,
+          "state without opencode version accepted");
+    check(!state.versions().opencodeKnown, "opencode version stays unknown");
+
+    buddy::ProtocolParser longParser;
+    longParser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string tooLong =
+        "{\"v\":1,\"type\":\"state\",\"seq\":1,\"data\":{\"status\":\"idle\",\"activeSessions\":0,"
+        "\"connection\":{\"bridge\":\"ready\",\"opencode\":\"connected\"},"
+        "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1,\"opencode\":\"12345678901234567\"},"
+        "\"source\":\"live\"}}";
+    check(feed(longParser, state, tooLong) == buddy::ParseCode::BoundsError,
+          "over-long opencode version is a bounds error");
+  }
+
+  // The hello advertises both optional capabilities.
+  {
+    buddy::ProtocolParser parser;
+    parser.begin(7, "0.2.0");
+    char buffer[512];
+    const size_t length = parser.encodeHello(buffer, sizeof(buffer));
+    check(length > 0, "hello encoded");
+    check(strstr(buffer, "config.partial") != nullptr, "hello carries config.partial");
+    check(strstr(buffer, "state.opencodeVersion") != nullptr,
+          "hello carries state.opencodeVersion");
+  }
+
   if (failures == 0) {
     std::cout << "firmware protocol tests: PASS\n";
     return 0;

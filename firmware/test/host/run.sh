@@ -36,6 +36,15 @@ g++ -std=c++17 -O2 -Wall -Wextra \
 "$OUT" "$ROOT/protocol/test-vectors/messages.json"
 
 g++ -std=c++17 -O2 -Wall -Wextra \
+  -I "$ROOT/firmware/include" \
+  -I "$ROOT/firmware/src" \
+  "$ROOT/firmware/src/Localization.cpp" \
+  "$HERE/test_localization.cpp" \
+  -o "$OUT-localization"
+
+"$OUT-localization"
+
+g++ -std=c++17 -O2 -Wall -Wextra \
   -I "$HERE/mock" -I "$ROOT/firmware/include" -I "$ROOT/firmware/src" \
   "$ROOT/firmware/src/TouchManager.cpp" "$HERE/test_touch.cpp" -o "$OUT-touch"
 

@@ -426,7 +426,7 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
 
     if (!data["versions"].is<JsonObjectConst>()) return ParseCode::ParseError;
     JsonObjectConst versions = data["versions"].as<JsonObjectConst>();
-    static const char* const versionKeys[] = {"bridge", "protocol"};
+    static const char* const versionKeys[] = {"bridge", "protocol", "opencode"};
     if (!onlyKeys(versions, versionKeys)) return ParseCode::ParseError;
     if (!readString(versions["bridge"], parsed.versions.bridge, sizeof(parsed.versions.bridge))) {
       return ParseCode::ParseError;
@@ -435,6 +435,20 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
     if (!readU8(versions["protocol"], protocol)) return ParseCode::ParseError;
     parsed.versions.bridgeKnown = true;
     parsed.versions.protocol = protocol;
+    parsed.versions.opencodeKnown = false;
+    snprintf(parsed.versions.opencode, sizeof(parsed.versions.opencode), "--");
+    if (!versions["opencode"].isUnbound() && !versions["opencode"].isNull()) {
+      if (!versions["opencode"].is<const char*>()) return ParseCode::ParseError;
+      if (strlen(versions["opencode"].as<const char*>()) >=
+          sizeof(parsed.versions.opencode)) {
+        return ParseCode::BoundsError;
+      }
+      if (!readString(versions["opencode"], parsed.versions.opencode,
+                      sizeof(parsed.versions.opencode))) {
+        return ParseCode::ParseError;
+      }
+      parsed.versions.opencodeKnown = true;
+    }
 
     if (data["source"].isUnbound()) return ParseCode::ParseError;
     const char* source = data["source"] | "";
@@ -687,7 +701,8 @@ size_t ProtocolParser::encodeHello(char* out, size_t capacity) {
   const int written = snprintf(
       out, capacity,
       "{\"v\":1,\"type\":\"hello\",\"seq\":%lu,\"data\":{\"device\":\"opencode-buddy\","
-      "\"fw\":\"%s\",\"proto\":[1],\"maxLine\":2048,\"boot\":%lu,\"caps\":[\"config.partial\"]}}",
+      "\"fw\":\"%s\",\"proto\":[1],\"maxLine\":2048,\"boot\":%lu,"
+      "\"caps\":[\"config.partial\",\"state.opencodeVersion\"]}}",
       static_cast<unsigned long>(nextSeq()), firmware_, static_cast<unsigned long>(boot_));
   return written > 0 && static_cast<size_t>(written) < capacity ? static_cast<size_t>(written) : 0;
 }

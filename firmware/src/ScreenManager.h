@@ -20,6 +20,10 @@ class ScreenManager {
   void onGesture(Gesture gesture, uint32_t now);
   void update(uint32_t now);
 
+  // Host-configurable return to the Buddy screen. The protocol parser clamps the
+  // value to 10..600 s; the device keeps 60 s when no host is present.
+  void setAutoReturnSeconds(uint16_t seconds) { autoReturnMs_ = uint32_t(seconds) * 1000u; }
+
   ScreenId screen() const { return screen_; }
 
   // Instrumentation counters (Phase 1 validation).
@@ -45,6 +49,8 @@ class ScreenManager {
   ScreenId screen_ = ScreenId::Buddy;
   uint32_t lastInteraction_ = 0;
   bool dirty_ = true;
+  uint8_t renderedLanguage_ = 0;
+  uint32_t autoReturnMs_ = kAutoReturnMs;
 
   char toast_[16] = {0};
   uint32_t toastUntil_ = 0;

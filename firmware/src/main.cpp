@@ -144,6 +144,7 @@ void flushProtocol(uint32_t now) {
     timings.longMs = config.longPressMs;
     timings.veryLongMs = config.veryLongPressMs;
     gTouch.setTimings(timings);
+    gScreens.setAutoReturnSeconds(config.autoReturnSeconds);
     gState.setConfigMock(config.mock);
   }
 

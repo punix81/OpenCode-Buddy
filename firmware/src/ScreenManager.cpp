@@ -8,6 +8,7 @@
 
 #include "Config.h"
 #include "Dashboard.h"
+#include "Localization.h"
 
 namespace buddy {
 void ScreenManager::begin(DisplayManager* display, StateManager* state,
@@ -23,6 +24,7 @@ void ScreenManager::begin(DisplayManager* display, StateManager* state,
   if (screen_ >= ScreenId::Count) {
     screen_ = ScreenId::Buddy;
   }
+  renderedLanguage_ = preferences_->language();
   lastInteraction_ = millis();
   dirty_ = true;
 }
@@ -50,15 +52,18 @@ void ScreenManager::onGesture(Gesture gesture, uint32_t now) {
     case Gesture::Long: {
       const bool quiet = !preferences_->quietMode();
       preferences_->setQuietMode(quiet);
-      snprintf(toast_, sizeof(toast_), "%s", quiet ? "QUIET" : "LOUD");
+      const Language language = languageFrom(preferences_->language());
+      snprintf(toast_, sizeof(toast_), "%s",
+               tr(language, quiet ? TextId::ToastQuiet : TextId::ToastLoud));
       toastUntil_ = now + 1500;
       dirty_ = true;
       break;
     }
     case Gesture::VeryLong:
       preferences_->reset();
+      renderedLanguage_ = preferences_->language();
       screen_ = ScreenId::Buddy;
-      snprintf(toast_, sizeof(toast_), "%s", "RESET");
+      snprintf(toast_, sizeof(toast_), "%s", tr(languageFrom(renderedLanguage_), TextId::ToastReset));
       toastUntil_ = now + 3000;
       dirty_ = true;
       break;
@@ -77,8 +82,14 @@ void ScreenManager::update(uint32_t now) {
   }
 
   const bool quiet = preferences_->quietMode();
+  // A host override can change the language without a reboot; repaint as soon
+  // as the preference changes instead of waiting for the next animation tick.
+  if (preferences_->language() != renderedLanguage_) {
+    renderedLanguage_ = preferences_->language();
+    dirty_ = true;
+  }
 
-  if (!quiet && screen_ != ScreenId::Buddy && now - lastInteraction_ >= kAutoReturnMs) {
+  if (!quiet && screen_ != ScreenId::Buddy && now - lastInteraction_ >= autoReturnMs_) {
     screen_ = ScreenId::Buddy;
     preferences_->setLastScreen(0);
     dirty_ = true;
@@ -104,7 +115,8 @@ void ScreenManager::update(uint32_t now) {
 void ScreenManager::render(uint32_t now) {
   auto& g = display_->canvas();
   const uint32_t startUs = micros();
-  ui::drawScreen(g, screen_, *state_, *face_, animation_->frame(), toast_, now-lastInteraction_);
+  ui::drawScreen(g, screen_, *state_, *face_, animation_->frame(), toast_, now-lastInteraction_,
+                 languageFrom(preferences_->language()));
   display_->push();
 
   const uint32_t elapsedUs = micros() - startUs;

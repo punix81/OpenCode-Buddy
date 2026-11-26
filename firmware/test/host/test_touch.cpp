@@ -36,6 +36,8 @@ int main() {
   assert(edge(0, 3200) == Gesture::Long);
   assert(edge(1, 4000) == Gesture::None);
   assert(touch.poll(9035) == Gesture::VeryLong);
+  assert(touch.poll(9060) == Gesture::None);
+  assert(touch.poll(9100) == Gesture::None);
   assert(edge(0, 9200) == Gesture::None);
   assert(touch.poll(10000) == Gesture::None);
   puts("firmware gestures with mock GPIO: PASS");

@@ -15,7 +15,6 @@ constexpr uint8_t halo(Ink ink) { return InkCount + ink; }
 constexpr uint8_t light(Ink ink) { return 2 * InkCount + ink; }
 bool initCanvas(Canvas& g);
 Ink accent(BuddyState state);
-const char* label(BuddyState state);
 enum class Type { Small, Body, Title, Metric };
 void text(Canvas& g, const char* value, int x, int y, Type type, uint8_t ink,
           int maxWidth = 212);

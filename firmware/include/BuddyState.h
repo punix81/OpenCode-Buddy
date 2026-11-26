@@ -103,8 +103,12 @@ struct BuddyMetrics {
 struct Versions {
   char firmware[17] = "0.1.0";
   char bridge[17] = "--";
+  char opencode[17] = "--";
   uint8_t protocol = 1;
   bool bridgeKnown = false;
+  // Optional, gated by the `state.opencodeVersion` capability: an older bridge
+  // never sends it and the row stays "--".
+  bool opencodeKnown = false;
 };
 
 }  // namespace buddy

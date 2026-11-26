@@ -38,7 +38,8 @@ void sparkle(Canvas& g,int x,int y,int r,uint8_t c) {
 }
 }
 
-void BuddyFace::draw(Canvas& g,BuddyState s,const BuddyMetrics& metrics,const MotionFrame& m) const {
+void BuddyFace::draw(Canvas& g,BuddyState s,const BuddyMetrics& metrics,const MotionFrame& m,
+                     Language language) const {
   const Ink c = accent(s);
   const auto p = poses[static_cast<int>(s)];
   const auto old = poses[static_cast<int>(m.previous)];
@@ -98,7 +99,7 @@ void BuddyFace::draw(Canvas& g,BuddyState s,const BuddyMetrics& metrics,const Mo
   }
   if (s == BuddyState::Retrying && metrics.retryAttempt) {
     char attempt[24];
-    snprintf(attempt,sizeof(attempt),"Attempt %u",metrics.retryAttempt);
+    formatAttempt(attempt,sizeof(attempt),language,metrics.retryAttempt);
     text(g,attempt,center,126,Type::Small,c,100);
   }
   if (s == BuddyState::Success && m.age < 1700 && !m.quiet) {
