@@ -23,6 +23,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 - `docs/opencode-v2-event-mapping.md`, `docs/opencode-integration.md`, `docs/plugin-installation.md`
   and the Phase 3 reports/evidence.
 
+### Fixed — plugin installation documentation
+
+- `docs/plugin-installation.md` no longer presents `opencode service restart` as mandatory for a
+  project-local plugin entry: on OpenCode 2.4.1 the running server picked it up without interrupting
+  the agent session (verified, `docs/evidence/phase-3-plugin-reload.md`). The global configuration and
+  plugin removal still require a restart, and the document says so.
+- Documented that `npm run diagnose:opencode` reads only the global configuration, so a project-local
+  install correctly reports a WARN while the bridge log shows `opencode peer=`.
+- `docs/troubleshooting.md` now states the exact verified scope of configuration reload.
+
 ### Fixed — MCP radar on real data
 
 - `mcp.status.changed` carries the changed server **name** only. The plugin now treats it as a

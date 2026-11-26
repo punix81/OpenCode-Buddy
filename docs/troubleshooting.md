@@ -194,7 +194,9 @@ mode.
 
 - Verify the OpenCode version matches the supported plugin API minor (`opencode --version`).
 - Check the log: `~/.local/share/opencode/log/opencode.log`, filter `role=server`.
-- Config changes reload without restart; a stuck server is restarted with `opencode service restart`.
+- Config additions reload without restart on OpenCode 2.4.1 (verified for a project-local
+  `opencode.json`, see `docs/plugin-installation.md` §3.1); a stuck server is restarted with
+  `opencode service restart`, which ends any running agent session.
 - A plugin under `.opencode/plugins/` loads automatically for that project; a package must be listed in
   `plugins`.
 
