@@ -194,6 +194,8 @@ mode.
 
 - Verify the OpenCode version matches the supported plugin API minor (`opencode --version`).
 - Check the log: `~/.local/share/opencode/log/opencode.log`, filter `role=server`.
+- `npm run diagnose:opencode` checks the global file and every project `opencode.json`/`opencode.jsonc`
+  up to the repository root; `plugin configured (project)` is a valid result.
 - Config additions reload without restart on OpenCode 2.4.1 (verified for a project-local
   `opencode.json`, see `docs/plugin-installation.md` §3.1); a stuck server is restarted with
   `opencode service restart`, which ends any running agent session.

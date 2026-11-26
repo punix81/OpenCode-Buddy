@@ -92,15 +92,24 @@ Expected for a **global** install:
 ```
 OK   opencode 2.4.1
 OK   config /home/<you>/.config/opencode/opencode.json
-OK   plugin configured: /…/plugin/opencode-buddy
+OK   plugin configured (global): /…/plugin/opencode-buddy
 OK   ipc directory /run/user/1000/opencode-buddy mode 0700
 OK   IPC handshake accepted (token valid)
 OK   device /dev/ttyACM0
 ```
 
-With a **project-local** install, `diagnose:opencode` reads only the global file, so it prints
-`WARN opencode-buddy is not in …` even though the plugin is configured. That warning is expected; it
-is a known limitation of the diagnostic. The authoritative proof is the bridge log:
+With a **project-local** install, the diagnostic finds the entry in the project file:
+
+```text
+OK   config /…/opencode.json
+OK   plugin configured (project): /…/plugin/opencode-buddy
+```
+
+It reads the global file and every `opencode.json` / `opencode.jsonc` between the working directory and
+the repository root, so `plugin configured (global)` and `plugin configured (project)` are both valid
+results. Only when neither file contains the entry does it warn.
+
+The authoritative proof remains the bridge log:
 
 ```
 opencode peer=N app=cli version=2.4.1 plugin=opencode-buddy version=0.1.0

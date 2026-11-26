@@ -69,7 +69,8 @@ console.log('');
 console.log('Or merge it by hand:');
 console.log(`  1. copy ${globalConfig} to ${globalConfig}.bak-$(date +%Y%m%d-%H%M%S)`);
 console.log('  2. add the entry above');
-console.log('  3. restart the OpenCode service: opencode service restart');
+console.log('  3. restart only if the plugin does not appear within ~20 s:');
+console.log('     opencode service restart   (ends any running agent session)');
 console.log('');
 console.log('Nothing has been modified by this script.');
 
@@ -93,4 +94,6 @@ if (projectDir !== null) {
   }
   writeFileSync(target, `${JSON.stringify(json, null, 2)}\n`);
   console.log(`written: ${target}`);
+  console.log('On OpenCode 2.4.1 no restart is needed: the running server loads a project entry and');
+  console.log('the plugin connects within about 15 s (verified).');
 }

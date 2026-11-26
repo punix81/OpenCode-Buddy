@@ -23,14 +23,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 - `docs/opencode-v2-event-mapping.md`, `docs/opencode-integration.md`, `docs/plugin-installation.md`
   and the Phase 3 reports/evidence.
 
+### Fixed — plugin diagnostics and installer
+
+- `npm run diagnose:opencode` now reads the global configuration **and** every project
+  `opencode.json`/`opencode.jsonc` between the working directory and the repository root, so a
+  project-local install reports `plugin configured (project)` instead of a false WARN. JSONC comments,
+  the legacy `plugin` key and object entries are supported; a non-array `plugins` value fails loudly
+  instead of being read as an empty list.
+- `scripts/install-buddy-plugin.mjs` no longer presents a restart as mandatory and states the verified
+  project-entry behaviour.
+- 7 new tests (`bridge/test/opencode-config.test.ts`); bridge suite 52/52, typecheck clean.
+
 ### Fixed — plugin installation documentation
 
 - `docs/plugin-installation.md` no longer presents `opencode service restart` as mandatory for a
   project-local plugin entry: on OpenCode 2.4.1 the running server picked it up without interrupting
   the agent session (verified, `docs/evidence/phase-3-plugin-reload.md`). The global configuration and
   plugin removal still require a restart, and the document says so.
-- Documented that `npm run diagnose:opencode` reads only the global configuration, so a project-local
-  install correctly reports a WARN while the bridge log shows `opencode peer=`.
 - `docs/troubleshooting.md` now states the exact verified scope of configuration reload.
 
 ### Fixed — MCP radar on real data

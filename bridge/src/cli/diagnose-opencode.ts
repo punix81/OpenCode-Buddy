@@ -8,63 +8,12 @@ import { DeviceDiscovery } from '../device/discovery.js';
 import { loadConfig } from '../config.js';
 import { ipcPaths } from '../ipc/paths.js';
 import { IPC_VERSION } from '../ipc/messages.js';
+import { applicableConfigFiles, findBuddyPlugin, readConfigPlugins } from './opencode-config.js';
 
 const results: { level: 'OK' | 'WARN' | 'FAIL'; text: string }[] = [];
 const ok = (text: string): void => void results.push({ level: 'OK', text });
 const warn = (text: string): void => void results.push({ level: 'WARN', text });
 const fail = (text: string): void => void results.push({ level: 'FAIL', text });
-
-function stripJsonc(text: string): string {
-  let out = '';
-  let inString = false;
-  let inLine = false;
-  let inBlock = false;
-  for (let i = 0; i < text.length; ++i) {
-    const c = text[i];
-    const next = text[i + 1];
-    if (inLine) {
-      if (c === '\n') {
-        inLine = false;
-        out += c;
-      }
-      continue;
-    }
-    if (inBlock) {
-      if (c === '*' && next === '/') {
-        inBlock = false;
-        ++i;
-      }
-      continue;
-    }
-    if (inString) {
-      out += c;
-      if (c === '\\') {
-        out += next ?? '';
-        ++i;
-      } else if (c === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (c === '"') {
-      inString = true;
-      out += c;
-      continue;
-    }
-    if (c === '/' && next === '/') {
-      inLine = true;
-      ++i;
-      continue;
-    }
-    if (c === '/' && next === '*') {
-      inBlock = true;
-      ++i;
-      continue;
-    }
-    out += c;
-  }
-  return out.replace(/,(\s*[}\]])/g, '$1');
-}
 
 function checkOpenCode(): void {
   try {
@@ -82,28 +31,37 @@ function checkOpenCode(): void {
 }
 
 function checkConfig(): void {
-  const file = process.env['OPENCODE_CONFIG'] ?? join(homedir(), '.config', 'opencode', 'opencode.json');
-  let text: string;
-  try {
-    text = readFileSync(file, 'utf8');
-  } catch {
-    fail(`config not readable: ${file}`);
+  const globalFile =
+    process.env['OPENCODE_CONFIG'] ?? join(homedir(), '.config', 'opencode', 'opencode.json');
+  const files = applicableConfigFiles(globalFile, process.cwd());
+  if (files.length === 0) {
+    fail(
+      `no OpenCode configuration found (global ${globalFile}, no project file up to the repository root)`,
+    );
     return;
   }
-  ok(`config ${file}`);
-  try {
-    const parsed = JSON.parse(stripJsonc(text)) as Record<string, unknown>;
-    const plugins = (parsed['plugins'] ?? parsed['plugin'] ?? []) as unknown[];
-    const list = Array.isArray(plugins)
-      ? plugins.map((entry) =>
-          typeof entry === 'string' ? entry : (entry as { package?: string })?.package ?? '?',
-        )
-      : [];
-    const buddy = list.find((entry) => entry.includes('opencode-buddy'));
-    if (buddy !== undefined) ok(`plugin configured: ${buddy}`);
-    else warn(`opencode-buddy is not in ${file} (plugins: ${list.length} entries)`);
-  } catch (error) {
-    fail(`config parsed failed: ${(error as Error).message}`);
+
+  let buddy: { entry: string; file: string } | undefined;
+  let readable = 0;
+  for (const file of files) {
+    const result = readConfigPlugins(file);
+    const info = result.plugins;
+    if (info === undefined) {
+      fail(`config ${file}: ${result.error ?? 'unreadable'}`);
+      continue;
+    }
+    ++readable;
+    ok(`config ${info.file}`);
+    const found = findBuddyPlugin(info.plugins);
+    if (found !== undefined && buddy === undefined) buddy = { entry: found, file: info.file };
+  }
+  if (readable === 0) return;
+
+  if (buddy !== undefined) {
+    const scope = buddy.file === globalFile ? 'global' : 'project';
+    ok(`plugin configured (${scope}): ${buddy.entry}`);
+  } else {
+    warn(`opencode-buddy is not configured in ${files.join(', ')}`);
   }
 }
 

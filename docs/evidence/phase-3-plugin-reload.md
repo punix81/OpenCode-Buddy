@@ -58,8 +58,10 @@ socket exists; when the bridge is started later, the plugin reconnects within it
 3. The exact moment the server reads the project configuration was not instrumented. The evidence
    proves that no restart was needed, not that loading is instantaneous.
 4. Only OpenCode 2.4.1 was tested; other versions may differ.
-5. `npm run diagnose:opencode` reads the global file only, so a project-local install reports
-   `WARN opencode-buddy is not in …`. The bridge log is the authoritative check.
+5. At the time of the test, `npm run diagnose:opencode` read the global file only and reported a false
+   `WARN` for this project-local install. It now reads the project files too
+   (`plugin configured (project)`), so that warning is gone; the bridge log remains the authoritative
+   check.
 
 ## 7. Reproduction
 
