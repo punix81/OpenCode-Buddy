@@ -82,11 +82,29 @@ restart is involved. The value persists across bridge restart, USB reconnect and
 
 ## 6. Verification
 
-- `firmware/test/host/test_touch.cpp`: exclusive gestures.
+Automated:
+
+- `firmware/test/host/test_touch.cpp`: exclusive gestures; one very-long per continuous press.
 - `firmware/test/host/test_protocol.cpp`: `config` validation, clamping and warning.
 - `bridge/test/config.test.ts`: default ownership, explicit overrides, auto-return bounds.
 - `bridge/test/bridge.test.ts`: legacy versus `config.partial`, explicit host override only, no reset
   on a normal handshake.
-- Physical Phase 3.1 validation already confirmed quiet persistence across bridge/MCU/USB restarts;
-  the language persistence path uses the same NVS mechanism and will be re-checked on the Phase 4
-  image after approval.
+
+**Physical (Phase 4 image, before the USB blocker) — V01 VERIFIED:**
+
+1. French override applied immediately without reboot.
+2. Bridge restarted without override (config 176 B): French persisted.
+3. USB unplug/replug (full MCU power cycle): French persisted.
+4. German override applied immediately.
+5. Very-long press: exactly one `gesture=very_long`, no extra `long`; reset to English, loud, Buddy.
+6. Explicit `quietMode: true` visible; bridge restart without override kept quiet; long press
+   returned loud.
+7. Explicit German override was reapplied on the next bridge handshake after the reset (host
+   override wins); this is the documented behaviour: the device reset is local, the host override is
+   reapplied only when the host synchronizes again.
+8. Auto-return: 90 s (no premature return at 69 s, return to Buddy), 20 s timer reset after a touch,
+   10 s quiet mode disabled the return, loud mode re-enabled it. 10/600 limits are validated by the
+   parser/config tests; default 60 is the compiled/config default.
+
+The Phase 4 image was later removed for the USB CDC blocker and Phase 3.1 restored; the Phase 3.1
+firmware does not contain the localization UI, but the same NVS preference path is in use.

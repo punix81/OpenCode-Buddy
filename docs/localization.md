@@ -82,8 +82,13 @@ path.
   profiles stay inside the circular safe area, and that the images are 240×240.
 - `firmware/test/host/test_localization.cpp` asserts completeness, supported accents, placeholders,
   interaction-count suffixing and bounded language mapping.
-- Hardware legibility of accented glyphs is **NOT VERIFIED** until the Phase 4 image is flashed with
-  owner approval.
+- **Hardware legibility (Phase 4 image): VERIFIED by the Product Owner.** The six screens were
+  reviewed in English, French and German on the physical panel; accents (`Réflexion`, `Système`,
+  `Hôte`, `Prêt`, `Läuft`), long German labels, French tool categories, the seven System rows and the
+  MCP subset caption were legible, with no clipped or misplaced text. The immediate French/German
+  switch and persistence across bridge/USB/MCU restarts were also verified. The Phase 4 image was
+  later removed for the unrelated USB CDC blocker (see
+  `docs/evidence/phase-4-hardware-validation.md`); Phase 3.1 is installed.
 
 ## 6. Adding a string
 

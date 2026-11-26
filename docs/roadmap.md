@@ -91,22 +91,29 @@ one transient USB power-cycle handshake error is documented with automatic recov
 `docs/phase-3-1-report.md` and `docs/audit-phase-3-1.md`. Phase 4 has not started and awaits the
 Product Owner's approval.
 
-## Phase 4 — Developer dashboard — SOFTWARE COMPLETE (awaiting flash approval)
+## Phase 4 — Developer dashboard — FAIL / BLOCKER (hardware gate)
 
 **Goal:** complete, readable six-screen experience.
 
-Delivered: six dashboards with localized labels and state vocabulary; `SESSION TOTAL` with compact
-k/M/B and a 64-bit wide sum, `CTX --` until a verified occupancy/capacity exists; tool categories and
-deduplicated counters; MCP complete totals with an eight-detail subset caption; System includes the
-optional OpenCode version behind `state.opencodeVersion`; English/French/German with composed accents
-and switching without reboot; device-owned preferences plus explicit host overrides; unchanged
-gestures; native preview sheets for every language and profile.
+Software delivered and physically reviewed: six dashboards with localized labels and state
+vocabulary; `SESSION TOTAL` with compact k/M/B and a 64-bit wide sum; `CTX --`; deduplicated tool
+counters; MCP complete totals with an eight-detail subset caption; System with the optional OpenCode
+version; English/French/German with composed accents and switching without reboot; device-owned
+preferences plus explicit host overrides; unchanged gestures; native preview sheets.
 
-Tests: bridge **94/94**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
-preview 8/8. Release build SUCCESS; **not flashed** — the Phase 3.1 image remains on the device.
+**Blocker:** the Phase 4 image (`741dcb5b…`) was flashed and verified, but on multiple cold boots its
+USB CDC RX never ACKed `ready`/`config`; the same host/cable/bridge with the Phase 3.1 image
+handshakes immediately. The bridge now drains the boot backlog, primes the endpoint, delays the
+handshake and reopens on missing ACKs; the blocker remained. The Phase 4 image was removed and the
+validated Phase 3.1 image (`280166…e12ad`) restored; the bridge is LIVE.
 
-Exit criteria still require hardware legibility review after an approved flash. See
-`docs/phase-4-report.md`, `docs/dashboard-metrics.md`, `docs/localization.md` and
+Tests: bridge **102/102**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
+preview 8/8. Performance: Buddy 47–48 ms / 20 FPS; Session/Tokens ~90–100 ms (Phase 5 optimization);
+heap within 176 B of Phase 3.1; 0 TX drops.
+
+Phase 5 must isolate the USB RX regression with a minimal A/B image before Phase 4 acceptance is
+retried. See `docs/phase-4-report.md`, `docs/evidence/phase-4-hardware-validation.md`,
+`docs/evidence/phase-4-performance.md`, `docs/dashboard-metrics.md`, `docs/localization.md` and
 `docs/device-preferences.md`.
 
 ## Phase 5 — Quality, privacy and stability

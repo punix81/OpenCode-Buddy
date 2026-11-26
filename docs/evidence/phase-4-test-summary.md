@@ -1,15 +1,17 @@
 # Phase 4 — test summary
 
 Date: 2026-11-26
-Baseline commit: `8bf3e08` (Phase 3.1 accepted). Firmware on the device: Phase 3.1 release
-`280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` — **not replaced**.
+Baseline commit: `8bf3e08` (Phase 3.1 accepted); final local `1b43a6a`.
+Firmware on the device: **Phase 3.1 release** `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad`
+(restored after the Phase 4 USB blocker). The Phase 4 image was flashed/verified for validation and
+removed; it is preserved in `.backups/phase4-2026-11-26/`.
 
 ## 1. Automated suites
 
 | Suite | Command | Result |
 | --- | --- | --- |
 | TypeScript typecheck | `npm run typecheck` (bridge) | PASS, 0 diagnostics |
-| Bridge tests | `npm test` / `npx tsx --test test/*.test.ts` | **94/94** |
+| Bridge tests | `npm test` / `npx tsx --test test/*.test.ts` | **102/102** |
 | Plugin tests | `npm run test:plugin` | **24/24** |
 | Protocol validation | `npm run validate:protocol` | PASS (12 valid, 14 invalid, examples verified) |
 | Firmware protocol host test | `bash firmware/test/host/run.sh` | PASS |
@@ -38,9 +40,9 @@ Baseline commit: `8bf3e08` (Phase 3.1 accepted). Firmware on the device: Phase 3
 | Backward compatibility | firmware accepts state without `opencode`; bridge omits it to a legacy hello; protocol schema accepts both |
 | Visual languages/profiles | `test_preview.py`: all six dashboards change per language, safe disc, 12/8 MCP, offline/LIVE footers, 240×240 |
 
-## 3. Firmware build
+## 3. Firmware artifacts
 
-Clean build after removing `.pio/build/supermini`:
+Phase 4 clean release (flashed and independently verified, then removed):
 
 ```
 RAM:   22 604 / 327 680 B (6.9 %)
@@ -52,36 +54,42 @@ sha256: 741dcb5bd23f599be69296ab5c054abefdcff75c70fdf156389fc228e51ace6e
 Baseline Phase 3.1 release: 22 572 B RAM, 372 182 B flash. Delta: **+32 B RAM, +4 078 B flash**.
 The flash growth is the localization tables and accent/UTF-8 renderer.
 
-**No upload, no flash, no device reset was performed.**
+Diagnostic image used for performance (removed): sha256
+`bdaac7733e40c3a1e525ebd8f842edc079bfeb1daa1f1a2ba0645497fc60c9b1`, 413 392 B.
 
-## 4. Live bridge verification
+Final installed image (Phase 3.1): sha256
+`280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad`, 406 128 B.
+The application-only flash at `0x10000` and the independent read-back matched for both the Phase 4
+and Phase 3.1 images. Bootloader, partitions and NVS were not rewritten.
 
-The running Phase 3.1 bridge was replaced with the Phase 4 bridge (same LIVE defaults) against the
-unchanged Phase 3.1 firmware:
+## 4. Hardware validation outcome
+
+The Phase 4 image was flashed with owner authorization and its UI was validated in EN/FR/DE, with
+preferences, gestures, auto-return and MOCK interaction layouts. It then failed the **USB CDC RX**
+gate: on multiple cold boots it sent `hello`/heartbeats but never ACKed `ready`/`config`; the bridge
+settle, handshake delay, blank prime and 7 s no-ACK reopen did not restore it. The Phase 3.1 control
+image handshook immediately with the same host/cable/bridge. The Phase 4 image was removed and
+Phase 3.1 restored.
+
+Final LIVE state (Phase 3.1):
 
 ```
-hello boot=1 caps=config.partial
+hello boot=1 caps=config.partial (140 B)
 config seq=2 bytes=176
-state bytes=575
-mcp_status bytes=407
+ack received ack=1, ack=2
 opencode peer=1 version=2.4.1
-opencode peer=2 version=2.4.1
-mcp online=8 total=12 source=live
-state status=thinking sessions=1 tokens=215876663/238130 source=live
+mcp online=8 total=12
+state status=thinking sessions=1 tokens=367439804/301509 source=live
 device errors: 0
 resync: 0
 ```
 
-The device does not advertise `state.opencodeVersion`, so the optional field is omitted by design;
-`config` remains partial and the device keeps its preferences. The first restart exposed a real
-defect: the CLI pre-bridge sink lacked `setOpenCodeVersion`, so the IPC watchdog crashed the process
-after the peers connected. Fixed in `dbe3e61` (the sink retains the version and forwards it once the
-serial bridge exists); the final run above is from the fixed code. Hardware validation of the Phase 4
-UI is pending approval.
+The full evidence is in `docs/evidence/phase-4-hardware-validation.md`; performance is in
+`docs/evidence/phase-4-performance.md`. **Verdict: FAIL / BLOCKER.**
 
-## 5. Not exercised
+## 5. Not exercised / blocked
 
-- Phase 4 firmware on hardware (flash not approved).
+- **Phase 4 USB link acceptance** — BLOCKER (CDC RX never ACKed on the Phase 4 image).
 - A full one-hour soak with the final bridge (Phase 5 requirement).
 - Live `permission.asked` / `form.created` prompts (no safe trigger).
 - Two simultaneous active executions; a second provider.

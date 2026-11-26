@@ -7,9 +7,10 @@ waiting for a permission, failing, compacting its context, or finishing successf
 animated virtual companion with a compact developer dashboard on a 1.28" round display, driven by an
 ESP32-C3 over USB.
 
-> **Project status: Phase 3.1 accepted and on the device. Phase 4 (developer dashboard,
-> localization, preferences) is software-complete and waiting for owner approval to flash and
-> hardware-validate. Phase 5 and Phase 6 have not started.** See
+> **Project status: Phase 3.1 accepted and installed. Phase 4 (developer dashboard, localization,
+> preferences) is software-complete and its UI was physically reviewed, but the Phase 4 image
+> failed the USB CDC RX gate; Phase 3.1 was restored and the bridge is LIVE. Phase 5 must isolate the
+> USB regression before retrying Phase 4 acceptance. Phase 5/6 have not started.** See
 > [docs/phase-3-1-report.md](docs/phase-3-1-report.md) and
 > [docs/phase-4-report.md](docs/phase-4-report.md).
 

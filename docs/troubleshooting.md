@@ -416,3 +416,28 @@ missing.
 
 `autoReturnSeconds` in `config.local.json` accepts 10–600 s (default 60). It is a host-side runtime
 setting; without a host the device keeps 60 s. Quiet mode disables the automatic return.
+
+### Phase 4 image boots but never ACKs ready/config (USB CDC RX)
+
+Observed on the Phase 4 release image (`741dcb5b…`) after multiple cold boots: the device sends
+`hello` (164 B, caps `config.partial,state.opencodeVersion`) and heartbeats, but the bridge receives
+no ACK and no error; the link never becomes ready. The bridge's 2.5 s settle, blank prime, 1 s
+handshake delay and 7 s no-ACK reopen did not restore it, and a manual Python probe got no ACK
+either. The Phase 3.1 image (`280166…e12ad`) handshakes immediately with the same host, cable and
+bridge. This is a **Phase 4 USB CDC RX blocker**, not a bridge or host fault.
+
+Recovery used during validation: physical USB unplug/replug (cold power cycle), then the Phase 3.1
+image for daily use. The Phase 4 image is preserved for Phase 5 A/B isolation. Do not flash the
+Phase 4 image again for acceptance until the mechanism is understood.
+
+### `handshake not acknowledged after 7000 ms`
+
+The bridge got a `hello` but no ACK for `ready`/`config`; it reopens the port after 7 s. On a healthy
+device this clears a transient. A repeated sequence with no ACK and no device error is the Phase 4
+CDC RX blocker above. The Phase 3.1 control does not show it.
+
+### Device sends a burst of duplicate hello/heartbeat frames
+
+The device buffers announcements while no host reads; opening the port flushes them. The bridge
+drains them for 2.5 s (`link settling`) before writing. This is expected; it was reduced by the
+settle but does not by itself fix the Phase 4 RX blocker.

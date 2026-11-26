@@ -19,4 +19,4 @@ Each accent has a darker surround and a lighter lens fill. The lookup table is i
 
 **VERIFIED layout.** Content fits a radius of 108 px. Text uses a 106 px radius. The six-position pager sits at sprite y=205. Arcs share a common center. A bright, wider dash identifies the current page. The footer identifies the data source/status (`LIVE`, `MOCK`, `OFFLINE`, `STALE`) and quiet mode.
 
-**NOT VERIFIED** on the GC9A01 in its enclosure — perceived color separation, contrast and reading distance. The preview is for composition and motion review.
+**VERIFIED on the Phase 4 hardware image** for composition, text legibility (EN/FR/DE, accents, long labels) and the seven System rows, by the Product Owner. The Phase 4 image was removed for the unrelated USB CDC blocker. Perceived colour separation and contrast in the enclosure were not instrumented and remain Phase 5 visual checks; the preview is for composition and motion review.

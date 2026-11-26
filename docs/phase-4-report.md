@@ -1,21 +1,24 @@
 # Phase 4 — developer dashboard, localization and preferences
 
 Date: 2026-11-26
-Baseline: `8bf3e08` (Phase 3.1 accepted and on the device)
-Status: **software complete — automated validation PASS; hardware validation pending owner approval**
-No flash was performed. No GitHub operation was performed. Phase 5/6 were not started.
+Baseline: `8bf3e08` (Phase 3.1 accepted), final local `1b43a6a`
+Status: **FAIL — BLOCKER USB CDC RX on the Phase 4 image. Phase 3.1 restored and LIVE.**
+The Phase 4 software and UI passed automated and physical checks; the Phase 4 image did not reliably
+accept `ready`/`config` after boot and cannot be accepted. The previously validated Phase 3.1 image
+`280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` is installed and verified. No
+diagnostic image remains. No GitHub operation; Phase 5/6 not started.
 
 ## 1. Verdict
 
-Phase 4 delivers the six-dashboard developer view, centralized English/French/German localization,
-device-owned preferences with an explicit host workflow, and the optional OpenCode version. The
-automated suites, protocol validation, host firmware suites, preview pixel tests and a clean release
-build pass. The only unverified area is the physical panel: accented-glyph legibility, colour
-separation and touch behaviour on the **Phase 4** image require an approved flash.
+**Phase 4 hardware gate: FAIL (BLOCKER).** The six dashboards, EN/FR/DE localization, preferences,
+gestures, auto-return, MOCK interaction layouts and the renderer were validated physically on the
+Phase 4 image while it was alive. The USB CDC RX then failed on the Phase 4 image after cold boots:
+the device sent `hello`/heartbeats but never ACKed `ready`/`config`, with no device error or resync.
+The same host, cable, bridge and procedure with the Phase 3.1 image handshook immediately. This
+isolates the blocker to the Phase 4 image or its boot/USB interaction.
 
-The device still runs the validated Phase 3.1 release
-`280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad`. The Phase 4 image is built,
-hashed and preserved in the build directory only.
+The Phase 4 image is preserved for Phase 5; it is **not** installed. Phase 3.1 is installed and the
+bridge is LIVE. The software report remains valid; the hardware acceptance does not.
 
 ## 2. Disposition against P4-01…P4-10
 
@@ -27,10 +30,11 @@ hashed and preserved in the build directory only.
 | P4-04 Tokens | DONE | `SESSION TOTAL`, IN/OUT, k/M/B, unknown `--`; `CTX --` retained; reasoning/cache internal; wide total in 64-bit |
 | P4-05 Tools | DONE | Focus-session counters, deduplicated running/success/failure, six categories, no arguments/paths |
 | P4-06 MCP Radar | DONE | Six status classes, stable aliases, complete totals, `n/total shown` subset caption, 12-configured/8-detail test, separate tick |
-| P4-07 System | DONE | USB, bridge, OpenCode, optional OpenCode version, firmware, bridge version, protocol, DIAG |
+| P4-07 System | DONE software; hardware BLOCKER | Seven rows and optional OpenCode version verified; the Phase 4 USB link itself is blocked (see §13) |
 | P4-08 Localization | DONE | Central tables, composed accents, language switch without reboot, NVS persistence |
 | P4-09 Preferences | DONE | Gestures unchanged, device ownership, explicit overrides, bounded auto-return, documented workflow |
 | P4-10 Desktop preview | DONE | Seven profiles, three languages, native 240×240 sheets, before/after comparison |
+| Physical gate | **FAIL / BLOCKER** | USB CDC RX on the Phase 4 image; Phase 3.1 restored |
 
 ## 3. Metrics decisions
 
@@ -102,96 +106,107 @@ sha256: 741dcb5bd23f599be69296ab5c054abefdcff75c70fdf156389fc228e51ace6e
 
 Delta from the Phase 3.1 release: **+32 B RAM, +4 078 B flash** (localization tables and the
 accent/UTF-8 renderer). No new dependency, no new font, no wiring/GPIO/rotation change, no change to
-the USB architecture or the privacy pipeline.
+the USB architecture or the privacy pipeline. The Phase 4 hardware gate nevertheless failed at the
+USB CDC RX level; see §8/§10.
 
 ## 7. Automated validation
 
 | Suite | Result |
 | --- | --- |
 | TypeScript typecheck | PASS |
-| Bridge | **94/94** |
+| Bridge | **102/102** |
 | Plugin | **24/24** |
 | Protocol | PASS (12 valid, 14 invalid, examples verified) |
 | Firmware host | protocol PASS, localization PASS, gestures PASS, TX PASS |
 | Simulator | PASS (all states received) |
 | Preview | **8/8** |
 
-Details and the test-to-requirement map: `docs/evidence/phase-4-test-summary.md`.
+The bridge suite grew with the V02/V04 regressions and the USB boot-robustness tests: a token counter
+wider than uint32 becomes unknown rather than being clamped or dropping the event; multiple peers
+with different OpenCode versions leave the version unknown; the bridge drains the no-host backlog,
+primes the CDC endpoint, delays the handshake, skips duplicate-heartbeat ACKs and reopens the link
+when ready/config are not acknowledged. Details: `docs/evidence/phase-4-test-summary.md`.
 
-## 8. Live verification of the new bridge
+## 8. Live verification and USB blocker
 
-The Phase 4 bridge was started in LIVE mode against the unchanged Phase 3.1 firmware:
+The Phase 4 bridge (with the robustness fixes) is LIVE against the restored Phase 3.1 image:
 
 ```
-hello boot=1 caps=config.partial
+hello boot=1 caps=config.partial (140 B)
 config seq=2 bytes=176
-state seq=... bytes=575
-mcp_status seq=... bytes=407
-opencode peer=1 app=cli version=2.4.1
-opencode peer=2 app=cli version=2.4.1
+ack received ack=1, ack=2
+opencode peer=1 version=2.4.1
 mcp online=8 total=12
-state status=thinking sessions=1 tokens=215876663/238130 source=live
+state status=thinking sessions=1 tokens=367439804/301509 source=live
 device errors: 0
 resync: 0
 ```
 
-The optional OpenCode version is omitted because the installed firmware does not advertise the new
-capability — the intended backward-compatible path. State and MCP remain separate frames. The restart
-also exposed a real defect: the CLI pre-bridge sink did not implement `setOpenCodeVersion`, so the
-first connection crashed when the IPC watchdog ran. It is fixed in `dbe3e61`; the final run above is
-from that code.
+Against the Phase 4 image, the same bridge and device produced `hello` (164 B, caps
+`config.partial,state.opencodeVersion`) and heartbeats but **no ACK** for `ready`/`config`, on
+multiple cold boots, even with a 2.5 s settle, a 1 s handshake delay, a blank prime and the 7 s
+no-ACK reopen. A manual Python probe also got no ACK. The Phase 3.1 control handshakes immediately.
+The optional OpenCode version therefore cannot be validated on the physical Phase 4 image; it remains
+covered by protocol/host tests and the preview. Full evidence:
+`docs/evidence/phase-4-hardware-validation.md`.
 
 ## 9. Remaining risks and limitations
 
-1. **Hardware not validated for Phase 4.** Accented labels, seven-row System layout, localized
-   German/French widths, touch and auto-return need the panel. Host pixel sheets are not panel
-   measurements.
-2. **No one-hour soak of the final bridge.** Phase 5 requirement; the Phase 3.1 61-minute soak used
-   the earlier bridge.
-3. **Context occupancy/capacity unknown.** `CTX --` is intentional; no percentage is invented.
-4. **Tool categories** rely on the verified tool name; OpenCode exposes no authoritative category in
+1. **BLOCKER — Phase 4 USB CDC RX.** The image cannot be accepted until Phase 5 isolates whether the
+   larger hello, boot rendering or a USB-stack interaction stalls RX. Phase 3.1 is installed; the
+   Phase 4 image is preserved. A cold power-cycle sometimes restored RX on Phase 4, but not
+   reliably; the bridge settle/no-ACK recovery did not remove the blocker.
+2. **Performance dashboards.** Session/Tokens render at ~90–100 ms (above the 50 ms target); Buddy is
+   47–48 ms, matching Phase 3.1. This is a Phase 5 optimization item, not the acceptance blocker.
+3. **No one-hour soak of the final bridge.** Phase 5 requirement.
+4. **Context occupancy/capacity unknown.** `CTX --` is intentional; no percentage is invented.
+5. **Tool categories** rely on the verified tool name; OpenCode exposes no authoritative category in
    the consumed events.
-5. **Multiple OpenCode peers with different versions:** the System row shows the most recent hello's
-   version. Normal single-peer use is unambiguous.
-6. **Live permission/question prompts** were not observed in real traffic (no safe trigger); they are
-   covered by reducer and protocol tests.
-7. Windows named pipes remain out of scope until Phase 6.
+6. **Multiple peers:** V04 is fixed — versions are shown only when all peers agree; otherwise unknown.
+7. **Live permission/question prompts** were not observed in real traffic; they are covered by MOCK
+   and reducer tests.
+8. Windows named pipes remain out of scope until Phase 6.
 
-## 10. Proposed hardware validation procedure (approval required)
+## 10. Hardware validation performed — outcome
 
-1. Read the full 4 MiB flash and record its hash; keep the Phase 3.1 release image and the pre-flash
-   dumps in `.backups/`.
-2. Flash **application-only** at `0x10000` with esptool 5.7.0 `--no-stub`; perform an independent
-   read-back and compare the SHA-256 with `741dcb5b…`.
-3. Boot with the bridge LIVE. Confirm `hello` advertises `config.partial` and
-   `state.opencodeVersion`, the config is 176 B, state/MCP frames are separate, and no `device error`
-   or resync appears.
-4. Check the six dashboards in English; then set `language` to `fr` and `de` in `config.local.json`
-   and restart the bridge: the panel must repaint without a reboot. Restart the bridge, replug USB and
-   reset the MCU; the language must persist.
-5. Verify System shows `2.4.1` (capable firmware), MCP shows `8/12` and the subset caption, and Tokens
-   shows `SESSION TOTAL` with `CTX --`.
-6. Check gestures: short advances, double returns, long toggles quiet once, very-long resets once and
-   returns to English/loud/Buddy. Set `autoReturnSeconds: 90` and verify the return from a dashboard.
-7. Record panel photos, logs, frame sizes, ACK latency and any visual defect. Roll back by reflashing
-   the preserved Phase 3.1 application image if a blocker appears.
+The procedure was executed with explicit owner authorization.
+
+1. Full 4 MiB backup read before any write; hash recorded. The Phase 3.1 application was extracted
+   from the backup and matched `280166…e12ad`.
+2. Phase 4 application-only flash at `0x10000` with esptool 5.7.0 `--no-stub`; write and independent
+   read-back matched `741dcb5b…`.
+3. **Blocked at the USB handshake**: the Phase 4 image sent `hello`/heartbeats but never ACKed
+   `ready`/`config` on multiple cold boots. The optional `state.opencodeVersion` capability was
+   advertised (hello 164 B) but the link never established. No device error or resync.
+4. The functional checks were nonetheless completed while the Phase 4 image was alive: EN/FR/DE
+   tours, language switching/persistence, quiet override, gestures, very-long reset, auto-return,
+   MOCK permission/input/retry/terminal layouts, System `2.4.1`, MCP 8/12, Tokens `SESSION TOTAL` /
+   `CTX --`. These are recorded in `docs/evidence/phase-4-hardware-validation.md` and are not a
+   substitute for a stable USB gate.
+5. The Phase 3.1 image was reflashed, verified and handshook immediately; the bridge is LIVE.
+6. The Phase 5 isolation plan is in `docs/handover-phase4.md`; do not retry Phase 4 acceptance before
+   the USB RX mechanism is understood.
 
 ## 11. Local commits
 
 ```
+1b43a6a fix(bridge): survive the USB boot backlog and bound the handshake
+c39b1fa docs: record the Phase 4 dashboard, localization and preferences
 ecc6e45 test(preview): cover languages, profiles and MCP subsets
 dbe3e61 feat(bridge): expose the OpenCode version and apply auto-return
 da26995 feat(firmware): localize the six dashboards and complete their metrics
 ```
 
-The documentation commit follows these three. All commits are local; nothing was pushed, fetched or
-published. GitHub remains the Product Owner's responsibility.
+The hardware-validation documentation commit follows these. All commits are local; nothing was
+pushed, fetched or published. GitHub remains the Product Owner's responsibility.
 
 ## 12. Final state
 
-- Device: Phase 3.1 release `280166…e12ad`, operational.
-- Bridge: **LIVE** with the Phase 4 code, two OpenCode peers, MCP 8/12, 0 device error, 0 resync.
-- Phase 4 image: built and hashed, **not flashed**.
-- Phase 4 software: ready for the approval gate.
+- Device: **Phase 3.1 release `280166…e12ad` installed and verified** (rollback after the blocker).
+- Bridge: **LIVE** with the Phase 4 bridge code, one OpenCode peer, MCP 8/12, real tokens,
+  0 device error / 0 resync in the final window.
+- Phase 4 image: `741dcb5b…` (and the experimental `848b3a99…`) preserved, **not installed**.
+- Diagnostic image: removed; preserved only in `.backups/phase4-2026-11-26/`.
+- Phase 4 gate: **FAIL / BLOCKER**; Phase 5 must isolate the USB RX regression.
 - Phase 5 and Phase 6: not started.
 - No GitHub operation, no secret, no global OpenCode configuration change.

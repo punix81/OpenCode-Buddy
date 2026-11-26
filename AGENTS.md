@@ -210,3 +210,8 @@ These are hard rules for future changes, established by the independent audit.
    advertises `state.opencodeVersion`; a legacy firmware receives the legacy config fields.
 7. **No Phase 4 image is flashed without approval.** The Phase 3.1 release stays on the device until
    the Product Owner approves the flash and hardware validation plan.
+8. **Phase 4 is blocked on USB CDC RX.** The Phase 4 image (`741dcb5b…`) was flashed with approval and
+   its UI was physically reviewed, but it did not reliably ACK `ready`/`config` after cold boots; the
+   Phase 3.1 control image handshakes immediately. Phase 3.1 is installed; the Phase 4 image is
+   preserved. Do not retry Phase 4 acceptance before the Phase 5 A/B isolation; do not leave a
+   diagnostic image on the device.

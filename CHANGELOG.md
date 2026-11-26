@@ -21,11 +21,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
   derives it in 64-bit instead of sending an understated value.
 - Native 240×240 preview sheets for EN/FR/DE, missing/extreme/offline/interaction/LIVE fixtures, the
   12-server/8-detail MCP case, quiet mode and a Phase 3.1 before/after comparison.
-- Tests: bridge **94/94**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
+- Tests: bridge **102/102**, plugin **24/24**, protocol 12 valid/14 invalid, firmware host four suites,
   preview 8/8. Release build SUCCESS: 22 604 B RAM, 376 260 B flash,
   sha256 `741dcb5bd23f599be69296ab5c054abefdcff75c70fdf156389fc228e51ace6e`.
-- **No Phase 4 flash was performed.** The device keeps the Phase 3.1 release
-  `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` until owner approval.
+- V02: an individual token counter wider than uint32 is reported as unknown and the total is omitted,
+  never clamped, wrapped or used to drop the whole usage event. V04: the OpenCode version is shown
+  only when all connected peers agree; otherwise `--`.
+- USB boot robustness: the bridge drains the no-host hello/heartbeat backlog (2.5 s settle), primes
+  the CDC endpoint, delays the handshake 1 s, reopens on a missing ACK, ignores duplicate heartbeats
+  and re-sends ready on a handshake resync (`1b43a6a`).
+- **Phase 4 hardware validation: FAIL / BLOCKER.** The image was flashed/verified and its EN/FR/DE
+  screens, preferences, gestures, auto-return and MOCK layouts were physically verified. On multiple
+  cold boots the Phase 4 image never ACKed `ready`/`config` (USB CDC RX); the Phase 3.1 control
+  handshakes immediately. The Phase 4 image was removed and the Phase 3.1 release
+  `280166888f05871faa43da3c44c2f6fdf997c06efc6d19d86373d53bfe0e12ad` restored and verified; the
+  bridge is LIVE. Phase 5 must isolate the USB RX regression before retrying acceptance.
+- Performance (diagnostic image): Buddy 47–48 ms / 20 FPS; Tools/MCP/System ~33 ms; Session/Tokens
+  ~90–100 ms (Phase 5 optimization); heap 245 636–245 780 B, max block 225 268 B, 0 TX drops.
 
 ### Verified — Phase 3.1 hardware validation
 

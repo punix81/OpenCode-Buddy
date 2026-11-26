@@ -99,9 +99,10 @@ hardware flash (approval gate), Phase 5 soak/performance optimization, Phase 6 p
 | MCP radar | Localized statuses, `n/total shown` subset caption, 12-server/8-detail fixture and test |
 | Preferences | Existing gestures unchanged; language override without reboot; `autoReturnSeconds` now applied by the firmware; config workflow documented |
 | Preview | Language selector, seven profiles, native sheets for EN/FR/DE and the 12-server subset |
-| Tests | Bridge 94/94, plugin 24/24, protocol 12 valid/14 invalid, firmware host 4 suites, preview 8/8 |
-| Build | Release SUCCESS, 22 604 B RAM / 376 336 B flash (incremental); clean build recorded in the Phase 4 report |
-| Not done | Hardware flash (awaiting approval), Phase 5 soak, Phase 6 packaging |
+| Tests | Bridge 102/102, plugin 24/24, protocol 12 valid/14 invalid, firmware host 4 suites, preview 8/8 |
+| Build | Release SUCCESS, 22 604 B RAM / 376 260 B flash, sha256 `741dcb5b…`; diagnostic build `bdaac7…` |
+| Hardware | Phase 4 flashed/verified; EN/FR/DE UI, preferences, gestures, auto-return and MOCK states physically reviewed. **FAIL / BLOCKER:** USB CDC RX did not ACK `ready`/`config` on cold boots. Phase 3.1 restored. |
+| Not done | Phase 4 USB acceptance (Phase 5 isolation), one-hour soak, Phase 6 packaging |
 
 The only protocol addition is the optional `versions.opencode` field plus its capability. It is
 ignored by an older firmware and omitted by the bridge unless the device advertises the capability.

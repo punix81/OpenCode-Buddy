@@ -30,7 +30,7 @@ itself:
 | Tool counters | `session.tool.*`, deduplicated by call ID | VERIFIED |
 | MCP totals / details | Plugin `ctx.mcp.list()`, bridge alias map | VERIFIED |
 | Versions | Bridge constants, plugin IPC hello, device build | VERIFIED |
-| OpenCode version | Plugin IPC hello, optional protocol capability | VERIFIED in tests; not yet observed on the Phase 4 firmware (not flashed) |
+| OpenCode version | Plugin IPC hello, optional protocol capability | PARTIALLY VERIFIED — tests pass and the Phase 4 hello advertised the capability; the USB gate blocked the state that would display it |
 
 ## 2. Execution duration
 
@@ -60,6 +60,11 @@ OpenCode API in Phase 3.1 (bridge = `GET /api/session` exactly, no aggregation).
 - Input/output are each bounded to uint32 by protocol v1. When the wide sum exceeds 4294967295, the
   bridge omits `total`; the firmware derives the 64-bit sum from the two operands. This avoids an
   understated total next to larger IN/OUT values.
+- **V02:** an individual counter above uint32 is **not representable** in v1. The normalizer keeps the
+  wide value internally so the usage event is not dropped, but the privacy projection emits `null`
+  for that field and omits `total`. The device shows `--`; it never clamps to 4294967295, wraps, or
+  fabricates a total. A future protocol extension can add 64-bit fields; this is a documented v1
+  limitation (unit-tested in `privacy.test.ts` and the firmware host test).
 - Unknown counters stay `--`; a missing operand makes the total unknown rather than zero.
 - Compact formatting: `18.4k`, `4.3M`, `8.6B` (rounded to one decimal, SI-style k/M/B). Values below
   1000 stay integers.
@@ -122,6 +127,12 @@ Displayed only when known; an unavailable value is `--`, never `OK`:
 The OpenCode version is the peer's `appVersion` from the IPC hello, bounded to 16 characters and
 sanitized by the privacy filter. It is omitted for a firmware that does not advertise the capability,
 so older firmware keeps working.
+
+**V04 — multiple peers.** The System screen has one OpenCode row. The bridge keeps the version per
+peer and reports it only when **all connected peers agree**; if two peers report different versions
+(or one reports none), the row is `--`. The version of the current focus session is not carried in the
+event stream, so it cannot be preferred reliably. This policy avoids the previous "last hello wins"
+ambiguity (unit-tested in `ipc.test.ts`).
 
 ## 7. Footer and data source
 

@@ -30,5 +30,8 @@ the footer at y=194. The MCP aggregate is at y=152, the subset caption at y=168 
 alias caption at y=177 or 181. The six-position pager remains at y=205. All text keeps the measured
 106 px safe radius.
 
-**NOT VERIFIED** on the Phase 4 hardware image — small-label legibility, accented glyphs and colour
-separation in bright ambient light. The preview is for composition and motion review.
+**VERIFIED on the Phase 4 hardware image** by the Product Owner: all six screens in English, French
+and German, accented glyphs, long German labels, French tool categories, the seven System rows and the
+MCP subset caption were legible, with no clipped or misplaced text. The Phase 4 image was later
+removed for the unrelated USB CDC blocker; Phase 3.1 is installed. Colour separation in bright ambient
+light was not instrumented and remains a Phase 5 visual check.
