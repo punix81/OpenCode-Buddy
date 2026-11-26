@@ -77,6 +77,10 @@ version. Three limits:
 - The plugin reconnects with 1 s → 15 s backoff, so allow up to about 15 s after the bridge starts
   before concluding that nothing happened. A reconnection delay is not a missing configuration.
 
+A plugin **module** change was also observed to take effect without a restart: an edit to
+`plugin/opencode-buddy/map.js` was active in the next snapshot while the server PID stayed the same.
+That was observed once and is not a guarantee; restart OpenCode if a code change does not take effect.
+
 Evidence: `docs/evidence/phase-3-plugin-reload.md`.
 
 ## 4. Verify

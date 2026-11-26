@@ -70,3 +70,13 @@ socket exists; when the bridge is started later, the plugin reconnects within it
 3. Write `<project>/opencode.json` with the plugin directory
    (`node scripts/install-buddy-plugin.mjs --project <project>`).
 4. Keep the server running; within about 15–20 s the bridge logs `opencode peer=N`.
+
+## 8. Additional observation — plugin module reload
+
+While fixing the execution duration, `plugin/opencode-buddy/map.js` was edited on disk and the running
+server used the new snapshot code on the next bridge connection, with the same server PID (6272). The
+new snapshot emitted `execution.started` with the `Session.Info.time.busy` timestamp, which the old
+code could not produce; the bridge then reported `elapsed=353 s`.
+
+Observed once, for a module already loaded. Not a guarantee and not a substitute for a restart when a
+change does not take effect.
