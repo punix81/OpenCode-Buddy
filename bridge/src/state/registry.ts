@@ -1,13 +1,19 @@
-import type { McpStatusData, OpenCodeLink, StateData } from '../protocol/types.js';
+import type { McpStatusData, OpenCodeLink, Source, StateData } from '../protocol/types.js';
 import { MetricsManager, type MetricsSnapshot } from '../metrics/metrics.js';
 import { newSession, type McpServerState, type NormalizedEvent, type SessionState } from './types.js';
-import { isActive, reduceState, type ReduceContext } from './reducer.js';
+import { reduceState, type ReduceContext } from './reducer.js';
 
 interface McpSnapshot {
   online: number;
   total: number;
   servers: McpServerState[];
 }
+
+// A session nobody has touched for this long is not worth remembering; it would
+// only grow the registry for the lifetime of the bridge.
+export const SESSION_TTL_MS = 30 * 60 * 1000;
+export const MAX_SESSIONS = 64;
+const MAX_INTERACTION_IDS = 64;
 
 export class SessionRegistry {
   private readonly sessions = new Map<string, SessionState>();
@@ -32,16 +38,15 @@ export class SessionRegistry {
         return;
       case 'opencode.offline':
         this.opencode = 'offline';
+        // Old MCP values must never look current once OpenCode is gone.
+        this.mcp = null;
         return;
       case 'opencode.unknown':
         this.opencode = 'unknown';
+        this.mcp = null;
         return;
       case 'mcp.status':
-        this.mcp = {
-          online: event.online,
-          total: event.total,
-          servers: event.servers,
-        };
+        this.mcp = { online: event.online, total: event.total, servers: event.servers };
         return;
       default:
         break;
@@ -51,6 +56,16 @@ export class SessionRegistry {
       this.sessions.delete(event.sessionId);
       this.metrics.removeSession(event.sessionId);
       return;
+    }
+
+    const prior = this.sessions.get(event.sessionId);
+    // Events carry the source timestamp. A late or reordered transition older
+    // than the last known one (or older than a terminal state) must not revive
+    // or rewrite the session. execution.started is exempt: a reconnect snapshot
+    // restores it from Session.Info.time.busy, which predates the snapshot.
+    if (prior !== undefined && event.kind !== 'execution.started') {
+      const reference = prior.terminalAt ?? prior.updatedAt;
+      if (event.at < reference) return;
     }
 
     const session = this.ensure(event.sessionId, event.at);
@@ -88,64 +103,87 @@ export class SessionRegistry {
         // (attach mid-run, missed execution.started). Start the chronometer from
         // that first trace instead of leaving it at zero; a phase that arrives
         // while the session is already running keeps the original start.
-        if (session.startedAt === null || !isActive(session.status)) {
+        if (session.startedAt === null || !isRunning(session.status)) {
           session.startedAt = event.at;
         }
         session.status = event.status;
         session.terminalAt = null;
         return;
-      case 'permission.asked':
+      case 'permission.asked': {
+        const id = event.requestId;
+        if (id !== undefined) {
+          if (session.permissionIds.has(id)) return;
+          if (session.permissionIds.size >= MAX_INTERACTION_IDS) return;
+          session.permissionIds.add(id);
+        }
         session.pendingPermissions = Math.min(255, session.pendingPermissions + 1);
-        session.status = 'permission_required';
         return;
-      case 'permission.replied':
+      }
+      case 'permission.replied': {
+        const id = event.requestId;
+        if (id !== undefined) {
+          if (!session.permissionIds.delete(id)) return;
+        }
         session.pendingPermissions = Math.max(0, session.pendingPermissions - 1);
-        if (session.pendingPermissions === 0 && session.status === 'permission_required') {
-          session.status = 'idle';
-        }
         return;
-      case 'question.asked':
+      }
+      case 'permission.sync': {
+        session.permissionIds = new Set(event.requestIds.slice(0, MAX_INTERACTION_IDS));
+        session.pendingPermissions = Math.min(255, session.permissionIds.size);
+        return;
+      }
+      case 'question.asked': {
+        const id = event.requestId;
+        if (id !== undefined) {
+          if (session.questionIds.has(id)) return;
+          if (session.questionIds.size >= MAX_INTERACTION_IDS) return;
+          session.questionIds.add(id);
+        }
         session.pendingQuestions = Math.min(255, session.pendingQuestions + 1);
-        session.status = 'user_input_required';
         return;
-      case 'question.replied':
-        session.pendingQuestions = Math.max(0, session.pendingQuestions - 1);
-        if (session.pendingQuestions === 0 && session.status === 'user_input_required') {
-          session.status = 'idle';
+      }
+      case 'question.replied': {
+        const id = event.requestId;
+        if (id !== undefined) {
+          if (!session.questionIds.delete(id)) return;
         }
+        session.pendingQuestions = Math.max(0, session.pendingQuestions - 1);
         return;
+      }
       case 'retry.scheduled':
         session.status = 'retrying';
         session.retryAttempt = event.attempt;
+        session.terminalAt = null;
         return;
       case 'compaction.started':
         session.status = 'compacting';
+        session.terminalAt = null;
         return;
       case 'compaction.ended':
         session.status = session.tools.running > 0 ? 'working' : 'idle';
         return;
       case 'tool.started':
-        session.status = 'working';
         if (this.metrics.recordTool(event.sessionId, event.messageId, event.toolId, 'started', event.category)) {
-          session.tools.running = Math.min(255, session.tools.running + 1);
+          session.tools = this.metrics.toolsFor(event.sessionId);
         }
+        session.status = 'working';
+        session.terminalAt = null;
         return;
       case 'tool.succeeded':
       case 'tool.failed': {
         const outcome = event.kind === 'tool.succeeded' ? 'succeeded' : 'failed';
-        if (this.metrics.recordTool(event.sessionId, event.messageId, event.toolId, outcome, event.category)) {
-          if (session.tools.running > 0) {
-            --session.tools.running;
-          }
-          if (outcome === 'succeeded') {
-            ++session.tools.success;
-          } else {
-            ++session.tools.failed;
-          }
-          session.tools.categories[event.category] =
-            session.tools.categories[event.category] + 1;
+        const changed = this.metrics.recordTool(
+          event.sessionId,
+          event.messageId,
+          event.toolId,
+          outcome,
+          event.category,
+        );
+        if (changed) {
+          session.tools = this.metrics.toolsFor(event.sessionId);
+          session.status = session.tools.running > 0 ? 'working' : 'thinking';
+          session.terminalAt = null;
         }
-        session.status = session.tools.running > 0 ? 'working' : 'thinking';
         return;
       }
       case 'usage': {
@@ -156,6 +194,7 @@ export class SessionRegistry {
           ...(event.cacheRead !== undefined ? { cacheRead: event.cacheRead } : {}),
           ...(event.cacheWrite !== undefined ? { cacheWrite: event.cacheWrite } : {}),
         });
+        session.tokens = this.metrics.tokensFor(event.sessionId);
         return;
       }
       case 'model':
@@ -167,11 +206,29 @@ export class SessionRegistry {
     }
   }
 
+  private prune(now: number): void {
+    for (const [id, session] of this.sessions) {
+      if (session.pendingPermissions > 0 || session.pendingQuestions > 0) continue;
+      if (now - session.updatedAt <= SESSION_TTL_MS) continue;
+      this.sessions.delete(id);
+      this.metrics.removeSession(id);
+    }
+    if (this.sessions.size <= MAX_SESSIONS) return;
+    const oldest = [...this.sessions.entries()]
+      .filter(([, session]) => session.pendingPermissions === 0 && session.pendingQuestions === 0)
+      .sort((a, b) => a[1].updatedAt - b[1].updatedAt)
+      .slice(0, this.sessions.size - MAX_SESSIONS);
+    for (const [id] of oldest) {
+      this.sessions.delete(id);
+      this.metrics.removeSession(id);
+    }
+  }
+
   list(): SessionState[] {
     return [...this.sessions.values()];
   }
 
-  mcpStatus(source: 'live' | 'mock'): McpStatusData {
+  mcpStatus(source: Source): McpStatusData {
     if (this.mcp === null) {
       return { online: 0, total: 0, servers: [], source };
     }
@@ -179,10 +236,16 @@ export class SessionRegistry {
   }
 
   snapshot(context: ReduceContext): StateData {
-    return reduceState(this.list(), this.metrics.snapshot(), this.mcpStatus(context.source), this.opencode, context);
+    this.prune(context.now);
+    return reduceState(this.list(), this.mcpStatus(context.source), this.opencode, context);
   }
 
   metricsSnapshot(): MetricsSnapshot {
     return this.metrics.snapshot();
   }
+}
+
+function isRunning(status: SessionState['status']): boolean {
+  return status !== 'idle' && status !== 'success' && status !== 'error' &&
+    status !== 'interrupted' && status !== 'offline';
 }

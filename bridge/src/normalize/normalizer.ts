@@ -9,10 +9,6 @@ const SIMPLE_SESSION_KINDS = new Set([
   'execution.succeeded',
   'execution.failed',
   'execution.interrupted',
-  'permission.asked',
-  'permission.replied',
-  'question.asked',
-  'question.replied',
   'compaction.started',
   'compaction.ended',
 ]);
@@ -25,10 +21,6 @@ type SimpleSessionKind =
   | 'execution.succeeded'
   | 'execution.failed'
   | 'execution.interrupted'
-  | 'permission.asked'
-  | 'permission.replied'
-  | 'question.asked'
-  | 'question.replied'
   | 'compaction.started'
   | 'compaction.ended';
 
@@ -129,6 +121,28 @@ export function normalizeEvent(raw: unknown): NormalizedEvent | null {
         if (cacheRead !== undefined) usage.cacheRead = cacheRead;
         if (cacheWrite !== undefined) usage.cacheWrite = cacheWrite;
         return usage;
+      }
+      case 'permission.asked':
+      case 'permission.replied':
+      case 'question.asked':
+      case 'question.replied': {
+        const requestId = raw['requestId'];
+        return {
+          kind,
+          sessionId: text(raw['sessionId'], 64),
+          at,
+          ...(requestId !== undefined ? { requestId: text(requestId, 64) } : {}),
+        };
+      }
+      case 'permission.sync': {
+        const ids = raw['requestIds'];
+        if (!Array.isArray(ids) || ids.length > 64) return null;
+        return {
+          kind: 'permission.sync',
+          sessionId: text(raw['sessionId'], 64),
+          at,
+          requestIds: ids.map((value) => text(value, 64)),
+        };
       }
       case 'model':
         return {

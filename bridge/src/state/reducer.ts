@@ -1,5 +1,11 @@
-import type { BridgeLink, McpStatusData, OpenCodeLink, Source, StateData, Status } from '../protocol/types.js';
-import type { MetricsSnapshot } from '../metrics/metrics.js';
+import type {
+  BridgeLink,
+  McpStatusData,
+  OpenCodeLink,
+  Source,
+  StateData,
+  Status,
+} from '../protocol/types.js';
 import type { SessionState } from './types.js';
 
 export const SUCCESS_TTL_MS = 4000;
@@ -29,7 +35,7 @@ const PRIORITY: Record<Status, number> = {
   idle: 11,
 };
 
-export function effectiveStatus(session: SessionState, now: number): Status {
+function activityWithTtl(session: SessionState, now: number): Status {
   if (session.terminalAt === null) {
     return session.status;
   }
@@ -40,7 +46,31 @@ export function effectiveStatus(session: SessionState, now: number): Status {
   return session.status;
 }
 
-export function aggregateStatus(sessions: readonly SessionState[], now: number, bridge: BridgeLink): Status {
+// Pending interactions are not an activity: they are a derived priority on top
+// of whatever the session was doing. A later phase or tool event therefore
+// cannot erase a permission prompt, and resolving it restores the real activity.
+export function effectiveStatus(session: SessionState, now: number): Status {
+  if (session.pendingPermissions > 0) return 'permission_required';
+  if (session.pendingQuestions > 0) return 'user_input_required';
+  return activityWithTtl(session, now);
+}
+
+function isTerminal(status: Status): boolean {
+  return status === 'success' || status === 'error' || status === 'interrupted';
+}
+
+function isActive(status: Status): boolean {
+  return status !== 'idle' && status !== 'success' && status !== 'error' &&
+    status !== 'interrupted' && status !== 'offline';
+}
+
+export function aggregateStatus(
+  sessions: readonly SessionState[],
+  now: number,
+  bridge: BridgeLink,
+  opencode: OpenCodeLink,
+  source: Source,
+): Status {
   if (bridge !== 'ready') {
     return 'offline';
   }
@@ -51,9 +81,16 @@ export function aggregateStatus(sessions: readonly SessionState[], now: number, 
       best = status;
     }
   }
+  // A terminal notification stays observable even if OpenCode disappears right
+  // after it; otherwise a connected USB link with no OpenCode is OFFLINE, not
+  // IDLE. MOCK is explicit and does not depend on an OpenCode peer.
+  if (isTerminal(best)) return best;
+  if (source === 'live' && opencode !== 'connected') return 'offline';
   return best;
 }
 
+// At equal priority the most recently active session wins: the screen must show
+// the session the user is actually working in, not the oldest one.
 function focusSession(sessions: readonly SessionState[], now: number): SessionState | null {
   let best: SessionState | null = null;
   for (const session of sessions) {
@@ -65,20 +102,11 @@ function focusSession(sessions: readonly SessionState[], now: number): SessionSt
     const b = effectiveStatus(best, now);
     if (PRIORITY[a] < PRIORITY[b]) {
       best = session;
-    } else if (PRIORITY[a] === PRIORITY[b]) {
-      const aStart = session.startedAt ?? session.updatedAt;
-      const bStart = best.startedAt ?? best.updatedAt;
-      if (aStart < bStart) {
-        best = session;
-      }
+    } else if (PRIORITY[a] === PRIORITY[b] && session.updatedAt > best.updatedAt) {
+      best = session;
     }
   }
   return best;
-}
-
-export function isActive(status: Status): boolean {
-  return status !== 'idle' && status !== 'success' && status !== 'error' && status !== 'interrupted' &&
-    status !== 'offline';
 }
 
 // The chronometer measures one execution: it runs while the focus session is
@@ -90,7 +118,7 @@ function elapsedSecondsFor(focus: SessionState | null, effective: Status, now: n
   let end: number;
   if (isActive(effective)) {
     end = now;
-  } else if (effective === 'success' || effective === 'error' || effective === 'interrupted') {
+  } else if (isTerminal(effective)) {
     end = focus.terminalAt ?? now;
   } else {
     return 0;
@@ -98,15 +126,29 @@ function elapsedSecondsFor(focus: SessionState | null, effective: Status, now: n
   return Math.max(0, Math.floor((end - focus.startedAt) / 1000));
 }
 
+function tokenState(focus: SessionState | null): StateData['tokens'] {
+  if (focus === null || !focus.tokens.available) {
+    return { input: null, output: null, total: null, contextPct: null };
+  }
+  const input = focus.tokens.input;
+  const output = focus.tokens.output;
+  return {
+    input,
+    output,
+    total: input !== null && output !== null ? input + output : null,
+    contextPct: null,
+  };
+}
+
 export function reduceState(
   sessions: readonly SessionState[],
-  metrics: MetricsSnapshot,
   mcp: McpStatusData | null,
   opencode: OpenCodeLink,
   context: ReduceContext,
 ): StateData {
-  const status = aggregateStatus(sessions, context.now, context.bridge);
+  const status = aggregateStatus(sessions, context.now, context.bridge, opencode, context.source);
   const focus = focusSession(sessions, context.now);
+  const effective = focus === null ? 'idle' : effectiveStatus(focus, context.now);
 
   let activeSessions = 0;
   let pendingPermissions = 0;
@@ -114,40 +156,34 @@ export function reduceState(
   let notifications = 0;
 
   for (const session of sessions) {
-    const effective = effectiveStatus(session, context.now);
-    if (isActive(effective)) ++activeSessions;
+    const value = effectiveStatus(session, context.now);
+    if (isActive(value)) ++activeSessions;
     pendingPermissions += session.pendingPermissions;
     pendingQuestions += session.pendingQuestions;
-    if (effective === 'success' || effective === 'error' || effective === 'interrupted') {
+    if (isTerminal(value)) {
       ++notifications;
     }
   }
-
-  const elapsedSeconds = elapsedSecondsFor(
-    focus,
-    focus === null ? 'idle' : effectiveStatus(focus, context.now),
-    context.now,
-  );
 
   const state: StateData = {
     status,
     model: focus?.model ?? null,
     agent: focus?.agent ?? null,
     activeSessions: Math.min(activeSessions, 65535),
-    elapsedSeconds,
+    elapsedSeconds: elapsedSecondsFor(focus, effective, context.now),
     pendingPermissions: Math.min(pendingPermissions, 255),
     pendingQuestions: Math.min(pendingQuestions, 255),
     notifications: Math.min(notifications, 99),
     retryAttempt: focus?.retryAttempt ?? 0,
-    tokens: metrics.tokens.available
-      ? {
-          input: metrics.tokens.input,
-          output: metrics.tokens.output,
-          total: metrics.tokens.total,
-          contextPct: null,
-        }
-      : { input: null, output: null, total: null, contextPct: null },
-    tools: metrics.tools,
+    tokens: tokenState(focus),
+    tools: focus === null
+      ? { success: 0, failed: 0, running: 0, categories: { read: 0, edit: 0, shell: 0, search: 0, mcp: 0, other: 0 } }
+      : {
+          success: focus.tools.success,
+          failed: focus.tools.failed,
+          running: focus.tools.running,
+          categories: { ...focus.tools.categories },
+        },
     connection: { bridge: context.bridge, opencode },
     versions: { bridge: context.bridgeVersion, protocol: context.protocol },
     source: context.source,
@@ -156,5 +192,6 @@ export function reduceState(
   if (mcp !== null) {
     state.mcp = { online: mcp.online, total: mcp.total };
   }
+
   return state;
 }
