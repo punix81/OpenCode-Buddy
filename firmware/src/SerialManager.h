@@ -24,6 +24,12 @@ class SerialManager {
   uint32_t overflows() const { return overflows_; }
   bool hostConnected() const;
 
+  // Drops everything received while no host is connected. With no host, the
+  // only bytes that can arrive are a fragment of the device's own USB CDC
+  // transmission (observed on the ESP32-C3 after a cold boot), so they must
+  // never reach the line buffer. See docs/evidence/phase-4-1-usb-diagnostics.md.
+  void discardInput();
+
   // True once after an oversized line was discarded.
   bool takeOverflow();
 

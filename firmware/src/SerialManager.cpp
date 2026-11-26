@@ -56,6 +56,16 @@ bool SerialManager::readLine(char* out, size_t capacity, size_t& length) {
   return false;
 }
 
+void SerialManager::discardInput() {
+  while (Serial.available() > 0) {
+    if (Serial.read() < 0) {
+      break;
+    }
+  }
+  length_ = 0;
+  discard_ = false;
+}
+
 bool SerialManager::hostConnected() const {
   // The CDC object reports whether a host has the port open. This is the only
   // USB property the firmware can observe; cable speed and DTR state are not

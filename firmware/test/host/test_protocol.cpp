@@ -209,6 +209,51 @@ int main(int argc, char** argv) {
     check(state.state() == buddy::BuddyState::Working, "state preserved after invalid input");
   }
 
+  // USB CDC self-reception: a fragment of the device's own transmission can
+  // precede the first host frame after boot. The intact frame is recovered,
+  // validated exactly as before, counted, and the sequence stays coherent.
+  {
+    buddy::ProtocolParser parser;
+    buddy::StateManager state;
+    parser.begin(1, "0.2.0");
+    state.begin(0);
+    const std::string ready =
+        "{\"v\":1,\"type\":\"ready\",\"seq\":1,\"data\":{\"bridge\":\"0.2.0\",\"proto\":1,\"run\":\"abcd1234\"}}";
+    check(feed(parser, state, std::string("BUDDY-PROBE ms=1") + ready) == buddy::ParseCode::Ok,
+          "frame recovered after text prefix");
+    check(parser.linkReady(), "recovered ready sets the link");
+    check(parser.framingResyncs() == 1, "framing resync counted");
+
+    const std::string config =
+        "{\"v\":1,\"type\":\"config\",\"seq\":2,\"data\":{\"autoReturnSeconds\":60,"
+        "\"gestures\":{\"debounceMs\":35,\"doublePressWindowMs\":350,"
+        "\"longPressMs\":1500,\"veryLongPressMs\":5000},\"source\":\"live\"}}";
+    check(feed(parser, state, config) == buddy::ParseCode::Ok, "config after recovered ready");
+
+    // A truncated self-hello that already starts with '{' is skipped as well.
+    buddy::ProtocolParser second;
+    buddy::StateManager secondState;
+    second.begin(1, "0.2.0");
+    secondState.begin(0);
+    check(feed(second, secondState,
+               std::string("{\"v\":1,\"type\":\"hello\",\"seq\":1,") + ready) ==
+              buddy::ParseCode::Ok,
+          "frame recovered after JSON prefix");
+    check(second.framingResyncs() == 1, "JSON prefix resync counted");
+
+    // A line without any complete peer frame stays an error and leaves the
+    // sequence untouched.
+    buddy::ProtocolParser third;
+    buddy::StateManager thirdState;
+    third.begin(1, "0.2.0");
+    thirdState.begin(0);
+    check(feed(third, thirdState, "BUDDY-PROBE {\"v\":1,\"type\":\"hello\"}") ==
+              buddy::ParseCode::ParseError,
+          "no peer frame is still an error");
+    check(third.framingResyncs() == 0, "rejected line is not counted");
+    check(feed(third, thirdState, ready) == buddy::ParseCode::Ok, "sequence untouched by the error");
+  }
+
   // Tokens total is computed when absent, and mock source is propagated.
   {
     buddy::ProtocolParser parser;

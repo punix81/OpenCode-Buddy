@@ -94,6 +94,53 @@ bool readU8(JsonVariantConst value, uint8_t& out) {
   return true;
 }
 
+bool isPeerType(const char* type) {
+  static const char* const kTypes[] = {"ready",  "config", "state", "mcp_status",
+                                       "heartbeat", "ack",  "error"};
+  for (const char* known : kTypes) {
+    if (strcmp(type, known) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The ESP32-C3 USB CDC path has been observed to deliver a fragment of the
+// device's own transmission in front of the first host frame after boot
+// (evidence: docs/evidence/phase-4-1-usb-diagnostics.md). The host frame that
+// follows the fragment is intact, so a bounded scan can recover its start.
+// Only a complete NDJSON object with a peer message type is accepted; the
+// message itself is still validated exactly as before.
+constexpr size_t kFramingScanBytes = 192;
+constexpr size_t kFramingCandidates = 4;
+constexpr size_t kNoFrameStart = static_cast<size_t>(-1);
+
+size_t findFrameStart(const char* line, size_t length) {
+  const size_t limit = length < kFramingScanBytes ? length : kFramingScanBytes;
+  size_t candidates = 0;
+  for (size_t i = 1; i + 1 < limit; ++i) {
+    if (line[i] != '{') {
+      continue;
+    }
+    if (++candidates > kFramingCandidates) {
+      break;
+    }
+    JsonDocument probe;
+    if (deserializeJson(probe, line + i, length - i)) {
+      continue;
+    }
+    if (!probe.is<JsonObjectConst>()) {
+      continue;
+    }
+    const char* type = probe.as<JsonObjectConst>()["type"] | "";
+    if (!isPeerType(type)) {
+      continue;
+    }
+    return i;
+  }
+  return kNoFrameStart;
+}
+
 bool readString(JsonVariantConst value, char* out, size_t capacity) {
   if (!value.is<const char*>()) {
     return false;
@@ -145,6 +192,7 @@ void ProtocolParser::begin(uint32_t bootCount, const char* firmwareVersion) {
   fatal_ = false;
   lastRxMs_ = 0;
   boot_ = bootCount;
+  framingResyncs_ = 0;
   snprintf(firmware_, sizeof(firmware_), "%s", firmwareVersion != nullptr ? firmwareVersion : "0.0.0");
 
   ackPending_ = false;
@@ -231,9 +279,18 @@ ParseCode ProtocolParser::handleLine(const char* line, size_t length, uint32_t n
   }
 
   JsonDocument document;
-  const DeserializationError error = deserializeJson(document, line, length);
+  DeserializationError error = deserializeJson(document, line, length);
   if (error) {
-    return ParseCode::ParseError;
+    const size_t start = findFrameStart(line, length);
+    if (start == kNoFrameStart) {
+      return ParseCode::ParseError;
+    }
+    document.clear();
+    error = deserializeJson(document, line + start, length - start);
+    if (error) {
+      return ParseCode::ParseError;
+    }
+    ++framingResyncs_;
   }
   if (!document.is<JsonObjectConst>()) {
     return ParseCode::ParseError;

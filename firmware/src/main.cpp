@@ -319,6 +319,13 @@ void loop() {
     return;
   }
 
+  // A device that boots before the host opens its port receives a fragment of
+  // its own USB CDC transmission. Those bytes cannot come from a host, so drop
+  // them instead of mixing them into the first ready/config line.
+  if (!gSerial.hostConnected()) {
+    gSerial.discardInput();
+  }
+
   while (true) {
     size_t length = 0;
     if (!gSerial.readLine(gLine, sizeof(gLine), length)) {

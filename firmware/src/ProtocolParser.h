@@ -60,6 +60,8 @@ class ProtocolParser {
   bool fatalVersion() const { return fatal_; }
   uint32_t lastRxMs() const { return lastRxMs_; }
   uint32_t bootCount() const { return boot_; }
+  // Frames recovered after an invalid prefix (USB CDC self-reception at boot).
+  uint32_t framingResyncs() const { return framingResyncs_; }
 
   bool takeAck(uint32_t& ack);
   bool takeWarning(const char*& code);
@@ -85,6 +87,7 @@ class ProtocolParser {
   bool fatal_ = false;
   uint32_t lastRxMs_ = 0;
   uint32_t boot_ = 0;
+  uint32_t framingResyncs_ = 0;
   char firmware_[16] = "0.2.0";
 
   bool ackPending_ = false;
