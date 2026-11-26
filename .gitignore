@@ -30,6 +30,9 @@ pnpm-debug.log*
 *.p12
 secrets/
 config.local.json
+# Written by scripts/install-buddy-plugin.mjs with an absolute plugin path; machine-specific
+/opencode.json
+/opencode.jsonc
 
 # Bridge runtime output and diagnostics
 logs/
