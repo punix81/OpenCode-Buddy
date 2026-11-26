@@ -13,7 +13,8 @@ button{cursor:pointer}.check{display:block}#touch{touch-action:none;user-select:
 <main><header><h1>OpenCode Buddy</h1><small>Firmware display preview · mock data</small></header>
 <section><canvas id="panel" width="240" height="240" aria-label="Mock Buddy display"></canvas>
 <aside><label>Screen<select id="screen"></select></label><label>Expression<select id="state"></select></label>
-<label>Metrics<select id="profile"><option>Typical</option><option>Missing</option><option>Extreme</option><option>Degraded link</option></select></label>
+<label>Language<select id="language"></select></label>
+<label>Metrics<select id="profile"><option>Typical</option><option>Missing</option><option>Extreme</option><option>Degraded link</option><option>MCP 12/8</option><option>Interaction</option><option>LIVE fixture</option></select></label>
 <label class="check"><input type="checkbox" id="quiet"> Quiet mode</label>
 <label class="check"><input type="checkbox" id="native"> Native size</label>
 <label class="check"><input type="checkbox" id="day"> Light surround</label>
@@ -22,6 +23,7 @@ button{cursor:pointer}.check{display:block}#touch{touch-action:none;user-select:
 <script>
 const el=id=>document.getElementById(id), screenMenu=el('screen'), state=el('state'), quiet=el('quiet');
 for(const [menu,names] of [[screenMenu,['Buddy','Session','Tokens','Tools','MCP Radar','System']],
+  [el('language'),['English','Français','Deutsch']],
   [state,['Offline','Idle','Thinking','Generating','Working','Permission','Input needed','Success','Error','Compacting','Retrying','Interrupted']]]) {
   for(const name of names) menu.add(new Option(name));
 }
@@ -63,7 +65,7 @@ async function paint() {
   if(!quiet.checked && time-lastTouch>=60000 && screenMenu.selectedIndex){screenMenu.selectedIndex=0;lastTouch=time;}
   const ttl={7:4000,8:30000,11:10000}[current];
   if(ttl && age>=ttl)selectState(1);
-  const values=[screenMenu.selectedIndex,current,el('profile').selectedIndex,+quiet.checked,time,time-entered,previous,time-lastTouch];
+  const values=[screenMenu.selectedIndex,current,el('profile').selectedIndex,+quiet.checked,time,time-entered,previous,time-lastTouch,el('language').selectedIndex];
   try{
     const res=await fetch('/frame?v='+values.join(','));
     if(!res.ok)throw Error(res.status);
