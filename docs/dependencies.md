@@ -83,3 +83,11 @@ development tree is fully described by `package-lock.json` and the table above.
 No uncontrolled major upgrade. Any update must be justified, pinned, tested with `scripts/qa.sh`,
 and recorded here with its license. The firmware platform and libraries stay pinned in
 `firmware/platformio.ini`.
+
+## Publication note
+
+`package-lock.json` records the exact `resolved` URLs produced by this workspace's package-registry
+configuration. They are environment-specific. Before publishing the repository (a Product Owner
+operation), review or regenerate the lockfile against the intended registry **without changing the
+pinned versions or integrity hashes**. The SBOM committed under `docs/evidence/` was generated from
+the same lockfile and sanitized to reference the public registry; it contains no internal hostname.

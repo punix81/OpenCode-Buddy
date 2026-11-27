@@ -1,0 +1,77 @@
+name: Quality
+
+# Prepared locally in Phase 5. NOT VERIFIED in a remote runner: remote CI and
+# repository publication are Product Owner operations. The bridge install step
+# requires a lockfile whose resolved URLs are reachable from the runner (see
+# docs/dependencies.md, "Publication note").
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install
+        working-directory: bridge
+        run: npm ci
+      - name: Typecheck
+        working-directory: bridge
+        run: npm run typecheck
+      - name: Tests
+        working-directory: bridge
+        run: npm test
+      - name: Plugin tests
+        working-directory: bridge
+        run: npm run test:plugin
+      - name: Protocol validation
+        working-directory: bridge
+        run: npm run validate:protocol
+
+  firmware-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO packages
+        run: |
+          python -m pip install --user platformio
+          ~/.local/bin/pio pkg install --environment supermini --project-dir firmware
+      - name: Firmware host tests and fuzz
+        run: bash firmware/test/host/run.sh
+
+  firmware-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO
+        run: python -m pip install --user platformio
+      - name: Build
+        run: ~/.local/bin/pio run --project-dir firmware -e supermini
+      - name: Artifact
+        run: sha256sum firmware/.pio/build/supermini/firmware.bin
+
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pillow
+      - name: Preview tests
+        working-directory: tools/ui-preview
+        run: python -m unittest -q test_preview.py

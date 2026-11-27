@@ -5,6 +5,7 @@ Current workflows:
 | File | Purpose | Verified |
 | --- | --- | --- |
 | `validate-json.yml` | Parse every protocol schema/example and `config.example.json` on change. | NOT VERIFIED — added in Phase 0, never executed remotely. Remote CI is handled by the Product Owner. |
+| `qa.yml` | Bridge typecheck/tests/plugin/protocol, firmware host tests + fuzz, firmware release build + hash, preview tests. | NOT VERIFIED — prepared locally in Phase 5, never executed remotely. The `npm ci` step needs a lockfile whose resolved URLs are reachable from the runner (see `docs/dependencies.md`). |
 
 Planned, added with the code they test:
 
