@@ -615,3 +615,28 @@ test('the preflight lock check refuses a live owner but allows a stale one', asy
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('lock helpers reject malformed owners and keep our own lock', async () => {
+  const { pidIsAlive, readLockOwner } = await import('../src/ipc/lock.js');
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  try {
+    assert.equal(pidIsAlive(0), false);
+    assert.equal(pidIsAlive(-1), false);
+    assert.equal(pidIsAlive(1.5), false);
+    // PID 1 exists (EPERM for a normal user, success for root): alive either way.
+    assert.equal(pidIsAlive(1), true);
+    await writeFile(paths.lockFile, 'not-a-pid\n');
+    assert.equal(readLockOwner(paths.lockFile), null);
+    await writeFile(paths.lockFile, '0\n');
+    assert.equal(readLockOwner(paths.lockFile), null);
+    await writeFile(paths.lockFile, `${process.pid}\n`);
+    assert.doesNotThrow(() => assertNoOtherBridge(paths));
+    await writeFile(paths.lockFile, '1\n');
+    assert.throws(() => assertNoOtherBridge(paths), /another bridge is running/);
+    await rm(paths.lockFile, { force: true });
+    assert.doesNotThrow(() => assertNoOtherBridge(paths));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

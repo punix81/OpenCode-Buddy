@@ -25,3 +25,41 @@ test('an explicit language and quiet override is validated', () => {
   assert.throws(() => parseConfig({ language: 'it' }), ConfigError);
   assert.throws(() => parseConfig({ quietMode: 'yes' }), ConfigError);
 });
+
+test('every field rejects an invalid value instead of silently defaulting', () => {
+  const invalid: Record<string, unknown>[] = [
+    { port: 12 },
+    { autoDetect: 'yes' },
+    { baudRate: 0 },
+    { baudRate: 3_000_001 },
+    { heartbeatMs: 249 },
+    { heartbeatMs: 60_001 },
+    { linkTimeoutMs: 499 },
+    { linkTimeoutMs: 120_001 },
+    { stateIntervalMs: 99 },
+    { stateIntervalMs: 60_001 },
+    { reconnectDelaysMs: [] },
+    { reconnectDelaysMs: 'fast' },
+    { reconnectDelaysMs: [99] },
+    { reconnectDelaysMs: [300_001] },
+    { logLevel: 'verbose' },
+    { allowRealMcpNames: 'true' },
+    { source: 'simulated' },
+    { language: 'it' },
+    { quietMode: 'yes' },
+    { autoReturnSeconds: 601 },
+  ];
+  for (const value of invalid) {
+    assert.throws(() => parseConfig(value), ConfigError, JSON.stringify(value));
+  }
+  assert.throws(() => parseConfig(null), ConfigError);
+  assert.throws(() => parseConfig([]), ConfigError);
+});
+
+test('the configured port and explicit source are accepted', () => {
+  const config = parseConfig({ port: '/dev/ttyACM0', source: 'mock', logLevel: 'debug' });
+  assert.equal(config.port, '/dev/ttyACM0');
+  assert.equal(config.source, 'mock');
+  assert.equal(config.logLevel, 'debug');
+  assert.equal(parseConfig({ port: null }).port, null);
+});

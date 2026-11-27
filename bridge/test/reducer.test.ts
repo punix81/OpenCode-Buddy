@@ -324,3 +324,24 @@ test('the registry has a hard ceiling even when every session has a pending prom
   assert.ok(registry.list().length <= 256, `sessions=${registry.list().length}`);
   assert.ok((state.pendingPermissions ?? 0) <= 255, 'the snapshot counter stays bounded');
 });
+
+test('interaction IDs are optional, deduplicated and capped', () => {
+  const registry = liveRegistry();
+  registry.apply({ kind: 'session.started', sessionId: 's1', at: 1000 });
+  registry.apply({ kind: 'permission.asked', sessionId: 's1', at: 1001 });
+  assert.equal(registry.list()[0]?.pendingPermissions, 1);
+  registry.apply({ kind: 'permission.asked', sessionId: 's1', at: 1002, requestId: 'p1' });
+  registry.apply({ kind: 'permission.asked', sessionId: 's1', at: 1003, requestId: 'p1' });
+  assert.equal(registry.list()[0]?.pendingPermissions, 2);
+  registry.apply({ kind: 'permission.replied', sessionId: 's1', at: 1004 });
+  assert.equal(registry.list()[0]?.pendingPermissions, 1);
+  registry.apply({ kind: 'question.asked', sessionId: 's1', at: 1005 });
+  registry.apply({ kind: 'question.asked', sessionId: 's1', at: 1006 });
+  assert.equal(registry.list()[0]?.pendingQuestions, 2);
+  registry.apply({ kind: 'question.replied', sessionId: 's1', at: 1007 });
+  assert.equal(registry.list()[0]?.pendingQuestions, 1);
+
+  const ids = Array.from({ length: 70 }, (_, index) => `p${index}`);
+  registry.apply({ kind: 'permission.sync', sessionId: 's1', at: 1008, requestIds: ids });
+  assert.equal(registry.list()[0]?.pendingPermissions, 64);
+});

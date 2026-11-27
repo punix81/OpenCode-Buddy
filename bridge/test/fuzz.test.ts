@@ -6,6 +6,8 @@ import test from 'node:test';
 import { LineFramer, encodeMessage } from '../src/protocol/codec.js';
 import { ERROR_CODES, MAX_LINE_BYTES } from '../src/protocol/types.js';
 import { validateLine } from '../src/protocol/validator.js';
+import { parseIpcLine } from '../src/ipc/messages.js';
+import { normalizeEvent } from '../src/normalize/normalizer.js';
 
 // Deterministic, offline fuzz corpus for the NDJSON validator and framer.
 // Every case is generated from a fixed seed, so a failure is reproducible by
@@ -146,4 +148,76 @@ test('the bridge accepts exactly one complete JSON object per line', () => {
   }
   assert.equal(validateLine(ready).ok, true);
   assert.equal(validateLine(`${ready}{"v":1,"type":"heartbeat","seq":2}`).ok, false);
+});
+
+test('parseIpcLine survives 10 000 deterministic lines', () => {
+  const reasons = new Set(['json', 'shape', 'version']);
+  const types = new Set(['hello', 'event', 'heartbeat', 'source']);
+  for (let i = 0; i < CASES; ++i) {
+    let line: string;
+    const kind = i % 3;
+    if (kind === 0) {
+      line = randomText(9000);
+    } else if (kind === 1) {
+      line = JSON.stringify({
+        v: i % 2,
+        type: pick(['hello', 'event', 'heartbeat', 'source', 'other', 42]),
+        token: i % 5 === 0 ? 42 : 'a'.repeat(i % 130),
+        event: i % 7 === 0 ? 'x' : { kind: i % 2 === 0 ? 'usage' : 7 },
+        status: pick(['ok', 'degraded', 'broken']),
+        at: pick([-1, 0, 1.5, 1e20, 'now']),
+        pid: pick([-1, 0, 12, 'x']),
+      });
+    } else {
+      line = `${' '.repeat(i % 4)}{"v":1,"type":"heartbeat"}`;
+    }
+    const parsed = parseIpcLine(line);
+    if (parsed.ok) {
+      assert.ok(types.has(parsed.message.type), `type at case ${i}`);
+    } else {
+      assert.ok(reasons.has(parsed.reason), `reason at case ${i}`);
+    }
+  }
+});
+
+test('normalizeEvent survives 10 000 deterministic objects', () => {
+  const kinds = [
+    'session.started', 'session.idle', 'session.closed', 'execution.started',
+    'execution.succeeded', 'execution.failed', 'execution.interrupted', 'phase',
+    'retry.scheduled', 'tool.started', 'tool.succeeded', 'tool.failed', 'usage',
+    'permission.asked', 'permission.replied', 'question.asked', 'question.replied',
+    'permission.sync', 'model', 'mcp.status', 'opencode.connected', 'opencode.offline',
+    'opencode.unknown', 'unknown.kind',
+  ];
+  const statuses = ['connected', 'pending', 'disabled', 'failed', 'needs_auth', 'broken'];
+  for (let i = 0; i < CASES; ++i) {
+    const raw: Record<string, unknown> = {
+      kind: pick(kinds),
+      sessionId: pick(['s1', '', 'x'.repeat(80), 42]),
+      at: pick([-1, 0, 1, 1.5, 1e300, 'now']),
+      status: pick(['thinking', 'generating', 'working', 'idle', 'broken']),
+      attempt: pick([0, 1, 255, 256, 1.5]),
+      toolId: pick(['t1', '', 'y'.repeat(80), 42]),
+      messageId: pick([undefined, 'm1', '']),
+      category: pick(['read', 'edit', 'shell', 'search', 'mcp', 'other', 'bad']),
+      input: pick([0, 1, 0x100000000, -1, 1.5, Number.MAX_SAFE_INTEGER]),
+      requestId: pick([undefined, 'p1', '']),
+      requestIds: pick([[], ['a', 'b'], 'x', new Array(70).fill('a')]),
+      model: pick(['m', '', 'x'.repeat(50), 42]),
+      agent: pick(['a', '', 'x'.repeat(30), 42]),
+      online: pick([0, 1, 255, 256, -1]),
+      total: pick([0, 1, 255, 256, -1]),
+      servers: pick([
+        [],
+        [{ alias: 'MCP-1', status: pick(statuses) }],
+        new Array(20).fill({ alias: 'MCP-1', status: 'connected' }),
+        'x',
+      ]),
+    };
+    const event = normalizeEvent(raw);
+    if (event !== null) {
+      assert.equal(typeof event.kind, 'string');
+      assert.ok(Math.abs((event as { at: number }).at) >= 0);
+    }
+  }
 });
