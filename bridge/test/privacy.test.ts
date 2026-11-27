@@ -72,6 +72,36 @@ test('an invalid diagnostic code is dropped', () => {
   assert.equal(output.diagnostic, undefined);
 });
 
+test('inconsistent MCP totals are rejected by the generic normalizer', () => {
+  const inconsistent = normalizeEvent({
+    kind: 'mcp.status',
+    at: 1,
+    online: 5,
+    total: 2,
+    servers: [{ alias: 'MCP-1', status: 'connected' }],
+  });
+  assert.equal(inconsistent, null, 'online cannot exceed total');
+  const detailOverflow = normalizeEvent({
+    kind: 'mcp.status',
+    at: 1,
+    online: 1,
+    total: 1,
+    servers: [
+      { alias: 'MCP-1', status: 'connected' },
+      { alias: 'MCP-2', status: 'pending' },
+    ],
+  });
+  assert.equal(detailOverflow, null, 'details cannot exceed total');
+  const valid = normalizeEvent({
+    kind: 'mcp.status',
+    at: 1,
+    online: 1,
+    total: 3,
+    servers: [{ alias: 'MCP-1', status: 'connected' }],
+  });
+  assert.ok(valid !== null && valid.kind === 'mcp.status');
+});
+
 test('an individual token counter wider than uint32 is unknown, not clamped or dropped', () => {
   const wideInput = normalizeEvent({
     kind: 'usage',
@@ -119,4 +149,23 @@ test('missing bridge version is rendered as unavailable', () => {
   input.versions = { bridge: '', protocol: 1 };
   const output = new PrivacyFilter().projectState(input);
   assert.equal(output.versions.bridge, '--');
+});
+
+test('display strings are bounded in UTF-8 bytes and stay Latin-1', () => {
+  const filter = new PrivacyFilter();
+  const emoji = filter.projectState({ ...baseState(), model: '😀'.repeat(40) });
+  assert.equal(emoji.model, null, 'a non-Latin-1 model is unknown, not a broken frame');
+  const accented = filter.projectState({ ...baseState(), model: 'é'.repeat(25) });
+  assert.equal(accented.model, 'é'.repeat(20), '40 bytes of Latin-1, not 40 characters');
+  const fits = filter.projectState({ ...baseState(), model: 'é'.repeat(20) });
+  assert.equal(fits.model, 'é'.repeat(20));
+  const agent = filter.projectState({ ...baseState(), agent: 'a'.repeat(30) });
+  assert.equal(agent.agent, 'a'.repeat(24));
+  const mcp = filter.projectMcp({
+    online: 1,
+    total: 1,
+    source: 'live',
+    servers: [{ alias: 'é'.repeat(7), status: 'connected' }],
+  });
+  assert.equal(mcp.servers[0]?.alias, 'é'.repeat(6), '12 bytes of alias');
 });

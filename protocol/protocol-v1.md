@@ -337,11 +337,11 @@ The device keeps connection and execution state separate. Execution priority (hi
 | Field | Limit |
 | --- | --- |
 | Line | 2048 B including newline |
-| `model` | 40 chars |
-| `agent` | 24 chars |
-| MCP `alias` | 12 chars (20 if real names enabled) |
-| `detail` | 48 chars |
-| Versions | 16 chars |
+| `model` | 40 B UTF-8, printable Latin-1 |
+| `agent` | 24 B UTF-8, printable Latin-1 |
+| MCP `alias` | 12 B UTF-8, printable Latin-1 |
+| `detail` | 48 B |
+| Versions | 16 B |
 | `run` | 8 hex chars |
 | MCP servers | 8 per message (UI shows 3 + `+k MORE`) |
 | Counters | uint32; sessions uint16; pending/notifications uint8 |

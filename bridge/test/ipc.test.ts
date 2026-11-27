@@ -405,6 +405,90 @@ test('one peer disconnecting closes only its own sessions', async () => {
   }
 });
 
+test('a finished session is evicted before a running one at the per-peer cap', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  const events: NormalizedEvent[] = [];
+  const bridge = {
+    ingest: (event: NormalizedEvent) => events.push(event),
+    setOpenCodeVersion: () => undefined,
+  } as unknown as Bridge;
+  const live = new LiveSource({
+    bridge,
+    config: { ...DEFAULT_CONFIG, source: 'live' },
+    logger: new NullLogger(),
+    paths,
+  });
+  await live.start();
+  const token = (await readFile(paths.tokenFile, 'utf8')).trim();
+  const peer = await connect(paths.socket);
+  try {
+    peer.write(hello(token));
+    // ses_0 is finished; ses_1..ses_63 stay running. The 65th session must
+    // evict the finished one, never a running focus.
+    peer.write(frame({ v: 1, type: 'event', event: { kind: 'execution.succeeded', sessionId: 'ses_0', at: 1 } }));
+    for (let i = 1; i < 64; ++i) {
+      peer.write(frame({ v: 1, type: 'event', event: { kind: 'usage', sessionId: `ses_${i}`, at: 2, input: 1 } }));
+    }
+    peer.write(frame({ v: 1, type: 'event', event: { kind: 'usage', sessionId: 'ses_64', at: 3, input: 1 } }));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    const closedSessions = events
+      .filter((event) => event.kind === 'session.closed')
+      .map((event) => (event as { sessionId: string }).sessionId);
+    assert.deepEqual(closedSessions, ['ses_0']);
+  } finally {
+    peer.destroy();
+    await live.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('a future plugin timestamp is clamped before it can freeze a session', async () => {
+  const dir = await tempDir();
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+  const events: NormalizedEvent[] = [];
+  const bridge = {
+    ingest: (event: NormalizedEvent) => events.push(event),
+    setOpenCodeVersion: () => undefined,
+  } as unknown as Bridge;
+  const live = new LiveSource({
+    bridge,
+    config: { ...DEFAULT_CONFIG, source: 'live' },
+    logger: new NullLogger(),
+    paths,
+  });
+  await live.start();
+  const token = (await readFile(paths.tokenFile, 'utf8')).trim();
+  const peer = await connect(paths.socket);
+  try {
+    peer.write(hello(token));
+    const before = Date.now();
+    peer.write(frame({
+      v: 1,
+      type: 'event',
+      event: { kind: 'usage', sessionId: 'ses_future', at: before + 86_400_000, input: 1 },
+    }));
+    // A legitimate past timestamp (snapshot of a long execution) must survive.
+    peer.write(frame({
+      v: 1,
+      type: 'event',
+      event: { kind: 'execution.started', sessionId: 'ses_past', at: before - 3_600_000 },
+    }));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const future = events.find((event) => 'sessionId' in event && event.sessionId === 'ses_future');
+    const past = events.find((event) => 'sessionId' in event && event.sessionId === 'ses_past');
+    assert.ok(future !== undefined && past !== undefined);
+    assert.ok((future as { at: number }).at <= Date.now(), 'future timestamp clamped');
+    assert.ok((future as { at: number }).at >= before - 1000, 'clamped to now, not dropped');
+    assert.equal((past as { at: number }).at, before - 3_600_000, 'past timestamp preserved');
+  } finally {
+    peer.destroy();
+    await live.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('a degraded source invalidates its sessions and reports OpenCode offline', async () => {
   const dir = await tempDir();
   const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });

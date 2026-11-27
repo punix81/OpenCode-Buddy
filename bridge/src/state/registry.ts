@@ -13,6 +13,9 @@ interface McpSnapshot {
 // only grow the registry for the lifetime of the bridge.
 export const SESSION_TTL_MS = 30 * 60 * 1000;
 export const MAX_SESSIONS = 64;
+// Absolute ceiling, even when every session has a pending prompt. A misbehaving
+// local peer must not grow the registry without bound.
+export const HARD_MAX_SESSIONS = 256;
 const MAX_INTERACTION_IDS = 64;
 
 export class SessionRegistry {
@@ -232,6 +235,14 @@ export class SessionRegistry {
       .sort((a, b) => a[1].updatedAt - b[1].updatedAt)
       .slice(0, this.sessions.size - MAX_SESSIONS);
     for (const [id] of oldest) {
+      this.sessions.delete(id);
+      this.metrics.removeSession(id);
+    }
+    if (this.sessions.size <= HARD_MAX_SESSIONS) return;
+    const overflow = [...this.sessions.entries()]
+      .sort((a, b) => a[1].updatedAt - b[1].updatedAt)
+      .slice(0, this.sessions.size - HARD_MAX_SESSIONS);
+    for (const [id] of overflow) {
       this.sessions.delete(id);
       this.metrics.removeSession(id);
     }

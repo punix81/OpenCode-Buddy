@@ -15,6 +15,10 @@ export const LIVE_WATCHDOG_MS = 5_000;
 // The snapshot restores at most 20 sessions per peer; this cap is a hard bound
 // for a misbehaving peer, not for normal use.
 export const MAX_SESSIONS_PER_PEER = 64;
+// A plugin timestamp further in the future than this is clamped before ordering.
+// Past timestamps stay untouched: a reconnect snapshot legitimately replays the
+// start of a long-running execution (session.time.busy).
+export const MAX_FUTURE_EVENT_SKEW_MS = 5 * 60 * 1000;
 
 export interface LiveSourceOptions {
   bridge: Bridge;
@@ -212,9 +216,10 @@ export class LiveSource {
     }
     if (sessions.has(sessionId)) return;
     if (sessions.size >= MAX_SESSIONS_PER_PEER) {
-      // Prefer evicting an already finished session; a running one would be a
-      // lie to the user. If every session is terminal, evict the oldest one.
-      const victim = [...sessions].find((id) => !this.terminal.has(id)) ?? sessions.values().next().value;
+      // Prefer evicting an already finished session; closing a running one
+      // would be a lie to the user. If every session is running, evict the
+      // oldest one.
+      const victim = [...sessions].find((id) => this.terminal.has(id)) ?? sessions.values().next().value;
       if (victim !== undefined) {
         this.options.bridge.ingest({ kind: 'session.closed', sessionId: victim, at: Date.now() });
         this.forget(victim);
@@ -234,20 +239,34 @@ export class LiveSource {
     return alias;
   }
 
+  // A future plugin timestamp would freeze a session (TTL never reached) and
+  // block later events (ordering reference). Past values are legitimate: a
+  // reconnect snapshot replays the start of the current execution. Clamp only
+  // the future, at the trust boundary; normalizeEvent stays deterministic.
+  private clampTimestamp(raw: Record<string, unknown>): Record<string, unknown> {
+    const now = Date.now();
+    const at = raw['at'];
+    if (typeof at !== 'number' || !Number.isFinite(at)) return raw;
+    if (at <= now + MAX_FUTURE_EVENT_SKEW_MS) return raw;
+    this.options.logger.warn('future event timestamp clamped');
+    return { ...raw, at: now };
+  }
+
   private onEvent(peer: number, raw: Record<string, unknown>): void {
     this.touch(peer);
-    this.options.logger.debug(`event kind=${String(raw['kind'])}`);
+    const clamped = this.clampTimestamp(raw);
+    this.options.logger.debug(`event kind=${String(clamped['kind'])}`);
 
     const event: NormalizedEvent | null =
-      raw['kind'] === 'mcp.status'
-        ? (normalizeMcpStatus(raw, {
+      clamped['kind'] === 'mcp.status'
+        ? (normalizeMcpStatus(clamped, {
             allowRealMcpNames: this.options.config.allowRealMcpNames,
             aliasFor: (name) => this.aliasFor(name),
           }) as NormalizedEvent | null)
-        : normalizeEvent(raw);
+        : normalizeEvent(clamped);
 
     if (event === null) {
-      this.options.logger.warn(`live event dropped kind=${String(raw['kind'])}`);
+      this.options.logger.warn(`live event dropped kind=${String(clamped['kind'])}`);
       return;
     }
 

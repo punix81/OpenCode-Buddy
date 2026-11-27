@@ -20,6 +20,26 @@ function nullableClamp(value: number | null | undefined, min: number, max: numbe
   return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
+// The firmware stores display strings in fixed byte arrays and composes only
+// Latin-1 accents. A limit expressed in UTF-16 characters would let a multi-byte
+// identifier pass the bridge and make the device reject the whole frame.
+function displayText(value: string | null | undefined, maxBytes: number): string | null {
+  const cleaned = cleanText(value, 4096);
+  if (cleaned === null) return null;
+  for (const character of cleaned) {
+    if ((character.codePointAt(0) ?? 0) > 0xff) return null;
+  }
+  let out = '';
+  let bytes = 0;
+  for (const character of cleaned) {
+    const size = character.charCodeAt(0) < 0x80 ? 1 : 2;
+    if (bytes + size > maxBytes) break;
+    out += character;
+    bytes += size;
+  }
+  return out.length > 0 ? out : null;
+}
+
 // A token counter that v1 cannot represent is reported as unknown. Clamping it
 // would claim a value the provider never produced; dropping the whole usage
 // event would freeze every counter (V02).
@@ -39,8 +59,8 @@ export class PrivacyFilter {
     const totalValue = input.tokens?.total;
     const state: StateData = {
       status: input.status,
-      model: cleanText(input.model, 40),
-      agent: cleanText(input.agent, 24),
+      model: displayText(input.model, 40),
+      agent: displayText(input.agent, 24),
       activeSessions: clamp(input.activeSessions, 0, 65535, 0),
       elapsedSeconds: clamp(input.elapsedSeconds, 0, 0xffffffff, 0),
       pendingPermissions: clamp(input.pendingPermissions, 0, 255, 0),
@@ -85,10 +105,10 @@ export class PrivacyFilter {
         opencode: input.connection.opencode,
       },
       versions: {
-        bridge: cleanText(input.versions.bridge, 16) ?? '--',
+        bridge: displayText(input.versions.bridge, 16) ?? '--',
         protocol: clamp(input.versions.protocol, 1, 255, 1),
         ...(input.versions.opencode !== undefined
-          ? { opencode: cleanText(input.versions.opencode, 16) ?? '--' }
+          ? { opencode: displayText(input.versions.opencode, 16) ?? '--' }
           : {}),
       },
       source: input.source,
@@ -112,7 +132,7 @@ export class PrivacyFilter {
       total: clamp(input.total, 0, 255, 0),
       source: input.source,
       servers: input.servers.slice(0, 8).map((server) => ({
-        alias: cleanText(server.alias, 12) ?? 'MCP',
+        alias: displayText(server.alias, 12) ?? 'MCP',
         status: server.status,
       })),
     };

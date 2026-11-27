@@ -170,13 +170,12 @@ export function normalizeEvent(raw: unknown): NormalizedEvent | null {
           if (!MCP_STATUSES.has(status as McpStatus)) throw new Error('invalid mcp status');
           return { alias: text(entry['alias'], 12), status: status as McpStatus };
         });
-        return {
-          kind: 'mcp.status',
-          at,
-          online: integer(raw['online'], 0, 255),
-          total: integer(raw['total'], 0, 255),
-          servers: parsed,
-        };
+        const online = integer(raw['online'], 0, 255);
+        const total = integer(raw['total'], 0, 255);
+        // The plugin path validates this; the generic path must agree or the
+        // radar can show more connected servers than the total.
+        if (online > total || parsed.length > total) return null;
+        return { kind: 'mcp.status', at, online, total, servers: parsed };
       }
       default:
         return null;

@@ -314,3 +314,13 @@ test('an inactive session is pruned after its TTL instead of growing the registr
   assert.equal(expired.model, null);
   assert.equal(expired.activeSessions, 0);
 });
+
+test('the registry has a hard ceiling even when every session has a pending prompt', () => {
+  const registry = liveRegistry();
+  for (let i = 0; i < 300; ++i) {
+    registry.apply({ kind: 'permission.asked', sessionId: `s${i}`, at: 1000 + i });
+  }
+  const state = registry.snapshot(ctx(2000));
+  assert.ok(registry.list().length <= 256, `sessions=${registry.list().length}`);
+  assert.ok((state.pendingPermissions ?? 0) <= 255, 'the snapshot counter stays bounded');
+});
