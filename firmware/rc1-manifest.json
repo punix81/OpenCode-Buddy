@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "label": "Phase 5 RC1 (frozen)",
+  "version": "0.2.0",
+  "file": "firmware-rc-dd7d1d57.bin",
+  "sha256": "dd7d1d5727ae1e36e0a799fe248ea42f66d831593e5f0a5538b2196b287cce63",
+  "size": 413344,
+  "flashOffset": "0x10000",
+  "appOnly": true,
+  "firmwareVersion": "0.2.0",
+  "protocolMajor": 1,
+  "notes": "Application-only image for a device that already has a compatible bootloader and partition table. A blank ESP32-C3 requires a separate initial full-flash installation; this manifest does not authorize or contain it.",
+  "rollback": {
+    "label": "Phase 4.1 verified application",
+    "sha256": "2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2",
+    "size": 411232,
+    "flashOffset": "0x10000"
+  }
+}
