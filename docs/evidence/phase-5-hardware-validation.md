@@ -88,3 +88,22 @@ requires the Product Owner's explicit approval. The release binary is preserved.
 The 20 cold boots, 10 software reboots, 10 bridge restarts, 10 USB reconnects, the six-screen tour
 and the 3600 s soak were **not** started: running them on an image that fails the first handshake
 would only record known failures. They resume after the correction and a new approval.
+
+## 6. Normal restarts after the failure (VERIFIED, 2026-11-27 08:00)
+
+After the blocked first session, eight immediate bridge restarts (each one reopens the port and
+resets the board) were recorded:
+
+| Series | Retry constant | Result |
+| --- | --- | --- |
+| A | 300 ms (temporary experiment) | 5/5 first sessions PASS, 0 retries, 0 invalid |
+| B | 2000 ms (the shipped value, restored) | 3/3 first sessions PASS, 0 retries, 0 invalid |
+
+Conclusion: the 300 ms experiment was **not** the cause of the improvement and was reverted; the
+failure is not reproduced by immediate restarts. It is tied to the first port open after a long
+device uptime without a host (the device had been running since the previous day). This makes the
+physical cold-boot series the decisive test: a real power cycle creates the same "device boots with
+no host, then the bridge opens" condition.
+
+The bridge constant and the firmware are unchanged from the shipped Phase 4.1 state; no diagnostic
+image is installed.
