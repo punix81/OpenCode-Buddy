@@ -98,6 +98,7 @@ void flushTx() {
 uint32_t gLastLinkCheck = 0;
 uint32_t gLastHeartbeat = 0;
 uint32_t gLastHello = 0;
+bool gLastHostConnected = false;
 uint32_t gSetupStartUs = 0;
 uint32_t gHeapBeforeCanvas = 0;
 uint32_t gHeapAfterCanvas = 0;
@@ -400,7 +401,10 @@ void setup() {
   gState.setState(buddy::BuddyState::Offline, now);
 
   gProtocol.begin(gBootCount, buddy::kFirmwareVersion);
-  sendHello(now);
+  gLastHostConnected = gSerial.hostConnected();
+  if (gLastHostConnected) {
+    sendHello(now);
+  }
 
 #if defined(BUDDY_MOCK_MODE) && BUDDY_MOCK_MODE
   gMock.begin(now, gState);
@@ -412,6 +416,14 @@ void setup() {
 }
 
 void loop() {
+  const bool hostConnected = gSerial.hostConnected();
+  if (hostConnected != gLastHostConnected) {
+    gLastHostConnected = hostConnected;
+    if (hostConnected) {
+      // A bridge that just opened the port must not wait for the 3 s timer.
+      gLastHello = millis() - buddy::kHelloIntervalMs;
+    }
+  }
 #if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
   // Time between two main-loop iterations: each one services USB RX/TX. It is
   // the observable bound for how long the bridge can wait for a read.
@@ -435,7 +447,7 @@ void loop() {
   // A device that boots before the host opens its port receives a fragment of
   // its own USB CDC transmission. Those bytes cannot come from a host, so drop
   // them instead of mixing them into the first ready/config line.
-  if (!gSerial.hostConnected()) {
+  if (!hostConnected) {
     gSerial.discardInput();
   }
 
@@ -526,11 +538,13 @@ void loop() {
 
   const bool bridgeAbsent =
       !gProtocol.linkReady() || now - gProtocol.lastRxMs() > buddy::kLinkTimeoutMs;
-  if (bridgeAbsent && now - gLastHello >= buddy::kHelloIntervalMs) {
+  if (hostConnected && bridgeAbsent && now - gLastHello >= buddy::kHelloIntervalMs) {
     sendHello(now);
   }
 
-  if (now - gLastHeartbeat >= buddy::kHeartbeatMs) {
+  // The heartbeat keeps an established link alive. Sending it before the
+  // handshake (or with no host) only filled the TX buffer and starved RX.
+  if (hostConnected && gProtocol.linkReady() && now - gLastHeartbeat >= buddy::kHeartbeatMs) {
     sendHeartbeat(now);
   }
 
