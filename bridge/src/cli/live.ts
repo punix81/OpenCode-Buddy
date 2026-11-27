@@ -22,7 +22,7 @@ const config = {
   ...(options.port !== undefined ? { port: options.port } : {}),
   ...(options.logLevel !== undefined ? { logLevel: options.logLevel } : {}),
 };
-const logger = makeLogger(config.logLevel);
+const logger = makeLogger(config.diagnostics ? 'debug' : config.logLevel);
 
 let live: LiveSource | null = null;
 let bridge: Bridge | null = null;

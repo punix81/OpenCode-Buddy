@@ -52,6 +52,7 @@ export class LiveSource {
   private readonly paths: IpcPaths;
   private readonly server: IpcServer;
   private readonly aliases = new Map<string, string>();
+  private readonly usedAliases = new Set<string>();
   private readonly peers = new Map<number, PeerState>();
   private readonly versions = new Map<number, string>();
   private readonly sessionsByPeer = new Map<number, Set<string>>();
@@ -234,8 +235,17 @@ export class LiveSource {
     const existing = this.aliases.get(name);
     if (existing !== undefined) return existing;
     if (this.aliases.size >= IPC_MAX_SERVERS) return 'MCP';
-    const alias = `MCP-${this.aliases.size + 1}`;
+    const configured = this.options.config.mcpAliases[name];
+    if (configured !== undefined && !this.usedAliases.has(configured)) {
+      this.aliases.set(name, configured);
+      this.usedAliases.add(configured);
+      return configured;
+    }
+    let index = 1;
+    while (this.usedAliases.has(`MCP-${index}`)) ++index;
+    const alias = `MCP-${index}`;
     this.aliases.set(name, alias);
+    this.usedAliases.add(alias);
     return alias;
   }
 

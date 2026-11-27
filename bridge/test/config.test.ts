@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
-import { DEFAULT_CONFIG, parseConfig, ConfigError } from '../src/config.js';
+import { DEFAULT_CONFIG, defaultConfigFile, parseConfig, ConfigError } from '../src/config.js';
 
 test('display preferences are owned by the device by default', () => {
   const config = parseConfig({});
@@ -62,4 +65,40 @@ test('the configured port and explicit source are accepted', () => {
   assert.equal(config.source, 'mock');
   assert.equal(config.logLevel, 'debug');
   assert.equal(parseConfig({ port: null }).port, null);
+});
+
+test('unknown configuration keys are errors, not ignored', () => {
+  assert.throws(() => parseConfig({ telemetry: true }), /unknown configuration key/);
+  assert.throws(() => parseConfig({ deviceSerail: 'AA' }), /unknown configuration key/);
+});
+
+test('device selection, startup and diagnostics are validated', () => {
+  const config = parseConfig({
+    deviceSerial: 'AA:BB:CC',
+    autoStart: true,
+    diagnostics: true,
+    mcpAliases: { files: 'FILES', github: 'GH' },
+  });
+  assert.equal(config.deviceSerial, 'AA:BB:CC');
+  assert.equal(config.autoStart, true);
+  assert.equal(config.diagnostics, true);
+  assert.deepEqual(config.mcpAliases, { files: 'FILES', github: 'GH' });
+  assert.throws(() => parseConfig({ deviceSerial: '' }), ConfigError);
+  assert.throws(() => parseConfig({ autoStart: 'yes' }), ConfigError);
+  assert.throws(() => parseConfig({ diagnostics: 1 }), ConfigError);
+  assert.throws(() => parseConfig({ mcpAliases: { a: 'X', b: 'X' } }), /duplicates/);
+  assert.throws(() => parseConfig({ mcpAliases: { a: 12 } }), ConfigError);
+});
+
+test('the development file wins when it exists; otherwise the platform path is used', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'buddy-config-'));
+  try {
+    assert.equal(defaultConfigFile({ XDG_CONFIG_HOME: '/tmp/xdg' }, 'linux', dir), join('/tmp/xdg', 'opencode-buddy', 'config.json'));
+    assert.equal(defaultConfigFile({ APPDATA: 'C:\\Users\\a\\AppData\\Roaming' }, 'win32', dir), join('C:\\Users\\a\\AppData\\Roaming', 'opencode-buddy', 'config.json'));
+    assert.equal(defaultConfigFile({ BUDDY_CONFIG: '/explicit.json' }, 'linux', dir), '/explicit.json');
+    writeFileSync(join(dir, 'config.local.json'), '{}');
+    assert.equal(defaultConfigFile({}, 'linux', dir), join(dir, 'config.local.json'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
