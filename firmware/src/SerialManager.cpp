@@ -22,6 +22,7 @@ bool SerialManager::readLine(char* out, size_t capacity, size_t& length) {
     if (value < 0) {
       return false;
     }
+    ++bytes_;
     const char byte = static_cast<char>(value);
 
     if (byte == '\n') {
@@ -61,6 +62,7 @@ void SerialManager::discardInput() {
     if (Serial.read() < 0) {
       break;
     }
+    ++discarded_;
   }
   length_ = 0;
   discard_ = false;

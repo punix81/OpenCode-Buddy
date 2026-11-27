@@ -67,6 +67,20 @@ uint32_t gHeapAfterCanvas = 0;
 uint32_t gBootUs = 0;
 uint32_t gLastDiagnosticMs = 0;
 uint32_t gLastPushCount = 0;
+
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+// Diagnostic-only counters for the USB boot-window investigation. The release
+// build compiles them out; the BUDDY-DIAG lines are a separate channel that the
+// probe filters, never production NDJSON.
+uint32_t gDiagParse[10] = {0};
+uint32_t gDiagHello = 0;
+uint32_t gDiagHeartbeat = 0;
+uint32_t gDiagHostEdges = 0;
+uint32_t gDiagLastCode = 255;
+uint16_t gDiagLastLen = 0;
+char gDiagLastHead[9] = {0};
+bool gDiagHost = false;
+#endif
 uint32_t gErrorWindowStart = 0;
 uint8_t gErrorCount = 0;
 
@@ -100,11 +114,17 @@ void sendHello(uint32_t now) {
   sendEncoded(gProtocol.encodeHello(gOut, sizeof(gOut)));
   gLastHeartbeat = now;
   gLastHello = now;
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  ++gDiagHello;
+#endif
 }
 
 void sendHeartbeat(uint32_t now) {
   sendEncoded(gProtocol.encodeHeartbeat(gOut, sizeof(gOut)));
   gLastHeartbeat = now;
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  ++gDiagHeartbeat;
+#endif
 }
 
 bool allowError(uint32_t now) {
@@ -169,6 +189,12 @@ void refreshUsb(uint32_t now) {
   gLastLinkCheck = now;
 
   const bool connected = gSerial.hostConnected();
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  if (connected != gDiagHost) {
+    gDiagHost = connected;
+    ++gDiagHostEdges;
+  }
+#endif
   if (!connected) {
     gState.setLink(buddy::LinkState::Disconnected, buddy::BridgeState::Unknown,
                    buddy::OpenCodeState::Unknown);
@@ -233,6 +259,25 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
                                    gWriter.droppedTooLong()),
       static_cast<unsigned long>(gWriter.sent()), static_cast<unsigned long>(gWriter.maxFrame()),
       Serial.availableForWrite(), Serial.available());
+  Serial.printf(
+      "BUDDY-DIAG2 framing=%lu rx_bytes=%lu rx_lines=%lu rx_drop=%lu rx_ovf=%lu "
+      "ok=%lu err=%lu gap=%lu dup=%lu hello=%lu hb=%lu host_edges=%lu host=%d "
+      "last=%lu len=%u head=%s\n",
+      static_cast<unsigned long>(gProtocol.framingResyncs()),
+      static_cast<unsigned long>(gSerial.bytesRead()),
+      static_cast<unsigned long>(gSerial.linesReceived()),
+      static_cast<unsigned long>(gSerial.discardedBytes()),
+      static_cast<unsigned long>(gSerial.overflows()),
+      static_cast<unsigned long>(gDiagParse[0]),
+      static_cast<unsigned long>(gDiagParse[4] + gDiagParse[5] + gDiagParse[6] +
+                                   gDiagParse[7] + gDiagParse[8]),
+      static_cast<unsigned long>(gDiagParse[3]),
+      static_cast<unsigned long>(gDiagParse[2]),
+      static_cast<unsigned long>(gDiagHello),
+      static_cast<unsigned long>(gDiagHeartbeat),
+      static_cast<unsigned long>(gDiagHostEdges), gDiagHost ? 1 : 0,
+      static_cast<unsigned long>(gDiagLastCode), static_cast<unsigned>(gDiagLastLen),
+      gDiagLastHead);
   if (boot) {
     Serial.printf("BUDDY-DIAG stage=canvas heap_before=%lu heap_after=%lu canvas_delta=%lu boot_us=%lu\n",
                   static_cast<unsigned long>(gHeapBeforeCanvas),
@@ -344,6 +389,20 @@ void loop() {
 #endif
 
     const buddy::ParseCode code = gProtocol.handleLine(gLine, length, now, gState);
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+    {
+      const uint8_t index = static_cast<uint8_t>(code);
+      if (index < 10) ++gDiagParse[index];
+      gDiagLastCode = index;
+      gDiagLastLen = static_cast<uint16_t>(length);
+      const size_t copy = length < 8 ? length : 8;
+      for (size_t i = 0; i < copy; ++i) {
+        const unsigned char c = static_cast<unsigned char>(gLine[i]);
+        gDiagLastHead[i] = (c >= 32 && c < 127) ? static_cast<char>(c) : '.';
+      }
+      gDiagLastHead[copy] = '\0';
+    }
+#endif
     switch (code) {
       case buddy::ParseCode::ParseError:
         sendError(now, "E_PARSE", false, "invalid message");

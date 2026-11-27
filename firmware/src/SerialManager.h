@@ -22,6 +22,8 @@ class SerialManager {
 
   uint32_t linesReceived() const { return lines_; }
   uint32_t overflows() const { return overflows_; }
+  uint32_t bytesRead() const { return bytes_; }
+  uint32_t discardedBytes() const { return discarded_; }
   bool hostConnected() const;
 
   // Drops everything received while no host is connected. With no host, the
@@ -40,6 +42,8 @@ class SerialManager {
   bool overflowPending_ = false;
   uint32_t lines_ = 0;
   uint32_t overflows_ = 0;
+  uint32_t bytes_ = 0;
+  uint32_t discarded_ = 0;
 };
 
 }  // namespace buddy
