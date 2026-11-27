@@ -14,18 +14,18 @@ Severity: **P0** critical security/data integrity, **P1** important reliability/
 
 | Id | Severity | Area | Status |
 | --- | --- | --- | --- |
-| P1-01 | P1 | bridge protocol framer | confirmed, fix prepared |
-| P2-01 | P2 | bridge session registry | confirmed |
-| P2-02 | P2 | bridge live input timestamps | confirmed |
-| P2-03 | P2 | protocol string limits (chars vs bytes) | confirmed |
+| P1-01 | P1 | bridge protocol framer | **fixed** `bb5c527` |
+| P2-01 | P2 | bridge session registry | **fixed** `99de977` |
+| P2-02 | P2 | bridge live input timestamps | **fixed** `99de977` |
+| P2-03 | P2 | protocol string limits (chars vs bytes) | **fixed** `99de977` |
 | P2-04 | P2 | rendering arc cost | confirmed by source + baseline |
 | P2-05 | P2 | text measurement cost | confirmed by source |
-| P2-06 | P2 | plugin snapshot latency | confirmed by source |
-| P2-07 | P2 | MCP totals consistency (normalizer) | confirmed |
-| P2-08 | P2 | running session evicted first | confirmed |
+| P2-06 | P2 | plugin snapshot latency | **fixed** `aac8a35` |
+| P2-07 | P2 | MCP totals consistency (normalizer) | **fixed** `99de977` |
+| P2-08 | P2 | running session evicted first | **fixed** `99de977` |
 | P3-01 | P3 | MCP unknown presented as 0/0 | confirmed |
 | P3-02 | P3 | hello drop not retried immediately | confirmed |
-| P3-03 | P3 | no lint/format/coverage/QA entry point | confirmed |
+| P3-03 | P3 | no lint/format/coverage/QA entry point | QA + coverage done; lint open |
 | P3-04 | P3 | performance evidence not reproducible from the repo | confirmed |
 | P3-05 | P3 | alias truncation collisions with real names | confirmed (opt-in) |
 | P3-06 | P3 | documentation/test-count drift after 4.1 | confirmed, fixed by this phase |
@@ -230,3 +230,15 @@ Phase 4.1 commit and this phase's doc pass. Test counts are asserted in one plac
 - `npm audit` could not authenticate to the corporate registry's advisory endpoint. Vulnerability
   status is **NOT VERIFIED**, not "zero" (see `docs/dependencies.md`).
 - No Windows host was available; named-pipe IPC stays a Phase 6 item.
+
+
+## Dispositions (2026-11-27)
+
+- `bb5c527` P1-01: per-chunk overflow counter; framer/bridge tests.
+- `99de977` P2-01/02/03/07/08: hard session ceiling, future-timestamp clamp, UTF-8/Latin-1 display
+  bounds + protocol table, MCP consistency, terminal-first eviction; tests for each.
+- `aac8a35` P2-06: parallel snapshot with bounded per-session permission timeouts.
+- `1660413` / `5becb9f`: fuzz corpora and coverage tests (96.62 % lines, 87.17 % branches).
+- P2-04/P2-05: planned P5-02; measurement requires a diagnostic flash (no approval yet).
+- P3-01/P3-02/P3-04/P3-05: open and documented; no release blocker.
+- P5-00 handshake blocker: see `docs/evidence/phase-5-hardware-validation.md`.
