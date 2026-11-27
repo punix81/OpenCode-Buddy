@@ -135,6 +135,14 @@ threat-model review.
 Exit criteria: coverage targets met on the reducer and privacy filter; fuzz runs clean; soak passes;
 audit findings closed or accepted; security sign-off.
 
+**Status (2026-11-27): in progress — Checkpoint B accepted; Phase 5 NOT accepted.** The software
+gates are green (126/126 bridge, 27/27 plugin, coverage 96.61/87.31, 288/288 pixel equivalence), but
+the USB diagnostic campaign found a CDC RX stall after a watchdog/flash reset: the bridge can send
+ready/config with no ACK until a real power cycle/replug. The pre-link backlog is an aggravating
+factor, not the proven cause. RC1 `dd7d1d57…` remains the stable candidate; no final RC is flashed;
+the 20 cold boots, 10 USB reconnections, 3600 s soak and 28 800 s endurance remain open. See
+`docs/evidence/phase-5-usb-diagnostics.md` and `docs/handover-phase5.md`.
+
 ## Phase 6 — Packaging and team pilot
 
 **Goal:** another developer can install it without help.

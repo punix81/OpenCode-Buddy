@@ -1,9 +1,12 @@
 # Phase 5 — report (Checkpoint B)
 
 Date: 2026-11-27
-Status: **Checkpoint B complete; Release Candidate built, not flashed; Phase 5 not yet accepted.**
-The installed firmware remains the Phase 4.1 release `2ff67b71…` and the LIVE bridge remains the 4.1
-worktree `58bd386`, as instructed. No physical manipulation, no GitHub operation, no Phase 6.
+Status: **Checkpoint B complete; Phase 5 NOT accepted. The 2026-11-27 diagnostic campaign confirmed
+a USB CDC RX stall after a watchdog/flash reset; no validated fix. A real power cycle restores the
+link. RC1 `dd7d1d57…` remains the stable software candidate; the experimental release `c3468a99…` is
+not suitable. No final RC flash.**
+The installed firmware is the verified Phase 4.1 release `2ff67b71…`; the bridge is stopped and needs
+a power cycle/replug to restore the LIVE handshake. No GitHub operation, no Phase 6.
 
 ## 1. Summary
 
@@ -13,10 +16,10 @@ worktree `58bd386`, as instructed. No physical manipulation, no GitHub operation
 | Numeric tests | `number()` boundaries + existing uint32/wide-token tests PASS |
 | OpenCode integration | 3 new projection tests (compaction failure, status discriminator, partial usage); plugin 27/27 |
 | Linting | ESLint 10.12 + typescript-eslint 8.71; 6 dead-code issues fixed; QA/gate wired |
-| Diagnostic firmware | `supermini-diag-live` built with USB boot-window counters; not installed |
-| Bridge fix `c4db0b3` | Integrated and tested (124/124); not deployed to the running 4.1 bridge |
-| RC firmware | `dd7d1d57…`, 413 344 B, 22 620 B RAM, 378 782 B flash |
-| Coverage | 96.54 % lines / 87.20 % branches / 87.63 % functions |
+| Diagnostic firmware | Built; campaign images installed, verified and rolled back; USB RX stall still open |
+| Bridge fix `c4db0b3` | Integrated and tested (126/126); diagnostic filter added; not deployed to the running 4.1 bridge |
+| RC firmware | RC1 `dd7d1d57…`, 413 344 B, 22 620 B RAM, 378 782 B flash (stable candidate) |
+| Coverage | 96.61 % lines / 87.31 % branches / 87.63 % functions |
 | Hardware gates | Cold boots, USB reconnections, new-bridge soak and 8 h endurance remain |
 
 ## 2. Checkpoint A recap
@@ -44,8 +47,10 @@ worktree `58bd386`, as instructed. No physical manipulation, no GitHub operation
 - `number()` moved to `Format.cpp` (LovyanGFX-free) with host boundary tests.
 - Equivalence: 288 native preview images, **0 differing pixels**; the review sheets regenerate
   byte-identically. Details: `docs/evidence/phase-5-renderer-equivalence.md`.
-- Performance: the baseline and the expected gain are documented; **the ESP32 timing is not measured**
-  (no flash). Details and measurement plan: `docs/evidence/phase-5-performance.md`.
+- Performance: the baseline and the optimization are documented; a **partial ESP32 sample** (Buddy
+  offline) measured 46.6 ms average, p50/p95/p99 46.0 ms. Session/Tokens and the six-screen matrix
+  remain unmeasured (the MOCK bench image was not flashed). Details:
+  `docs/evidence/phase-5-performance.md`.
 - Budget: +2 048 B flash, +16 B RAM versus 4.1; no SPI/palette/font/layout change.
 
 ### 3.2 Numeric limits (P5-06)
@@ -71,7 +76,7 @@ Phase 3/4; no event or field was invented.
   `catch (error)`, empty interface → type alias).
 - `scripts/lint.sh`; `scripts/qa.sh` runs lint, typecheck, bridge, plugin, protocol, host (fuzz +
   number), preview. CI workflow updated (not executed remotely).
-- Coverage: 96.54 / 87.20 / 87.63. Per-module exceptions (server 76 % branch, source 79 %, registry
+- Coverage: 96.61 / 87.31 / 87.63. Per-module exceptions (server 76 % branch, source 79 %, registry
   82 %) are stateful/IO paths, documented in `phase-5-coverage.md`.
 
 ### 3.5 Diagnostic firmware (additional Checkpoint B request)
@@ -81,13 +86,17 @@ Phase 3/4; no event or field was invented.
 hello/heartbeat, host transitions, the last line code/length/printable head, plus the existing heap,
 FPS, render max and TX drops (`BUDDY-DIAG` + `BUDDY-DIAG2` every 5 s). Release build has the counters
 compiled out (only the byte/discard counters in `SerialManager`, +16 B RAM).
-Artifact: `3646d4ce…`, 415 408 B. **Not installed.**
+Artifact: `3646d4ce…`, 415 408 B. It was installed for the 2026-11-27 campaign and rolled back
+(`2ff67b71…` verified). The campaign and the corrected images (`af390f71`, `3689b828`, `0b57ca8c`)
+are documented in `docs/evidence/phase-5-usb-diagnostics.md`; the USB RX stall is still open.
 
 ### 3.6 Release Candidate
 
-`docs/evidence/phase-5-rc.md`: firmware `dd7d1d57…`, 413 344 B, 22 620 B RAM, 378 782 B flash;
-bridge main branch with `c4db0b3` (124/124); plugin 27/27; 288/288 pixel equivalence; flash/rollback
-procedure. **The 4.1 soak on `58bd386` does not validate this bridge**; a new soak is required.
+`docs/evidence/phase-5-rc.md`: RC1 `dd7d1d57…`, 413 344 B, 22 620 B RAM, 378 782 B flash; bridge main
+branch with `c4db0b3` (126/126); plugin 27/27; 288/288 pixel equivalence. The 2026-11-27 diagnostic
+campaign did **not** produce a validated USB fix; the experimental `c3468a99…` host-byte gate
+deadlocks when RX is dead. **The 4.1 soak on `58bd386` does not validate this bridge**; a new soak
+remains required.
 
 ## 4. Differences vs the Phase 4.1 reference
 
@@ -97,11 +106,15 @@ preferences and gestures unchanged.
 
 ## 5. Gates remaining before Phase 5 acceptance
 
-1. Explicit flash authorisation for the RC.
-2. 20 genuine cold boots and 10 USB reconnections on the RC.
-3. Isolate the long-idle first-open handshake with the diagnostic LIVE image; no unexplained failure.
+1. **Power-cycle/replug the device** to restore the 4.1 LIVE handshake (the RX stall after a
+   watchdog/flash reset leaves it dead).
+2. Establish and fix the USB CDC RX stall root cause (peripheral vs HWCDC vs host CDC state); the
+   pre-link backlog is only an aggravating factor. Do not ship the host-byte gate.
+3. Explicit flash authorisation for the final RC, then 20 genuine cold boots and 10 USB
+   reconnections on that image.
 4. 3600 s soak on the RC bridge (not the 4.1 one) and the 28 800 s endurance.
-5. Physical six-screen/EN/FR/DE/gesture/preference confirmation and hardware render timings.
+5. Six-screen/EN/FR/DE/gesture/preference confirmation and the full hardware renderer matrix
+   (Session/Tokens p50/p95/p99); the MOCK bench image is not yet authorised/flashed.
 6. Windows named pipes and packaging remain Phase 6.
 
 ## 6. Constraints respected
@@ -119,3 +132,38 @@ firmware `2ff67b71…` and the LIVE 4.1 bridge were left untouched. All work is 
 
 No remote operation: the repository has no publication step performed by an agent (Product Owner
 responsibility).
+
+
+## 8. Diagnostic campaign (2026-11-27)
+
+Full counters and images: `docs/evidence/phase-5-usb-diagnostics.md`.
+
+- 4.1 baseline before any flash: 60 s / 300 s / 900 s **3/3 PASS**, 0 retry, 0 invalid, 0 reconnect.
+- Authorised `3646d4ce…`: flash verified; first opening failed (ready, 0 ACK, 3 retries) with
+  `rx_bytes=16`, `rx_lines=0`, `dropped=26`, `hello=24`, `hb=24`; direct `Serial.printf` was an
+  instrumentation confounder.
+- 4.1 after rollback: first two sessions failed, then recovered after idle; a real power cycle
+  (USB device 22) restored the handshake.
+- `fix3` `3689b828…`: heartbeat suppressed (`hb=0`) but 26 pre-link hellos (`hostConnected` is true
+  after enumeration), `rx_bytes=16`, no ACK.
+- `fix4` `0b57ca8c…`: host-byte hello gate; `hello=0`, `rx_bytes=0`, bridge “no hello received” —
+  deadlock when RX is dead.
+- The RX stall is **not root-caused**. Workaround: real power cycle. The experimental USB policy
+  was reverted (`d564f48`); the release source reproduces RC1 code (fresh build `f9cc72ee…`, 0
+  code/data differences vs `dd7d1d57…`). RC1 `dd7d1d57…` remains the stable candidate.
+- Partial hardware renderer sample: Buddy offline 46.6 ms average, p50/p95/p99 46.0 ms; Session/
+  Tokens and the six-screen matrix remain unmeasured on hardware.
+
+## 9. Local commits added during the campaign
+
+- `7fd9f1f` — ignore BUDDY-DIAG telemetry in the bridge
+- `d5d5bc9` — safe-integer token tests
+- `6cb4859` — tick-table check in QA
+- `680e05f` — diagnostic instrumentation (histogram, bench commands)
+- `fa17f45` — firmware uint32 overflow tests
+- `11296e9` — diagnostic TxBuffer (no protocol interleave)
+- `45d9be9` — pre-link heartbeat suppression
+- `7b8357a` — bench probe and log analyser
+- `cbd9d92` — 288-image equivalence tool
+- `031a9c3` — host-byte hello gate (experimental; not suitable)
+- `d564f48` — revert of the unvalidated USB hello policy; release code returns to RC1

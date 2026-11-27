@@ -15,6 +15,7 @@ Severity: **P0** critical security/data integrity, **P1** important reliability/
 | Id | Severity | Area | Status |
 | --- | --- | --- | --- |
 | P1-01 | P1 | bridge protocol framer | **fixed** `bb5c527` |
+| P1-02 | P1 | USB CDC RX stall after reset | **confirmed 2026-11-27; root cause open** |
 | P2-01 | P2 | bridge session registry | **fixed** `99de977` |
 | P2-02 | P2 | bridge live input timestamps | **fixed** `99de977` |
 | P2-03 | P2 | protocol string limits (chars vs bytes) | **fixed** `99de977` |
@@ -63,6 +64,31 @@ make `overflows` per-push. Keep one cumulative getter only for diagnostics.
 
 **Regression tests**: framer: a second push reports 0; bridge: after an oversized line, 10 valid
 frames produce exactly one `E_TOO_LONG` (pre-handshake suppression keeps it at 0 until ready).
+
+## P1-02 — USB CDC RX can deliver 0/16 host bytes after a watchdog/flash reset
+
+**Files**: `firmware/src/SerialManager.cpp`, `firmware/src/main.cpp`; ESP32-C3 USB Serial/JTAG;
+`bridge/src/bridge.ts` handshake.
+
+**Evidence (2026-11-27, diagnostic campaign)**:
+
+- `fix3` `3689b828…`: after `ready`/`config` were written four times, the device reported
+  `hello=26`, `hb=0`, `rx_bytes=16`, `rx_lines=0`, `ok=0`, `last=255`; the bridge made 3 retries and
+  reopened.
+- `fix4` `0b57ca8c…` (host-byte hello gate): `hello=0`, `rx_bytes=0`; the bridge timed out with
+  “no hello received”.
+- Release 4.1 `2ff67b71…` after a rollback reset: two sessions with ready, no ACK, 3 retries; a real
+  power cycle restored the handshake. The 4.1 60 s/300 s/900 s baseline before the flash was 3/3
+  PASS.
+- The device TX (hello, diagnostic lines) worked throughout.
+
+**Impact**: after a flash/watchdog reset the bridge can never complete the handshake until the device
+is physically power-cycled. This blocks the RC acceptance, the 20 cold boots and the soak.
+
+**Status**: confirmed. The root cause (USB peripheral vs Arduino `HWCDC` ring vs host CDC state) is
+**not proven**. The pre-link TX backlog (26 hellos/dropped frames) aggravates RX service but is not
+the sole cause: release 4.1 failed without diagnostics, and `fix4` failed with no pre-link traffic.
+Do not ship the host-byte gate: it deadlocks when RX is dead. Workaround: real power cycle/replug.
 
 ## P2-01 — Registry can exceed its session cap when prompts are pending
 
@@ -246,3 +272,6 @@ Phase 4.1 commit and this phase's doc pass. Test counts are asserted in one plac
 - `35005b5` P3-03: ESLint gate in `scripts/lint.sh`, wired into `scripts/qa.sh` and CI; coverage
   measured. No formatter was adopted (nothing in the repository enforced one).
 - P5-00 handshake blocker: see `docs/evidence/phase-5-hardware-validation.md`.
+- 2026-11-27 P1-02: USB CDC RX stall confirmed with `3646d4ce`, `af390f71`, `fix3` and `fix4`;
+  root cause open, power-cycle workaround, no validated fix. RC1 remains the stable candidate;
+  the host-byte gate is not suitable. Full counters: `docs/evidence/phase-5-usb-diagnostics.md`.

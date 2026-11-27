@@ -6,6 +6,30 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Phase 5 — diagnostic campaign (2026-11-27)
+
+- Phase 4.1 baseline before any flash: 60 s / 300 s / 900 s **3/3 PASS**, 0 retry, 0 invalid,
+  0 reconnect.
+- Authorised diagnostic `3646d4ce…` flashed application-only at `0x10000` with esptool 5.7.0
+  `--no-stub`; write, independent read-back and `verify-flash` matched. The first opening failed
+  (ready, 0 ACK, 3 retries); the device reported `rx_bytes=16`, `rx_lines=0`, `dropped=26`,
+  `hello=24`, `hb=24`. The diagnostic image's direct `Serial.printf` was an instrumentation
+  confounder.
+- Rollback to `2ff67b71…` verified. The release 4.1 bridge also failed the first two sessions after
+  the reset without diagnostics; a real power cycle (USB device 22) restored the handshake.
+- Diagnostic instrumentation was corrected in diagnostic-only builds: dedicated TxBuffer, chunked
+  flush, histogram/bench commands. `fix3` (`3689b828…`) showed `hb=0` but 26 pre-link hellos
+  (`hostConnected()` is enumeration-based), `rx_bytes=16`. `fix4` (`0b57ca8c…`) gated on the first
+  host byte: `hello=0`, `rx_bytes=0`, bridge “no hello received” — the gate deadlocks when RX is dead.
+- The USB CDC RX stall is **not root-caused**; workaround is a real power cycle/replug. No validated
+  release fix. The experimental USB policy was reverted (`d564f48`); the release source reproduces
+  RC1 code (fresh build `f9cc72ee…`, 0 code/data differences vs `dd7d1d57…`). RC1 `dd7d1d57…`
+  remains the stable candidate; no final RC flash.
+- Partial hardware renderer sample: Buddy offline 46.6 ms average, p50/p95/p99 46.0 ms; the
+  six-screen matrix and Session/Tokens timings remain unmeasured. Preview equivalence stays 288/288.
+- Open gates: power-cycle recovery, USB RX root cause, 20 cold boots, 10 USB reconnections, 3600 s
+  soak, 28 800 s endurance.
+
 ### Phase 4.1 final acceptance (2026-11-27)
 
 - Installed image read back at `0x10000` and matched the release

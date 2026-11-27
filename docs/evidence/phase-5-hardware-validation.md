@@ -1,7 +1,10 @@
 # Phase 5 — hardware validation (P5-00)
 
 Date: 2026-11-27
-Status: **BLOCKED at the first P5-00 gate.** The installed Phase 4.1 image still loses the first
+Status: **BLOCKED. The 2026-11-27 diagnostic campaign confirmed a USB CDC RX stall after a
+watchdog/flash reset; a real power cycle restores the link. No validated fix; no final RC flash.**
+The pre-link backlog is an aggravating factor, not the proven sole cause. See
+`docs/evidence/phase-5-usb-diagnostics.md` for the full counters and the three diagnostic images. The installed Phase 4.1 image still loses the first
 handshake after the bridge opens the port; the three handshake retries do not recover it, only a
 reopen (device reset) does.
 
@@ -107,3 +110,31 @@ no host, then the bridge opens" condition.
 
 The bridge constant and the firmware are unchanged from the shipped Phase 4.1 state; no diagnostic
 image is installed.
+
+
+## 7. Diagnostic campaign follow-up (2026-11-27)
+
+The Product Owner authorised a controlled diagnostic flash. Summary; full evidence in
+`docs/evidence/phase-5-usb-diagnostics.md`.
+
+| Step | Result |
+| --- | --- |
+| 4.1 baseline 60 s / 300 s / 900 s before flash | **3/3 PASS**, 0 retry, 0 invalid, 0 reconnect |
+| Authorised diagnostic `3646d4ce…` | flash + read-back + verify PASS; first opening FAILED (ready, 0 ACK, 3 retries); `rx_bytes=16`, `rx_lines=0`, `dropped=26`, `hello=24`, `hb=24` |
+| Rollback to `2ff67b71…` | verified; 4.1 bridge failed the first two sessions after the reset, then recovered after idle |
+| Cold boot / power cycle | USB disconnect 14:25:20Z, re-enumeration device 22 at 14:25:24Z; 4.1 handshake PASS |
+| `af390f71` pre-link + diag TxBuffer | no telemetry (flush bug), no ACK |
+| `fix3` `3689b828` | `hb=0` but `hello=26` before open (`hostConnected` is enumeration-based), `rx_bytes=16`, no ACK |
+| `fix4` `0b57ca8c` (host-byte gate) | `hello=0`, `rx_bytes=0`; bridge “no hello received” — gate deadlocks when RX is dead |
+| Final state | 4.1 `2ff67b71…` installed/verified; bridge stopped; power cycle needed to restore LIVE |
+
+The USB RX delivered 0 or 16 host bytes after a watchdog/flash reset while the device TX still
+worked. A real power cycle restored the 4.1 handshake. The root cause (USB peripheral vs HWCDC ring
+vs host CDC state) is **not proven**. The pre-link TX backlog (26 dropped protocol frames) aggravates
+the RX service but is not the sole cause: release 4.1 failed without diagnostics, and `fix4` failed
+with no pre-link traffic.
+
+Recommended: power-cycle before the next acceptance run; investigate an explicit USB RX
+re-initialisation on the host edge (or DTR/RTS), with a new approved diagnostic image; do not ship
+the host-byte gate. RC1 `dd7d1d57…` remains the stable software candidate; the host-byte gate and
+the pre-link policy were **reverted** (`d564f48`), so the release source reproduces RC1 code.

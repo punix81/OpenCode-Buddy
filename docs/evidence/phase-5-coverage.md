@@ -1,7 +1,7 @@
 # Phase 5 — coverage (Checkpoint B)
 
 Date: 2026-11-27. Command: `scripts/qa.sh --coverage` (Node 24, `--experimental-test-coverage` with
-tsx). Aggregate: **96.54 % lines, 87.20 % branches, 87.63 % functions** (goal 90/85 for critical
+tsx). Aggregate: **96.61 % lines, 87.31 % branches, 87.63 % functions** (goal 90/85 for critical
 logic).
 
 ## Key modules
@@ -18,7 +18,7 @@ logic).
 | `ipc/paths.ts` | 100.00 | 87.50 | 100.00 | override/XDG/uid |
 | `normalize/normalizer.ts` | 99.45 | 91.89 | 100.00 | 10 000-case corpus |
 | `metrics/metrics.ts` | 93.85 | 90.74 | 92.86 | tool dedup/usage |
-| `bridge.ts` | high | ~84 | high | I/O and reconnect paths |
+| `bridge.ts` | high | ~84 | high | I/O and reconnect paths; BUDDY-DIAG filter |
 | `ipc/server.ts` | 95.63 | 76.06 | 84.00 | error/symlink/timeout paths |
 | `live/source.ts` | 94.33 | 79.27 | 90.00 | lifecycle/eviction paths |
 

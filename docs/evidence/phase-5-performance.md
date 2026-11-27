@@ -1,7 +1,8 @@
 # Phase 5 — performance (Checkpoint B)
 
-Date: 2026-11-27. Software optimizations are implemented and verified for pixels; **the ESP32
-timings are not yet measured** because no firmware flash was authorised. No target is claimed.
+Date: 2026-11-27. Software optimizations are implemented and verified for pixels; a **partial ESP32
+measurement** was taken during the diagnostic campaign (Buddy offline only). The six-screen matrix
+was not measured because the MOCK bench image was not flashed. No 50 ms target is claimed.
 
 ## 1. Baseline (Phase 4 diagnostic image, 45 samples)
 
@@ -40,12 +41,12 @@ long model/agent).
 Flash/RAM delta of the whole RC vs the 4.1 release: **+2 048 B flash** (378 782 vs 376 734),
 **+16 B RAM** (22 620 vs 22 604). The tick table is flash-only; the text path adds ~96 B of stack.
 
-## 4. Expected effect (not yet measured)
+## 4. Expected effect (partially measured)
 
 The arc work is replaced by a bounded number of span writes (~472 calls; the pixels are the same as
-before). The push floor (~29 ms) and the rest of the drawing remain. Session/Tokens should move
-toward the 50 ms target, but **this is an expectation, not a measurement**. The 50 ms target is not
-claimed.
+before). The push floor (~29 ms) and the rest of the drawing remain. Buddy was measured once on the
+real ESP32 (section 6); Session/Tokens were **not** measured in a stable scenario, so the 50 ms
+target is not claimed.
 
 ## 5. Measurement plan (requires flash approval)
 
@@ -58,3 +59,27 @@ claimed.
    panel).
 
 The desktop preview timing is **not** used as ESP32 evidence.
+
+
+## 6. Hardware measurement — Buddy (fix3 diagnostic, 2026-11-27)
+
+The fix3 diagnostic image (`3689b828…`) ran on the ESP32-C3 while the USB handshake was failing. The
+device stayed on the Buddy screen (offline, no host), so this is a **single-screen, offline** sample,
+not the planned six-screen matrix:
+
+| Metric | Value |
+| --- | --- |
+| Render average (5 s window) | 46 601 µs |
+| P50 / P95 / P99 (1 ms histogram) | 46 000 / 46 000 / 46 000 µs |
+| Max | 46 630 µs |
+| FPS window | 3–4 (offline Buddy interval, not a LIVE FPS claim) |
+| Free heap / minimum / largest block | 244 100 / 244 100 / 221 172 B |
+
+The Phase 4 baseline for Buddy EN/FR/DE was 47.4–48.2 ms average and 47.9–48.6 ms max. The offline
+Buddy sample is therefore consistent with a small improvement, but it is not a controlled before/
+after comparison: the screen was offline and only one screen was sampled. **Session and Tokens were
+not measured on hardware**; the 288-image preview equivalence proves the pixels, not the timing.
+
+The six-screen matrix (3 languages, 6 screens, quiet Buddy, p50/p95/p99, heap, USB gap, drops) needs
+the MOCK bench image with the final fix and explicit flash approval. It remains an open gate. No
+hardware timing is claimed for Session/Tokens.
