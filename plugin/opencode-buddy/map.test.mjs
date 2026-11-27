@@ -198,3 +198,24 @@ test('a snapshot of an idle session invents no execution start', () => {
   const events = projectSessionSnapshot({ id: S, time: { busy: now - 60_000, idle: now - 30_000 } });
   assert.ok(!events.some((event) => event.kind === 'execution.started'));
 });
+
+test('a failed compaction still ends the compacting state', () => {
+  const p = createProjector();
+  const events = p.project(ev('session.compaction.failed', { sessionID: S }));
+  assert.deepEqual(events, [{ kind: 'compaction.ended', sessionId: S, at: 1_700_000_000_000 }]);
+});
+
+test('session.status only maps the retry discriminator', () => {
+  const p = createProjector();
+  assert.deepEqual(p.project(ev('session.status', { sessionID: S, status: { type: 'busy' } })), []);
+  const retry = p.project(ev('session.status', { sessionID: S, status: { type: 'retry', attempt: 4 } }));
+  assert.equal(retry[0]?.kind, 'retry.scheduled');
+  assert.equal(retry[0]?.attempt, 4);
+});
+
+test('usage without counters is dropped, partial counters keep only present fields', () => {
+  const p = createProjector();
+  assert.deepEqual(p.project(ev('session.usage.updated', { sessionID: S })), []);
+  const partial = p.project(ev('session.usage.updated', { sessionID: S, tokens: { output: 7 } }));
+  assert.deepEqual(partial, [{ kind: 'usage', sessionId: S, at: 1_700_000_000_000, output: 7 }]);
+});
