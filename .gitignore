@@ -64,3 +64,6 @@ tmp/
 
 bridge/node_modules/
 bridge/dist/
+
+__pycache__/
+*.pyc
