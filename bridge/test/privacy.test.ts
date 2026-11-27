@@ -135,6 +135,39 @@ test('an individual token counter wider than uint32 is unknown, not clamped or d
   assert.equal(sumProjection.tokens?.total, undefined);
 });
 
+test('counters at the JavaScript safe-integer limit never wrap', () => {
+  const atLimit = normalizeEvent({
+    kind: 'usage',
+    sessionId: 's1',
+    at: 1,
+    input: Number.MAX_SAFE_INTEGER,
+    output: Number.MAX_SAFE_INTEGER,
+    total: Number.MAX_SAFE_INTEGER,
+  });
+  assert.ok(atLimit !== null && atLimit.kind === 'usage');
+  assert.equal(atLimit?.kind === 'usage' ? atLimit.input : undefined, Number.MAX_SAFE_INTEGER);
+
+  const state = baseState();
+  state.tokens = {
+    input: Number.MAX_SAFE_INTEGER,
+    output: 5,
+    total: Number.MAX_SAFE_INTEGER,
+    contextPct: null,
+  };
+  const projected = new PrivacyFilter().projectState(state);
+  assert.equal(projected.tokens?.input, null, 'above uint32 is unknown, not truncated');
+  assert.equal(projected.tokens?.output, 5);
+  assert.equal(projected.tokens?.total, undefined);
+
+  for (const value of [Number.MAX_SAFE_INTEGER + 1, -1, 1.5, Number.POSITIVE_INFINITY, Number.NaN]) {
+    assert.equal(
+      normalizeEvent({ kind: 'usage', sessionId: 's1', at: 1, input: value }),
+      null,
+      `input=${String(value)} must be rejected, never wrapped or clamped`,
+    );
+  }
+});
+
 test('a total wider than uint32 is omitted so the device derives it', () => {
   const input = baseState();
   input.tokens = { input: 0xffffffff, output: 0xffffffff, total: 0x1fffffffe, contextPct: null };
