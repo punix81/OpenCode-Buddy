@@ -56,3 +56,21 @@ g++ -std=c++17 -O2 -Wall -Wextra \
 
 "$OUT-touch"
 "$OUT-tx"
+
+# Deterministic parser fuzz corpus. ASan/UBSan are used when the host compiler
+# supports them; otherwise the same corpus runs unsanitized and says so.
+SAN_FLAGS=""
+if g++ -std=c++17 -fsanitize=address,undefined -x c++ -o /dev/null - >/dev/null 2>&1 <<<'int main(){return 0;}'; then
+  SAN_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+else
+  echo "note: this compiler does not support ASan/UBSan; fuzz runs unsanitized" >&2
+fi
+g++ -std=c++17 -O1 -Wall -Wextra $SAN_FLAGS \
+  -I "$ROOT/firmware/include" \
+  -I "$ROOT/firmware/src" \
+  -I "$ARDUINOJSON" \
+  "$ROOT/firmware/src/ProtocolParser.cpp" \
+  "$ROOT/firmware/src/StateManager.cpp" \
+  "$HERE/test_fuzz.cpp" \
+  -o "$OUT-fuzz"
+ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 "$OUT-fuzz"
