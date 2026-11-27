@@ -244,71 +244,84 @@ export default {
         if (!connected || gen !== generation) return;
         sendNow({ type: 'event', event });
       };
-      const restored = [];
-      try {
-        // Only this location, and only sessions that changed recently: an old
-        // project session must not resurrect its lifetime totals on reconnect.
-        const cutoff = snapshotAt - SNAPSHOT_WINDOW_MS;
-        const directory = ctx.location?.directory;
-        const page = await withTimeout(
-          ctx.session.list({ ...(typeof directory === 'string' ? { directory } : {}), limit: 20 }),
-          SNAPSHOT_TIMEOUT_MS,
-        );
-        const sessions = Array.isArray(page?.data) ? page.data : [];
-        debug(`snapshot sessions=${sessions.length}`);
-        for (const session of sessions) {
-          const sessionDir = session?.location?.directory;
-          if (ownDirectory !== null && typeof sessionDir === 'string' && sessionDir !== ownDirectory) continue;
-          const updated = session?.time?.updated;
-          if (typeof updated === 'number' && updated < cutoff) continue;
-          if (typeof session?.id === 'string') {
-            ownSessions.add(session.id);
-            if (restored.length < 8) restored.push(session.id);
-          }
-          for (const event of projectSessionSnapshot(session, snapshotAt)) sendSnapshot(event);
-        }
-      } catch {
-        debug('session snapshot skipped');
-      }
-      try {
-        const page = await withTimeout(ctx.mcp.list(), SNAPSHOT_TIMEOUT_MS);
-        const servers = Array.isArray(page?.data) ? page.data : [];
-        debug(`mcp snapshot servers=${servers.length}`);
-        projector.seedMcp(servers);
-        const mcp = projector.takeMcp();
-        if (mcp !== null) {
-          if (mcp.total > 0) lastMcpSentAt = Date.now();
-          sendSnapshot(mcp);
-        }
-      } catch {
-        debug('mcp snapshot skipped');
-      }
-      // Permissions are authoritative per session: replace the pending set with
-      // the identifiers the API reports, so a reconnect can never double-count
-      // a prompt that is already gone.
-      for (const session of restored) {
+      // The session and MCP lists are independent: fetch them together so a slow
+      // API costs one timeout, not two.
+      const sessionTask = (async () => {
+        const restored = [];
         try {
+          // Only this location, and only sessions that changed recently: an old
+          // project session must not resurrect its lifetime totals on reconnect.
+          const cutoff = snapshotAt - SNAPSHOT_WINDOW_MS;
+          const directory = ctx.location?.directory;
           const page = await withTimeout(
-            ctx.permission.list({ sessionID: session }),
+            ctx.session.list({ ...(typeof directory === 'string' ? { directory } : {}), limit: 20 }),
             SNAPSHOT_TIMEOUT_MS,
           );
-          const requests = Array.isArray(page?.data) ? page.data : [];
-          const requestIds = [];
-          for (const request of requests) {
-            if (request?.sessionID !== session) continue;
-            if (typeof request?.id === 'string' && request.id.length > 0) {
-              requestIds.push(request.id.slice(0, 64));
+          const sessions = Array.isArray(page?.data) ? page.data : [];
+          debug(`snapshot sessions=${sessions.length}`);
+          for (const session of sessions) {
+            const sessionDir = session?.location?.directory;
+            if (ownDirectory !== null && typeof sessionDir === 'string' && sessionDir !== ownDirectory) continue;
+            const updated = session?.time?.updated;
+            if (typeof updated === 'number' && updated < cutoff) continue;
+            if (typeof session?.id === 'string') {
+              ownSessions.add(session.id);
+              if (restored.length < 8) restored.push(session.id);
             }
+            for (const event of projectSessionSnapshot(session, snapshotAt)) sendSnapshot(event);
           }
-          sendSnapshot({
-            kind: 'permission.sync',
-            sessionId: session,
-            at: snapshotAt,
-            requestIds: requestIds.slice(0, 64),
-          });
         } catch {
-          debug('permission snapshot skipped');
+          debug('session snapshot skipped');
         }
+        return restored;
+      })();
+      const mcpTask = (async () => {
+        try {
+          const page = await withTimeout(ctx.mcp.list(), SNAPSHOT_TIMEOUT_MS);
+          const servers = Array.isArray(page?.data) ? page.data : [];
+          debug(`mcp snapshot servers=${servers.length}`);
+          projector.seedMcp(servers);
+          const mcp = projector.takeMcp();
+          if (mcp !== null) {
+            if (mcp.total > 0) lastMcpSentAt = Date.now();
+            sendSnapshot(mcp);
+          }
+        } catch {
+          debug('mcp snapshot skipped');
+        }
+      })();
+      const [sessionOutcome] = await Promise.allSettled([sessionTask, mcpTask]);
+      const restored = sessionOutcome.status === 'fulfilled' ? sessionOutcome.value : [];
+      // Permissions are authoritative per session: replace the pending set with
+      // the identifiers the API reports, so a reconnect can never double-count
+      // a prompt that is already gone. The per-session calls run together under
+      // their own 3 s timeout; a hung session cannot delay the others.
+      const permissionOutcomes = await Promise.allSettled(
+        restored.map(async (session) => {
+          const page = await withTimeout(ctx.permission.list({ sessionID: session }), SNAPSHOT_TIMEOUT_MS);
+          return { session, page };
+        }),
+      );
+      for (const outcome of permissionOutcomes) {
+        if (outcome.status !== 'fulfilled' || outcome.value?.page === undefined) {
+          debug('permission snapshot skipped');
+          continue;
+        }
+        const { session, page } = outcome.value;
+        const requests = Array.isArray(page?.data) ? page.data : [];
+        const requestIds = [];
+        for (const request of requests) {
+          if (request?.sessionID !== session) continue;
+          if (typeof request?.id === 'string' && request.id.length > 0) {
+            requestIds.push(request.id.slice(0, 64));
+          }
+        }
+        sendSnapshot({
+          kind: 'permission.sync',
+          sessionId: session,
+          at: snapshotAt,
+          requestIds: requestIds.slice(0, 64),
+        });
       }
     };
 
