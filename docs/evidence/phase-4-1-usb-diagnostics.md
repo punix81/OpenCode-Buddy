@@ -127,6 +127,13 @@ regression amplifier, not a root-cause proof. The root-cause proof is §2.2 with
 All experimental images live under `/tmp/opencode/phase41/bin/` (transient) and are reproducible from
 the local commits; the installed release is verified at `0x10000` and matches `2ff67b71…`.
 
+
+> **Evidence retention (2026-11-27).** The `/tmp/opencode/phase41/` logs and experimental
+> binaries were transient and were removed when the host restarted. The excerpts quoted in this
+> document are the durable record; the release and archived images live in
+> `firmware/.pio/build/supermini/` and `.backups/`. Probe and lab builds are reproducible from the
+> local commits plus the documented diagnostic patch.
+
 ## 6. Open items
 
 - **NOT VERIFIED**: the final image has not been through a physical cold-boot series with the real

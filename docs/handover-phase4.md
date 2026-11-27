@@ -33,9 +33,9 @@ Corrections:
 - `docs/evidence/phase-4-1-ab-matrix.md` — image table and every A/B series.
 - `docs/evidence/phase-4-1-hardware-validation.md` — final LIVE state and acceptance table.
 - `docs/evidence/phase-4-1-soak-test.md` — not run, with the exact plan.
-- Logs: `/tmp/opencode/phase41/final-live3.log` (final LIVE),
-  `final-live2.log` (real-bridge failure on the previous candidate),
-  `cold-fixed-probe.log` (4 cold boots, `framing=1`), `verbose-archived2.log` (boot sequence).
+- Logs were under `/tmp/opencode/phase41/` and were removed by the 2026-11-27 host restart. The
+  quoted excerpts in the report and the diagnostics file are the durable record; re-capture with
+  the same commands if a new session must be documented.
 
 ## 3. What remains before Phase 5
 

@@ -109,6 +109,13 @@ updates listed in §9.
 6. Builds are deterministic for a given tree, but the archived 4.0 binary is not bit-reproducible
    from `c39b1fa` (same size, different hash); this predates Phase 4.1.
 
+
+> **Evidence retention (2026-11-27).** The `/tmp/opencode/phase41/` logs and experimental
+> binaries were transient and were removed when the host restarted. The excerpts quoted in this
+> document are the durable record; the release and archived images live in
+> `firmware/.pio/build/supermini/` and `.backups/`. Probe and lab builds are reproducible from the
+> local commits plus the documented diagnostic patch.
+
 ## 9. Documentation updates
 
 - `docs/phase-4-1-investigation.md` — hypothesis list, updated with the confirmed mechanism.
