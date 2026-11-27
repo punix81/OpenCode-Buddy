@@ -1,20 +1,10 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import {
-  chmodSync,
-  closeSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  rmSync,
-  unlinkSync,
-  writeFileSync,
-  writeSync,
-} from 'node:fs';
+import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
 
 import type { Logger } from '../logger.js';
 import type { IpcPaths } from './paths.js';
+import { createIpcEndpoint, type IpcEndpoint } from './endpoint.js';
 import { IPC_MAX_LINE_BYTES, parseIpcLine, type IpcHello } from './messages.js';
 import { pidIsAlive, readLockOwner } from './lock.js';
 
@@ -67,6 +57,7 @@ function constantTimeEquals(a: string, b: string): boolean {
 export class IpcServer {
   private readonly server: Server;
   private readonly token: string;
+  private readonly endpoint: IpcEndpoint;
   private readonly peers = new Map<number, Peer>();
   private nextPeerId = 1;
   private closed = false;
@@ -75,28 +66,16 @@ export class IpcServer {
 
   constructor(private readonly options: IpcServerOptions) {
     this.token = randomBytes(IPC_TOKEN_BYTES).toString('hex');
+    this.endpoint = createIpcEndpoint(this.options.paths, options.logger);
     this.server = createServer((socket) => this.accept(socket));
   }
 
   get socketPath(): string {
-    return this.options.paths.socket;
+    return this.endpoint.address;
   }
 
   get connectionCount(): number {
     return this.peers.size;
-  }
-
-  private prepareDirectory(): void {
-    const { dir } = this.options.paths;
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const stat = lstatSync(dir);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) {
-      throw new Error(`ipc directory is not a real directory: ${dir}`);
-    }
-    if (typeof process.getuid === 'function' && stat.uid !== process.getuid()) {
-      throw new Error(`ipc directory is owned by another user: ${dir}`);
-    }
-    chmodSync(dir, 0o700);
   }
 
   private acquireLock(): void {
@@ -142,47 +121,18 @@ export class IpcServer {
   }
 
   async start(): Promise<void> {
-    const { socket, tokenFile } = this.options.paths;
-    this.prepareDirectory();
+    this.endpoint.ensureDirectory();
     this.acquireLock();
     try {
-      // A socket left behind by a crashed bridge would block listen(). Refuse to
-      // touch anything that is not a socket: a symlink or a regular file must
-      // never be unlinked on our behalf.
-      try {
-        const existing = lstatSync(socket);
-        if (!existing.isSocket()) {
-          throw new Error(`refusing to replace a non-socket path: ${socket}`);
-        }
-        unlinkSync(socket);
-      } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') throw error;
-      }
-
-      try {
-        unlinkSync(tokenFile);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      }
-      writeFileSync(tokenFile, `${this.token}\n`, { mode: 0o600, flag: 'wx' });
-      chmodSync(tokenFile, 0o600);
-
-      await new Promise<void>((resolve, reject) => {
-        const onError = (error: Error): void => reject(error);
-        this.server.once('error', onError);
-        this.server.listen(socket, () => {
-          this.server.off('error', onError);
-          chmodSync(socket, 0o600);
-          resolve();
-        });
-      });
+      this.endpoint.prepare(this.token);
+      await this.endpoint.listen(this.server);
     } catch (error) {
+      this.endpoint.cleanup();
       this.releaseLock();
       throw error;
     }
     this.started = true;
-    this.options.logger.info(`ipc listening path=${socket}`);
+    this.options.logger.info(`ipc listening path=${this.endpoint.address}`);
   }
 
   async stop(): Promise<void> {
@@ -197,12 +147,7 @@ export class IpcServer {
     for (const peer of this.peers.values()) peer.socket.destroy();
     this.peers.clear();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
-    try {
-      rmSync(this.options.paths.socket, { force: true });
-      rmSync(this.options.paths.tokenFile, { force: true });
-    } catch {
-      // Best effort: the directory is ours and 0700.
-    }
+    this.endpoint.cleanup();
     this.releaseLock();
   }
 

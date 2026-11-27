@@ -47,9 +47,22 @@ const DEBUG = process.env['OPENCODE_BUDDY_DEBUG'] === '1';
 const DEBUG_FILE = process.env['OPENCODE_BUDDY_DEBUG_FILE'] ?? null;
 let debugDisabled = false;
 
-// Must stay identical to bridge/src/ipc/paths.ts.
-export function ipcPaths(env = process.env) {
+// Must stay identical to bridge/src/ipc/paths.ts. On Windows the bridge writes
+// a runtime descriptor (pipe path + 256-bit token); the plugin re-reads it on
+// every reconnect so a bridge restart is picked up without a plugin restart.
+export function ipcPaths(env = process.env, platform = process.platform) {
   const override = env['OPENCODE_BUDDY_RUNTIME_DIR'];
+  if (platform === 'win32') {
+    const base = env['LOCALAPPDATA'] ?? env['APPDATA'] ?? tmpdir();
+    const dir = override ?? join(base, 'opencode-buddy');
+    return {
+      platform: 'win32',
+      dir,
+      socket: null,
+      tokenFile: null,
+      descriptorFile: join(dir, 'bridge.json'),
+    };
+  }
   const runtime = env['XDG_RUNTIME_DIR'];
   const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
   const base = override ?? runtime ?? tmpdir();
@@ -59,7 +72,33 @@ export function ipcPaths(env = process.env) {
       : runtime !== undefined
         ? join(base, 'opencode-buddy')
         : join(base, `opencode-buddy-${uid}`);
-  return { dir, socket: join(dir, 'bridge.sock'), tokenFile: join(dir, 'token') };
+  return {
+    platform: 'unix',
+    dir,
+    socket: join(dir, 'bridge.sock'),
+    tokenFile: join(dir, 'token'),
+    descriptorFile: join(dir, 'bridge.json'),
+  };
+}
+
+// Returns the address and token for the next connection. Unix keeps the
+// existing socket/token contract; Windows reads the descriptor written by the
+// bridge. Any malformed descriptor is treated as "bridge unavailable", never as
+// permission to connect somewhere else.
+export function readEndpoint(paths) {
+  if (paths.platform !== 'win32') {
+    const token = readToken(paths.tokenFile);
+    return token === null ? null : { address: paths.socket, token };
+  }
+  try {
+    const raw = JSON.parse(readFileSync(paths.descriptorFile, 'utf8'));
+    if (raw?.v !== 1 || raw?.platform !== 'win32') return null;
+    if (typeof raw.address !== 'string' || !raw.address.startsWith('\\\\.\\pipe\\')) return null;
+    if (typeof raw.token !== 'string' || raw.token.length !== 64) return null;
+    return { address: raw.address, token: raw.token };
+  } catch {
+    return null;
+  }
 }
 
 export function sanitize(message) {
@@ -334,14 +373,15 @@ export default {
 
     const connect = () => {
       if (closed) return;
-      const token = readToken(paths.tokenFile);
-      if (token === null) {
-        debug('bridge token unavailable');
+      const endpoint = readEndpoint(paths);
+      if (endpoint === null) {
+        debug('bridge endpoint unavailable');
         scheduleReconnect();
         return;
       }
+      const token = endpoint.token;
       connected = false;
-      socket = createConnection(paths.socket);
+      socket = createConnection(endpoint.address);
       socket.setEncoding('utf8');
       socket.setNoDelay(true);
 
