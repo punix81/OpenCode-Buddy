@@ -938,6 +938,42 @@ test('an oversized line is reported once, not on every following frame', async (
   }
 });
 
+test('BUDDY-DIAG telemetry is ignored and never answered', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(52));
+    await settle();
+    assert.equal(bridge.status, 'ready');
+    const errors = transport.count('error');
+
+    transport.feed(
+      'BUDDY-DIAG boot=1 reset=power_on heap=200000 min=190000 maxblk=110000 fps=20 ' +
+        'push=100 render_avg_us=48000 render_max_us=52000 screen=0 state=2 dropped=0 sent=0 ' +
+        'maxframe=0 txfree=900 rxavail=0',
+    );
+    transport.feed('BUDDY-DIAG2 framing=0 rx_bytes=12 rx_lines=1 rx_drop=0 rx_ovf=0 host=1');
+    await settle();
+    assert.equal(bridge.status, 'ready');
+    assert.equal(transport.count('error'), errors, 'telemetry must not become a protocol error');
+
+    // A real malformed line after ready is still reported.
+    transport.feed('{not json');
+    await settle();
+    assert.equal(transport.count('error'), errors + 1);
+  } finally {
+    await bridge.stop();
+  }
+});
+
 test('a malformed line before the handshake is logged but not answered', async () => {
   const transport = new RecordingTransport();
   const clock = { now: 1000 };

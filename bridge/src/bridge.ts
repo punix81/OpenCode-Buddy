@@ -314,6 +314,13 @@ export class Bridge {
       if (reportErrors) this.sendError('E_TOO_LONG', false, 'line too long');
     }
     for (const line of framed.lines) {
+      // BUDDY-DIAG/BUDDY-DIAG2 are the firmware's diagnostic telemetry, never
+      // protocol messages. Diagnostic builds interleave them on the CDC link;
+      // log them and never answer, so instrumentation cannot create errors.
+      if (line.startsWith('BUDDY-DIAG')) {
+        this.options.logger.debug(`device diagnostic ${line}`);
+        continue;
+      }
       const result = validateLine(line);
       if (!result.ok) {
         this.options.logger.warn(`invalid message code=${result.code}`);
