@@ -54,6 +54,11 @@ npm run test:plugin > /tmp/opencode-qa-plugin.log 2>&1 || { tail -n 60 /tmp/open
 grep -E '^ℹ (tests|pass|fail)' /tmp/opencode-qa-plugin.log || true
 pass plugin
 
+echo "== script tests"
+npm run test:scripts > /tmp/opencode-qa-scripts.log 2>&1 || { tail -n 60 /tmp/opencode-qa-scripts.log; fail scripts; }
+grep -E '^ℹ (tests|pass|fail)' /tmp/opencode-qa-scripts.log || true
+pass scripts
+
 echo "== protocol validation"
 npm run validate:protocol > /tmp/opencode-qa-protocol.log 2>&1 || { tail -n 40 /tmp/opencode-qa-protocol.log; fail protocol; }
 tail -n 1 /tmp/opencode-qa-protocol.log
