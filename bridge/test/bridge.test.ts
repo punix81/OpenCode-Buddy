@@ -863,6 +863,37 @@ test('a bridge restart does not keep the old device session alive', async () => 
   }
 });
 
+test('an oversized line is reported once, not on every following frame', async () => {
+  const transport = new RecordingTransport();
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(51));
+    await settle();
+    assert.equal(bridge.status, 'ready');
+
+    transport.feed('x'.repeat(3000));
+    await settle();
+    assert.equal(transport.count('error'), 1, 'the oversized line is reported once');
+
+    for (let seq = 2; seq <= 6; ++seq) {
+      clock.now += 10;
+      transport.feed(JSON.stringify({ v: 1, type: 'heartbeat', seq }));
+      await settle();
+    }
+    assert.equal(transport.count('error'), 1, 'later frames do not repeat the error');
+  } finally {
+    await bridge.stop();
+  }
+});
+
 test('a malformed line before the handshake is logged but not answered', async () => {
   const transport = new RecordingTransport();
   const clock = { now: 1000 };

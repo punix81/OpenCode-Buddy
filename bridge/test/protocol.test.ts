@@ -86,6 +86,9 @@ test('framer discards an oversized line and recovers', () => {
   assert.equal(first.overflows, 1);
   const second = framer.push('{"v":1,"type":"heartbeat","seq":1}\n');
   assert.equal(second.lines.length, 1);
+  // The overflow belongs to the chunk that caused it; a later chunk must not
+  // report it again (the bridge used to send E_TOO_LONG on every chunk).
+  assert.equal(second.overflows, 0);
 });
 
 test('version negotiation requires a common major', () => {

@@ -12,6 +12,8 @@ export function encodeMessage(message: AnyMessage): string {
 
 export interface FrameResult {
   lines: string[];
+  // Overflows caused by this chunk only. A cumulative counter here made the
+  // bridge report the same oversized line on every later chunk.
   overflows: number;
 }
 
@@ -21,12 +23,12 @@ export interface FrameResult {
 export class LineFramer {
   private pending: Buffer = Buffer.alloc(0);
   private discarding = false;
-  private overflows = 0;
 
   push(chunk: Buffer | string): FrameResult {
     const bytes = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
     this.pending = this.pending.length === 0 ? bytes : Buffer.concat([this.pending, bytes]);
     const lines: string[] = [];
+    let overflows = 0;
 
     for (;;) {
       const newline = this.pending.indexOf(0x0a);
@@ -42,7 +44,7 @@ export class LineFramer {
       }
       const withoutCr = raw.length > 0 && raw[raw.length - 1] === 0x0d ? raw.subarray(0, -1) : raw;
       if (withoutCr.length + 1 > MAX_LINE_BYTES) {
-        ++this.overflows;
+        ++overflows;
         continue;
       }
       if (withoutCr.length === 0) {
@@ -54,22 +56,15 @@ export class LineFramer {
     if (!this.discarding && this.pending.length + 1 > MAX_LINE_BYTES) {
       this.pending = Buffer.alloc(0);
       this.discarding = true;
-      ++this.overflows;
+      ++overflows;
     }
 
-    return { lines, overflows: this.overflows };
-  }
-
-  takeOverflows(): number {
-    const value = this.overflows;
-    this.overflows = 0;
-    return value;
+    return { lines, overflows };
   }
 
   reset(): void {
     this.pending = Buffer.alloc(0);
     this.discarding = false;
-    this.overflows = 0;
   }
 }
 
