@@ -457,6 +457,27 @@ int main(int argc, char** argv) {
     check(tokens.total == 8589934590ull, "derived total is 64-bit");
   }
 
+  // A value above the uint32 protocol field is rejected by the parser, never
+  // wrapped into a plausible counter. The state stays unknown.
+  {
+    for (const char* field : {"input", "output", "total"}) {
+      buddy::ProtocolParser parser;
+      buddy::StateManager state;
+      parser.begin(1, "0.2.0");
+      state.begin(0);
+      const std::string line =
+          std::string("{\"v\":1,\"type\":\"state\",\"seq\":1,\"data\":{\"status\":\"working\","
+                      "\"activeSessions\":1,\"tokens\":{\"") +
+          field +
+          "\":4294967296},\"connection\":{\"bridge\":\"ready\",\"opencode\":\"connected\"},"
+          "\"versions\":{\"bridge\":\"0.2.0\",\"protocol\":1},\"source\":\"live\"}}";
+      check(feed(parser, state, line) == buddy::ParseCode::ParseError, "uint32 overflow rejected");
+      const auto& tokens = state.metrics().tokens;
+      check(!tokens.inputKnown && !tokens.outputKnown && !tokens.totalKnown,
+            "overflow leaves counters unknown");
+    }
+  }
+
   // One unrepresentable operand is unknown; the other stays usable and the
   // total cannot be fabricated.
   {
