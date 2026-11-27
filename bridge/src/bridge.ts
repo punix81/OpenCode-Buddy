@@ -127,7 +127,10 @@ export class Bridge {
   private handshakeRetryAt: number | null = null;
   private handshakeRetries = 0;
   private opencodeVersion: string | null = null;
-  private readonly handshakeSeqs = new Set<number>();
+  private handshakeReadySeq: number | null = null;
+  private handshakeConfigSeq: number | null = null;
+  private handshakeReadyAcked = false;
+  private handshakeConfigAcked = false;
   private tickTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private reconnectAttempt = 0;
@@ -365,7 +368,10 @@ export class Bridge {
       this.deviceSeq.reset();
       this.pendingAcks.clear();
       this.handshakeAcked = false;
-      this.handshakeSeqs.clear();
+      this.handshakeReadyAcked = false;
+      this.handshakeConfigAcked = false;
+      this.handshakeReadySeq = null;
+      this.handshakeConfigSeq = null;
       this.deviceSeq.accept(message.seq);
       this.setStatus('ready');
       if (this.handshakeDelayMs > 0) {
@@ -425,9 +431,13 @@ export class Bridge {
         // expected=1). Re-send ready when the device has not passed the
         // handshake yet; config alone would leave ready_ false forever.
         this.handshakeAt = null;
+        this.handshakeReadyAcked = false;
+        this.handshakeConfigAcked = false;
         const expected = message.data.expected;
-        if (expected !== undefined && expected >= 1 && expected <= 2) this.sendReady();
-        this.sendConfig();
+        if (expected !== undefined && expected >= 1 && expected <= 2) {
+          this.handshakeReadySeq = this.sendReady();
+        }
+        this.handshakeConfigSeq = this.sendConfig();
         this.snapshotPending = true;
         this.sendAck(message.seq);
         return;
@@ -438,8 +448,18 @@ export class Bridge {
         this.sendAck(message.seq);
         return;
       case 'ack': {
-        if (this.handshakeSeqs.has(message.data.ack)) {
-          // The device has processed ready/config: it is safe to send the
+        // A single ACK must not declare the handshake complete: ready may be
+        // applied while config was lost, which would leave the device without
+        // auto-return or an explicit override. Require both frames of the
+        // current attempt; a delayed ACK for a replay has the same seq/content.
+        if (this.handshakeReadySeq !== null && message.data.ack === this.handshakeReadySeq) {
+          this.handshakeReadyAcked = true;
+        }
+        if (this.handshakeConfigSeq !== null && message.data.ack === this.handshakeConfigSeq) {
+          this.handshakeConfigAcked = true;
+        }
+        if (this.handshakeReadyAcked && this.handshakeConfigAcked) {
+          // The device has processed ready and config: it is safe to send the
           // snapshot. A device still booting may miss the handshake and
           // re-announce; sending state first used to provoke E_PARSE/resync.
           this.handshakeAcked = true;
@@ -477,9 +497,7 @@ export class Bridge {
           this.options.logger.warn(`handshake retry ${this.handshakeRetries} (no ACK)`);
           // ready seq 1 restarts the device's peer sequence, so the replay is
           // accepted even when the first attempt already advanced it.
-          this.seqOut.reset();
-          this.sendReady();
-          this.sendConfig();
+          this.sendHandshakePair();
           this.handshakeRetryAt = now + HANDSHAKE_RETRY_MS;
         } else {
           this.handshakeRetryAt = null;
@@ -551,9 +569,6 @@ export class Bridge {
     }
     this.options.logger.protocol('out', message.type, message.seq, Buffer.byteLength(line));
     this.sentCounts[message.type] = (this.sentCounts[message.type] ?? 0) + 1;
-    if (message.type === 'ready' || message.type === 'config') {
-      this.handshakeSeqs.add(message.seq);
-    }
     if (message.type === 'state' || message.type === 'mcp_status') {
       this.pendingAcks.set(message.seq, this.now());
       if (this.pendingAcks.size > 128) {
@@ -571,8 +586,7 @@ export class Bridge {
     // USB-CDC endpoint setup. A blank line is ignored by its line framer and
     // primes the endpoint before ready/config.
     this.primeLink();
-    this.sendReady();
-    this.sendConfig();
+    this.sendHandshakePair();
     // The snapshot is deferred to the next tick: sending ready, config, state,
     // mcp_status and ack back-to-back is ~1.1 KB, which exceeds the device's
     // 1024-byte CDC RX queue while it renders a frame (one lost frame per
@@ -589,20 +603,32 @@ export class Bridge {
     });
   }
 
-  private sendReady(): void {
+  // Sends ready and config as one attempt: ready restarts at seq 1 so a replay
+  // is accepted, and both ACKs are required before the snapshot is released.
+  private sendHandshakePair(): void {
+    this.seqOut.reset();
+    this.handshakeReadyAcked = false;
+    this.handshakeConfigAcked = false;
+    this.handshakeReadySeq = this.sendReady();
+    this.handshakeConfigSeq = this.sendConfig();
+  }
+
+  private sendReady(): number {
+    const seq = this.seqOut.next();
     this.send({
       v: 1,
       type: 'ready',
-      seq: this.seqOut.next(),
+      seq,
       data: {
         bridge: this.bridgeVersion,
         proto: PROTOCOL_MAJOR,
         run: this.runId,
       },
     });
+    return seq;
   }
 
-  private sendConfig(): void {
+  private sendConfig(): number {
     // An explicit host override always wins. Without one, a firmware that
     // supports partial config keeps its stored preference; an older firmware
     // rejects a config without these fields, so the legacy values are sent.
@@ -616,7 +642,9 @@ export class Bridge {
       ...(language !== null ? { language } : {}),
       ...(quietMode !== null ? { quietMode } : {}),
     };
-    this.send({ v: 1, type: 'config', seq: this.seqOut.next(), data: config });
+    const seq = this.seqOut.next();
+    this.send({ v: 1, type: 'config', seq, data: config });
+    return seq;
   }
 
   private sendAck(ack: number): void {

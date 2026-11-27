@@ -245,6 +245,9 @@ class RecordingTransport implements Transport {
   // Number of ready/config frames to swallow without acknowledging, modelling
   // a device whose CDC RX still holds a fragment of its own boot output.
   ignoreHandshakeAcks = 0;
+  // Number of config ACKs to swallow while still acknowledging ready: a partial
+  // handshake must not release the snapshot.
+  ignoreConfigAcks = 0;
   private openState = false;
   private deviceSeq = 1;
 
@@ -281,6 +284,10 @@ class RecordingTransport implements Transport {
     if (this.autoAck && (message.type === 'ready' || message.type === 'config') && typeof message.seq === 'number') {
       if (this.ignoreHandshakeAcks > 0) {
         --this.ignoreHandshakeAcks;
+        return;
+      }
+      if (message.type === 'config' && this.ignoreConfigAcks > 0) {
+        --this.ignoreConfigAcks;
         return;
       }
       const seq = ++this.deviceSeq;
@@ -539,6 +546,9 @@ test('an unacknowledged frame expires instead of being tracked forever', async (
     await deviceSide.write(
       `${encodeMessage({ v: 1, type: 'ack', seq: 2, data: { ack: 1, warning: null } })}\n`,
     );
+    await deviceSide.write(
+      `${encodeMessage({ v: 1, type: 'ack', seq: 3, data: { ack: 2, warning: null } })}\n`,
+    );
     await settle();
     bridge.tick(clock.now);
     await settle();
@@ -750,6 +760,40 @@ test('a handshake lost in the device RX is retried without reopening', async () 
     await settle();
     assert.equal(bridge.status, 'ready');
     assert.equal(transport.count('state'), 1, 'snapshot released after the retry ACK');
+  } finally {
+    await bridge.stop();
+  }
+});
+
+test('a partial handshake ACK does not release the snapshot', async () => {
+  const transport = new RecordingTransport();
+  transport.ignoreConfigAcks = 1;
+  const clock = { now: 1000 };
+  const bridge = new Bridge({
+    transport,
+    config: config(),
+    logger: new NullLogger(),
+    autoTimers: false,
+    now: () => clock.now,
+  });
+  try {
+    await bridge.start();
+    transport.feed(hello(41));
+    await settle();
+    clock.now += 100;
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(transport.count('state'), 0, 'ready alone must not release the snapshot');
+
+    clock.now += HANDSHAKE_RETRY_MS;
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(transport.count('ready'), 2, 'the pair is replayed');
+    assert.equal(transport.count('config'), 2);
+    clock.now += 100;
+    bridge.tick(clock.now);
+    await settle();
+    assert.equal(transport.count('state'), 1, 'both ACKs release the snapshot');
   } finally {
     await bridge.stop();
   }
