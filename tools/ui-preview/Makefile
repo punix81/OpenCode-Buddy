@@ -8,9 +8,10 @@ CXXFLAGS := -std=c++17 -O2 -ffunction-sections -fdata-sections -MMD -MP
 CFLAGS := -O1 -ffunction-sections -fdata-sections
 LIBCPP := $(wildcard $(LG)/v1/*.cpp $(LG)/v1/misc/*.cpp) $(LG)/v1/panel/Panel_Device.cpp $(LG)/v1/platforms/framebuffer/common.cpp
 LIBC := $(wildcard $(LG)/utility/*.c $(LG)/v1/lv_font/*.c)
-SOURCES := $(LIBCPP) $(LIBC) $(addprefix $(FW)/src/,BuddyFace.cpp Dashboard.cpp Theme.cpp Localization.cpp AnimationEngine.cpp StateManager.cpp) preview.cpp
+SOURCES := $(LIBCPP) $(LIBC) $(addprefix $(FW)/src/,BuddyFace.cpp Dashboard.cpp Theme.cpp Format.cpp Localization.cpp AnimationEngine.cpp StateManager.cpp) preview.cpp
 VPATH := $(sort $(dir $(SOURCES)))
 OBJ := $(addprefix $(BUILD)/,$(addsuffix .o,$(basename $(notdir $(SOURCES)))))
+TICK_LIB := $(addprefix $(BUILD)/,$(addsuffix .o,$(basename $(notdir $(LIBCPP) $(LIBC)))))
 $(BUILD)/preview: $(OBJ)
 	$(CXX) -Wl,--gc-sections $^ -o $@
 $(BUILD)/%.o: %.cpp | $(BUILD)
@@ -20,3 +21,11 @@ $(BUILD)/%.o: %.c | $(BUILD)
 $(BUILD):
 	mkdir -p $@
 -include $(wildcard $(BUILD)/*.d)
+
+# Exact tick-span table generator (see gen_ticks.cpp). It writes a header in the
+# firmware tree; run it only when the tick geometry or the pinned library changes.
+ticks: $(BUILD)/gen_ticks
+	$(BUILD)/gen_ticks > $(FW)/src/TickTables.h
+
+$(BUILD)/gen_ticks: $(BUILD)/gen_ticks.o $(BUILD)/Theme.o $(BUILD)/Format.o $(TICK_LIB)
+	$(CXX) -Wl,--gc-sections $^ -o $@

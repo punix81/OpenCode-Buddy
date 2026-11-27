@@ -6,9 +6,19 @@
 #include <cstring>
 
 #include "Localization.h"
+#include "TickTables.h"
 
 namespace buddy::ui {
 namespace {
+// Draws one precomputed tick: the spans are the exact fillArc pixels, so the
+// render is pixel-identical while avoiding the full-radius scan per tick.
+void tickSpans(Canvas& g, const TickSpan* spans, const TickGroup& group, uint8_t ink) {
+  for (uint8_t i = 0; i < group.count; ++i) {
+    const TickSpan& span = spans[group.first + i];
+    g.drawFastHLine(span.x0, span.y, span.x1 - span.x0 + 1, ink);
+  }
+}
+
 void identity(Canvas& g, const StateManager& d, int y) {
   char names[72];
   snprintf(names,sizeof(names),"%s / %s",d.model(),d.agent());
@@ -26,9 +36,10 @@ void identity(Canvas& g, const StateManager& d, int y) {
 void session(Canvas& g,const StateManager& d,const MotionFrame& m,Language language) {
   const auto& a = d.metrics();
   const auto c = accent(d.state());
+  const bool moving = d.state()!=BuddyState::Offline && !m.quiet;
   for(int i=0;i<36;++i) {
-    const bool moving = d.state()!=BuddyState::Offline && !m.quiet;
-    arc(g,100,i%3 ? 2 : 5,5+i*10,2,moving && m.elapsedMs/160%36==unsigned(i) ? c : Border);
+    const bool active = moving && m.elapsedMs/160%36==unsigned(i);
+    tickSpans(g, kSessionSpans, kSessionGroups[i], active ? c : Border);
   }
   identity(g,d,63);
   char duration[24] = "--";
@@ -48,10 +59,10 @@ void session(Canvas& g,const StateManager& d,const MotionFrame& m,Language langu
 void tokens(Canvas& g,const TokenUsage& a,Language language) {
   char out[24];
   const uint64_t sum = uint64_t(a.input)+a.output;
+  const bool known = a.inputKnown && a.outputKnown && sum;
   for(int i=0;i<28;++i) {
-    const bool known = a.inputKnown && a.outputKnown && sum;
     const uint8_t ink = !known ? Border : ((2*i+1)*sum < uint64_t(a.input)*56 ? Blue : Lilac);
-    arc(g,98,4,145+i*9,7,ink);
+    tickSpans(g, kTokensSpans, kTokensGroups[i], ink);
   }
   // The total is the cumulative consumption of the focus session. It is never
   // the current context occupancy: that value has no verified source yet.

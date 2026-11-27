@@ -74,3 +74,11 @@ g++ -std=c++17 -O1 -Wall -Wextra $SAN_FLAGS \
   "$HERE/test_fuzz.cpp" \
   -o "$OUT-fuzz"
 ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 "$OUT-fuzz"
+
+# Compact number formatting (pure C++, no LovyanGFX).
+g++ -std=c++17 -O2 -Wall -Wextra \
+  -I "$ROOT/firmware/src" \
+  "$ROOT/firmware/src/Format.cpp" \
+  "$HERE/test_number.cpp" \
+  -o "$OUT-number"
+"$OUT-number"

@@ -1,6 +1,8 @@
 #pragma once
 #include <LovyanGFX.hpp>
+
 #include "BuddyState.h"
+#include "Format.h"
 
 namespace buddy::ui {
 using Canvas = lgfx::LGFX_Sprite;
@@ -19,5 +21,4 @@ enum class Type { Small, Body, Title, Metric };
 void text(Canvas& g, const char* value, int x, int y, Type type, uint8_t ink,
           int maxWidth = 212);
 void arc(Canvas& g, int radius, int width, int start, int length, uint8_t ink);
-void number(uint64_t value, bool known, char (&out)[24]);
 }

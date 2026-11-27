@@ -103,16 +103,11 @@ bool hasNonAscii(const char* value) {
   return false;
 }
 
-size_t previousCodepoint(const char* value, size_t length) {
-  if (length == 0) return 0;
-  size_t index = length - 1;
-  while (index > 0 && (static_cast<unsigned char>(value[index]) & 0xc0) == 0x80) {
-    --index;
-  }
-  return index;
-}
-
 int measure(Canvas& g, const char* value) {
+  // One metric call for ASCII (the common case) instead of one per character.
+  // Composed Latin-1 letters keep the per-codepoint sum because the renderer
+  // places the base glyph and the mark separately.
+  if (!hasNonAscii(value)) return g.textWidth(value);
   int width = 0;
   const char* cursor = value;
   char one[2] = {0, 0};
@@ -236,24 +231,57 @@ void text(Canvas& g, const char* value, int x, int y, Type type, uint8_t ink, in
   const lgfx::IFont* fonts[] = {&lgfx::fonts::Font2, &lgfx::fonts::FreeSans9pt7b,
                                  &lgfx::fonts::FreeSansBold12pt7b,&lgfx::fonts::FreeSansBold24pt7b};
   int level = static_cast<int>(type);
-  int width;
+  int width = 0;
+  int measured = 0;
   do {
     g.setFont(fonts[level]);
     const int dy = std::abs(y-center) + (g.fontHeight()+1)/2;
-    if (dy >= safeRadius) { width = 0; continue; }
-    const int chord = static_cast<int>(sqrtf(safeRadius*safeRadius-dy*dy));
-    width = std::min(maxWidth, 2*(chord-std::abs(x-center)));
-  } while (measure(g, value) > width && level-- > 0);
+    if (dy >= safeRadius) {
+      // Keep the original semantics: a zero width still tries the next smaller
+      // font, which may fit inside the safe circle.
+      width = 0;
+      measured = measure(g, value);
+    } else {
+      const int chord = static_cast<int>(sqrtf(safeRadius*safeRadius-dy*dy));
+      width = std::min(maxWidth, 2*(chord-std::abs(x-center)));
+      measured = measure(g, value);
+    }
+  } while (measured > width && level-- > 0);
   if (width <= 0) return;
   char fitted[96];
-  if (measure(g, value) > width) {
-    snprintf(fitted, sizeof(fitted), "%s", value);
-    size_t n = std::min(strlen(fitted), sizeof(fitted)-4);
-    do {
-      if (n == 0) return;
-      n = previousCodepoint(fitted, n);
-      memcpy(fitted+n, "...", 4);
-    } while (measure(g, fitted) > width);
+  if (measured > width) {
+    // Largest codepoint prefix whose ellipsis still fits: binary search over
+    // boundaries instead of removing one codepoint and re-measuring (O(n^2)).
+    const size_t length = strlen(value);
+    // Prefix offsets fit in a byte (the fitted buffer is 96 bytes) and keep the
+    // stack cost low on the main loop.
+    uint8_t boundaries[96];
+    size_t count = 0;
+    for (size_t i = 0; i < length && count < 95 && i <= 92;) {
+      boundaries[count++] = i;
+      size_t next = i + 1;
+      while (next < length && (static_cast<unsigned char>(value[next]) & 0xc0) == 0x80) ++next;
+      i = next;
+    }
+    if (count < 2) return;
+    size_t low = 1;
+    size_t high = count - 1;
+    size_t best = 0;
+    while (low <= high) {
+      const size_t mid = (low + high) / 2;
+      const size_t prefix = boundaries[mid];
+      memcpy(fitted, value, prefix);
+      memcpy(fitted + prefix, "...", 4);
+      if (measure(g, fitted) <= width) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    if (best == 0) return;
+    memcpy(fitted, value, boundaries[best]);
+    memcpy(fitted + boundaries[best], "...", 4);
     value = fitted;
   }
   g.setTextColor(ink);
@@ -270,14 +298,4 @@ void arc(Canvas& g, int r, int w, int start, int length, uint8_t ink) {
   g.fillArc(center,center,r,r-w+1,start%360,(start+length)%360,ink);
 }
 
-void number(uint64_t value, bool known, char (&out)[24]) {
-  if (!known) { strcpy(out,"--"); return; }
-  const char suffix[] = " kMB";
-  unsigned unit = 0;
-  uint64_t scale = 1;
-  while (unit < 3 && value >= 1000*scale-scale/20) { scale *= 1000; ++unit; }
-  if (!unit) { snprintf(out,sizeof(out),"%u",static_cast<unsigned>(value)); return; }
-  const unsigned tenths = static_cast<unsigned>((10*value+scale/2)/scale);
-  snprintf(out,sizeof(out),"%u.%u%c",tenths/10,tenths%10,suffix[unit]);
-}
 }  // namespace buddy::ui
