@@ -1,0 +1,859 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:d2d24310-9aa7-447c-a5e4-a5d36731e233",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-27T08:09:29.044Z",
+    "lifecycles": [
+      {
+        "phase": "build"
+      }
+    ],
+    "tools": [
+      {
+        "vendor": "npm",
+        "name": "cli",
+        "version": "11.19.1"
+      }
+    ],
+    "component": {
+      "bom-ref": "opencode-buddy-bridge@0.2.0",
+      "type": "library",
+      "name": "bridge",
+      "version": "0.2.0",
+      "scope": "required",
+      "description": "Local bridge between OpenCode Buddy firmware and normalized state sources.",
+      "purl": "pkg:npm/opencode-buddy-bridge@0.2.0",
+      "properties": [
+        {
+          "name": "cdx:npm:package:private",
+          "value": "true"
+        }
+      ],
+      "externalReferences": []
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "@serialport/binding-mock@10.2.2",
+      "type": "library",
+      "name": "@serialport/binding-mock",
+      "version": "10.2.2",
+      "scope": "required",
+      "description": "The mock serialport bindings",
+      "purl": "pkg:npm/%40serialport/binding-mock@10.2.2",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/binding-mock/-/binding-mock-10.2.2.tgz"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/serialport/binding-mock"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "1c01731a193d3ae14ca6ea2beda4f91b50a13e09f9a92b2495314e4d45fbd9197aa74c7071256c46d1bfc5a1a9e9bc6937b7c8f43fd2f131cb0566c1812ea577"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/bindings-cpp@13.0.0",
+      "type": "library",
+      "name": "@serialport/bindings-cpp",
+      "version": "13.0.0",
+      "scope": "required",
+      "description": "SerialPort Hardware bindings for node serialport written in c++",
+      "purl": "pkg:npm/%40serialport/bindings-cpp@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/bindings-cpp/-/bindings-cpp-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/serialport/bindings-cpp.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "af6e68e0193fbda3b52f251f63fba547a84283f69688de96a369635656f83e3e5ba9619c4910b856c7b86bd01c6a9b80bbf15e0731c26ca32f450782b8a8f321"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-delimiter@12.0.0",
+      "type": "library",
+      "name": "@serialport/parser-delimiter",
+      "version": "12.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-delimiter@12.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-delimiter/-/parser-delimiter-12.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "82edbab55b79950a326e1a2b2d33ec1f68f62e75f700e3f6c7fdf8f835124cd6944f3bb67c15f0fa2b158d0269501156bba69e411670e5b2689795fd1b18db97"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-readline@12.0.0",
+      "type": "library",
+      "name": "@serialport/parser-readline",
+      "version": "12.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-readline@12.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-readline/-/parser-readline-12.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "3bb732c02582f0f88e32fa3f82094405f0242e3a7f48434430be3a0570f291f28fe664cf338e9731a5f52f4c1a594e835c9a4182368befec97e95ae254f6cde3"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/bindings-interface@1.2.2",
+      "type": "library",
+      "name": "@serialport/bindings-interface",
+      "version": "1.2.2",
+      "scope": "required",
+      "description": "SerialPort Bindings Typescript Types",
+      "purl": "pkg:npm/%40serialport/bindings-interface@1.2.2",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/bindings-interface/-/bindings-interface-1.2.2.tgz"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/serialport/bindings-interface"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "0896947796cbbed33d7397663bdacf0473d74daf51d94c29909d30761f4909871bacf5ac2b3f84aef4748412dea3b34f7a215d8c53b8b289d19638b0e1dd9788"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-byte-length@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-byte-length",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-byte-length@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-byte-length/-/parser-byte-length-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "df6cafa9e4c0a89cc012d5f9cc2acdd4c7a3e7a189e61fdc545b020cf6c5f52d59482f455a33aa34082d072b1e1df153493b3fe19050659719069a25b7cb149e"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-cctalk@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-cctalk",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-cctalk@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-cctalk/-/parser-cctalk-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "444ac07b9ee0f60be7962795606227d71ca66f56f33576f642d510775e05a666d041895cae6b919c9c0a6b50604c2ba3a02921b5a4ed80795b0563b19bc536b8"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-delimiter@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-delimiter",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-delimiter@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-delimiter/-/parser-delimiter-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "42ac9bd055f56afb375da6d0a8d6994a2bf255b97fca5d23cb0226a7b78fbdf64a2f0c7b8c1663bcbf876b0b7dc081bab5fabacdb14cdb8bf30822bb4443148a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-inter-byte-timeout@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-inter-byte-timeout",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-inter-byte-timeout@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-inter-byte-timeout/-/parser-inter-byte-timeout-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "6b4c3459e7135bb6c3d981d6ae94f3d6eca2580d9f0cdca6d248e63de352c19d9708ff896e2ad9b77d65e379b67b2eaa5c8b53615b9006d866ef9b0f55e1e718"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-packet-length@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-packet-length",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-packet-length@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-packet-length/-/parser-packet-length-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "eb46430c8a98462d17b3648f654a3826be4b2c88ed6feaefccf28c242a21aceead02a483a689dc369701d4ee16db598a4f1623a889d2cfe78caed9342cb7d922"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-readline@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-readline",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-readline@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-readline/-/parser-readline-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "768bf7cd8a327f476dd52b9d775ab8d955584385a5962174318bc0300dcc3b2894d48786e2197427a6ee040db0e209770ce082d39b4680b0cdff7c882fcd60b0"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-ready@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-ready",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-ready@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-ready/-/parser-ready-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "24d51003ecb645fb386d4f9c19836a38f9cd30071aca1856f972598a148b417387719b059ce6b617d62d320f555d15887271e574762d8aca7ad84b63970db86f"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-regex@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-regex",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-regex@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-regex/-/parser-regex-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "9bb1e921fe7a1b95dcb83740dc3077e19d29262c313516a44e11078d26b8986d393a7598bf4206f25da853261fb86328c1059a56743ef2bf9bae53f11951fe78"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-slip-encoder@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-slip-encoder",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-slip-encoder@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-slip-encoder/-/parser-slip-encoder-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "7d41d9104c66ea2cc9eeb834035ca35f0bb8b0ecde0643c08c364f7dbf97428aa0b4a024facf877c80a2627ecdd9053d83269e08ef152a05b08be6ff0e8c183a"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/parser-spacepacket@13.0.0",
+      "type": "library",
+      "name": "@serialport/parser-spacepacket",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/parser-spacepacket@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/parser-spacepacket/-/parser-spacepacket-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "0e85c9de61589b20fc5fff3ddf56a026fac13f1a936980ec3e8972f7f7304127a1feae048d0343f72497071a56cf959ca72094e233aebaca824803ec6c1df412"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "@serialport/stream@13.0.0",
+      "type": "library",
+      "name": "@serialport/stream",
+      "version": "13.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/%40serialport/stream@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/@serialport/stream/-/stream-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "17bc4b24ab231a8d96b8458c4843b54a299170e03e5ad5880ac635debd1a871f2cd9279c3d01f4eb7dfc836f0e4fb716eee45723ba0440093adaa879807256de"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "debug@4.4.0",
+      "type": "library",
+      "name": "debug",
+      "version": "4.4.0",
+      "scope": "required",
+      "author": "Josh Junon (https://github.com/qix-)",
+      "description": "Lightweight debugging utility for Node.js and the browser",
+      "purl": "pkg:npm/debug@4.4.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/debug/-/debug-4.4.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/debug-js/debug.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "e964d9fc8c4263f4fa0402e8647684e1cb69f719be679918fe9cd86821d115ec958688f196b9bee3acbaf0703a86bd1373012cb28c4d8831142508df3d9fd160"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "ms@2.1.3",
+      "type": "library",
+      "name": "ms",
+      "version": "2.1.3",
+      "scope": "required",
+      "description": "Tiny millisecond conversion utility",
+      "purl": "pkg:npm/ms@2.1.3",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "e85973b9b4cb646dc9d9afcd542025784863ceae68c601f268253dc985ef70bb2fa1568726afece715c8ebf5d73fab73ed1f7100eb479d23bfb57b45dd645394"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "node-addon-api@8.3.0",
+      "type": "library",
+      "name": "node-addon-api",
+      "version": "8.3.0",
+      "scope": "required",
+      "description": "Node.js API (Node-API)",
+      "purl": "pkg:npm/node-addon-api@8.3.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.3.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/nodejs/node-addon-api.git"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/nodejs/node-addon-api"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/nodejs/node-addon-api/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "f153a92c716b3909401fea80d19cee1919402d103afcb561f1026575bac2e03634857a0c3f497801cabc4f3142d35f07ced5a246ac82123d9a4d663652f9c952"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "node-gyp-build@4.8.4",
+      "type": "library",
+      "name": "node-gyp-build",
+      "version": "4.8.4",
+      "scope": "required",
+      "author": "Mathias Buus (@mafintosh)",
+      "description": "Build tool and bindings loader for node-gyp that supports prebuilds",
+      "purl": "pkg:npm/node-gyp-build@4.8.4",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/node-gyp-build/-/node-gyp-build-4.8.4.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "https://github.com/prebuild/node-gyp-build.git"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/prebuild/node-gyp-build"
+        },
+        {
+          "type": "issue-tracker",
+          "url": "https://github.com/prebuild/node-gyp-build/issues"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "2c0e198f096751b947560ab4a01177265ffa87f36fb397f304bc1d105e27bb19c576c7da8dd7b859fc6d26bdc26a21fe17a7b070807fab88d0e14ccfca277e09"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "bom-ref": "serialport@13.0.0",
+      "type": "library",
+      "name": "serialport",
+      "version": "13.0.0",
+      "scope": "required",
+      "description": "Node.js package to access serial ports. Linux, OSX and Windows. Welcome your robotic JavaScript overlords. Better yet, program them!",
+      "purl": "pkg:npm/serialport@13.0.0",
+      "properties": [],
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://registry.npmjs.org/serialport/-/serialport-13.0.0.tgz"
+        },
+        {
+          "type": "vcs",
+          "url": "git://github.com/serialport/node-serialport.git"
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-512",
+          "content": "3c7a674ddf22b0c18f7c54d9342cce669f66e2600948d5a57bd271bba04f4dc5aaed85e5e6a37bb69f12827d21f96206703e89173e500e08b10b6b38556eefce"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "opencode-buddy-bridge@0.2.0",
+      "dependsOn": [
+        "serialport@13.0.0"
+      ]
+    },
+    {
+      "ref": "@serialport/binding-mock@10.2.2",
+      "dependsOn": [
+        "@serialport/bindings-interface@1.2.2",
+        "debug@4.4.0"
+      ]
+    },
+    {
+      "ref": "@serialport/bindings-cpp@13.0.0",
+      "dependsOn": [
+        "@serialport/bindings-interface@1.2.2",
+        "@serialport/parser-readline@12.0.0",
+        "debug@4.4.0",
+        "node-addon-api@8.3.0",
+        "node-gyp-build@4.8.4"
+      ]
+    },
+    {
+      "ref": "@serialport/parser-delimiter@12.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-readline@12.0.0",
+      "dependsOn": [
+        "@serialport/parser-delimiter@12.0.0"
+      ]
+    },
+    {
+      "ref": "@serialport/bindings-interface@1.2.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-byte-length@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-cctalk@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-delimiter@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-inter-byte-timeout@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-packet-length@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-readline@13.0.0",
+      "dependsOn": [
+        "@serialport/parser-delimiter@13.0.0"
+      ]
+    },
+    {
+      "ref": "@serialport/parser-ready@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-regex@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-slip-encoder@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/parser-spacepacket@13.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "@serialport/stream@13.0.0",
+      "dependsOn": [
+        "@serialport/bindings-interface@1.2.2",
+        "debug@4.4.0"
+      ]
+    },
+    {
+      "ref": "debug@4.4.0",
+      "dependsOn": [
+        "ms@2.1.3"
+      ]
+    },
+    {
+      "ref": "ms@2.1.3",
+      "dependsOn": []
+    },
+    {
+      "ref": "node-addon-api@8.3.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "node-gyp-build@4.8.4",
+      "dependsOn": []
+    },
+    {
+      "ref": "serialport@13.0.0",
+      "dependsOn": [
+        "@serialport/binding-mock@10.2.2",
+        "@serialport/bindings-cpp@13.0.0",
+        "@serialport/parser-byte-length@13.0.0",
+        "@serialport/parser-cctalk@13.0.0",
+        "@serialport/parser-delimiter@13.0.0",
+        "@serialport/parser-inter-byte-timeout@13.0.0",
+        "@serialport/parser-packet-length@13.0.0",
+        "@serialport/parser-readline@13.0.0",
+        "@serialport/parser-ready@13.0.0",
+        "@serialport/parser-regex@13.0.0",
+        "@serialport/parser-slip-encoder@13.0.0",
+        "@serialport/parser-spacepacket@13.0.0",
+        "@serialport/stream@13.0.0",
+        "debug@4.4.0"
+      ]
+    }
+  ]
+}
