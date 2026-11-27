@@ -1,99 +1,120 @@
 #!/usr/bin/env node
-// Non-destructive installer for the OpenCode Buddy plugin.
+// Safe, non-destructive installer for the OpenCode Buddy plugin.
 //
-// The default action only prints what to change. Nothing is written to the
-// global OpenCode configuration: that file belongs to the product owner and may
-// contain comments, providers, agents and MCP servers.
+// The default action only prints what would change. Writing requires --apply.
+// The file may be JSONC with comments; only the plugin array is edited and a
+// timestamped backup is written first. The real global OpenCode configuration is
+// never modified during development.
 //
 // Usage:
-//   node scripts/install-buddy-plugin.mjs            # show the exact snippet
-//   node scripts/install-buddy-plugin.mjs --check    # exit 1 when not installed
-//   node scripts/install-buddy-plugin.mjs --project DIR
-//                                                    # write DIR/opencode.json only
+//   node scripts/install-buddy-plugin.mjs --project DIR [--apply|--check]
+//   node scripts/install-buddy-plugin.mjs --project DIR --apply --uninstall
+//   node scripts/install-buddy-plugin.mjs --global [--apply] [--check]
+//   node scripts/install-buddy-plugin.mjs --project DIR --apply --plugin DIR
+//
+// Exit codes: 0 success/installed, 1 check not installed, 2 usage/error.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  ConfigEditError,
+  addPlugin,
+  backupSuffix,
+  configFileForGlobal,
+  normalizePluginPath,
+  pluginInstalled,
+  removePlugin,
+} from './lib/opencode-plugin-config.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
-const pluginDir = resolve(here, '..', 'plugin', 'opencode-buddy');
-const globalConfig = process.env['OPENCODE_CONFIG'] ?? join(homedir(), '.config', 'opencode', 'opencode.json');
+const pluginDirDefault = resolve(here, '..', 'plugin', 'opencode-buddy');
 
 const args = process.argv.slice(2);
-const check = args.includes('--check');
-const projectIndex = args.indexOf('--project');
-const projectDir = projectIndex >= 0 ? resolve(args[projectIndex + 1] ?? '.') : null;
+const has = (flag) => args.includes(flag);
+const valueOf = (flag) => {
+  const index = args.indexOf(flag);
+  return index >= 0 ? args[index + 1] : undefined;
+};
 
-function readConfig(file) {
-  if (!existsSync(file)) return null;
-  const text = readFileSync(file, 'utf8');
-  try {
-    return { text, json: JSON.parse(text) };
-  } catch {
-    return { text, json: null };
-  }
+const apply = has('--apply');
+const check = has('--check');
+const uninstall = has('--uninstall');
+const globalMode = has('--global');
+const projectDir = valueOf('--project');
+const pluginDir = valueOf('--plugin') !== undefined ? resolve(valueOf('--plugin')) : pluginDirDefault;
+
+if (apply && check) {
+  console.error('choose either --apply or --check');
+  process.exit(2);
 }
-
-function installedIn(json) {
-  const list = json?.['plugins'] ?? json?.['plugin'] ?? [];
-  return Array.isArray(list) && list.some((entry) => {
-    const name = typeof entry === 'string' ? entry : entry?.package;
-    return typeof name === 'string' && resolve(name) === pluginDir;
-  });
+if (globalMode && projectDir !== undefined) {
+  console.error('choose either --global or --project');
+  process.exit(2);
 }
-
+if (!globalMode && projectDir === undefined) {
+  console.error('specify --project DIR or --global (dry-run unless --apply is given)');
+  process.exit(2);
+}
 if (!existsSync(join(pluginDir, 'index.js'))) {
   console.error(`plugin not found at ${pluginDir}`);
   process.exit(2);
 }
 
-if (check) {
-  const current = readConfig(globalConfig);
-  if (current?.json && installedIn(current.json)) {
-    console.log(`OK   plugin configured in ${globalConfig}`);
-    process.exit(0);
-  }
-  console.log(`WARN plugin not configured in ${globalConfig}`);
-  process.exit(1);
+function projectConfigFile(directory) {
+  const json = join(resolve(directory), 'opencode.json');
+  if (existsSync(json)) return json;
+  const jsonc = join(resolve(directory), 'opencode.jsonc');
+  if (existsSync(jsonc)) return jsonc;
+  return json;
 }
 
-const snippet = `"plugins": [ "${pluginDir}" ]`;
-console.log(`Plugin directory: ${pluginDir}`);
-console.log('');
-console.log('Add this entry to the "plugins" array of your OpenCode configuration');
-console.log(`(${globalConfig}), keeping every other entry:`);
-console.log('');
-console.log(`  ${snippet}`);
-console.log('');
-console.log('Or merge it by hand:');
-console.log(`  1. copy ${globalConfig} to ${globalConfig}.bak-$(date +%Y%m%d-%H%M%S)`);
-console.log('  2. add the entry above');
-console.log('  3. restart only if the plugin does not appear within ~20 s:');
-console.log('     opencode service restart   (ends any running agent session)');
-console.log('');
-console.log('Nothing has been modified by this script.');
+const target = globalMode ? configFileForGlobal(process.env, process.platform, process.env.HOME) : projectConfigFile(projectDir);
+const exists = existsSync(target);
+const source = exists ? readFileSync(target, 'utf8') : '';
 
-if (projectDir !== null) {
-  const target = join(projectDir, 'opencode.json');
-  const current = readConfig(target);
-  if (current !== null && current.json === null) {
-    console.error(`refusing to rewrite ${target}: it contains comments or is not strict JSON`);
-    process.exit(3);
+function printResult(changed, next) {
+  if (check) {
+    console.log(changed ? `OK   plugin configured in ${target}` : `WARN plugin not configured in ${target}`);
+    return;
   }
-  const json = current?.json ?? { $schema: 'https://opencode.ai/config.json' };
-  const list = Array.isArray(json.plugins) ? json.plugins : [];
-  if (!list.some((entry) => (typeof entry === 'string' ? resolve(entry) : entry?.package) === pluginDir)) {
-    json.plugins = [...list, pluginDir];
+  if (!changed) {
+    console.log(`OK   plugin already ${uninstall ? 'absent from' : 'configured in'} ${target}`);
+    return;
   }
-  mkdirSync(projectDir, { recursive: true });
-  if (current !== null) {
-    const backup = `${target}.bak-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  if (!apply) {
+    console.log(`DRY-RUN target=${target}`);
+    console.log(`plugin=${normalizePluginPath(pluginDir)}`);
+    console.log('');
+    console.log(next);
+    console.log('');
+    console.log('Nothing modified. Re-run with --apply to write (a backup is created first).');
+    return;
+  }
+  mkdirSync(dirname(target), { recursive: true });
+  if (exists) {
+    const backup = `${target}.bak-${backupSuffix()}`;
     copyFileSync(target, backup);
     console.log(`backup: ${backup}`);
   }
-  writeFileSync(target, `${JSON.stringify(json, null, 2)}\n`);
+  writeFileSync(target, next);
   console.log(`written: ${target}`);
-  console.log('On OpenCode 2.4.1 no restart is needed: the running server loads a project entry and');
-  console.log('the plugin connects within about 15 s (verified).');
+}
+
+try {
+  if (check) {
+    const installed = exists && pluginInstalled(source, pluginDir);
+    printResult(installed, source);
+    process.exit(installed ? 0 : 1);
+  }
+  const result = uninstall ? removePlugin(source, pluginDir) : addPlugin(source, pluginDir);
+  printResult(result.changed, result.text);
+} catch (error) {
+  if (error instanceof ConfigEditError) {
+    console.error(`configuration error: ${error.message}`);
+    process.exit(2);
+  }
+  console.error(`installation failed: ${error.message}`);
+  process.exit(2);
 }
