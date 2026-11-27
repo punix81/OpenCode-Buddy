@@ -245,5 +245,14 @@ These are hard rules for future changes, established by the independent audit.
 6. **Phase 6 hardware validation** happens on a **native physical Windows or Linux computer without
    USB virtualisation**. The remaining cold boots, USB reconnections, soak, endurance, six-screen
    measurements and performance validation are Phase 6 gates.
-7. **Plan only.** Phase 6 implementation starts only on a new explicit Product Owner instruction.
-   The approved scope is in `docs/phase-6-plan.md`.
+7. **Phase 6 Checkpoint A is authorized; B/C/D are not.** Checkpoint A implements the native base and
+   installation architecture. Checkpoints B/C/D (native hardware acceptance, cold boots, soak,
+   endurance, performance) require a separate instruction and a native physical host. No firmware
+   flash, physical manipulation or VMware USB campaign is allowed in Checkpoint A.
+8. **Mocked Windows behaviour is not native verification.** Named-pipe/ACL/COM/installer tests that
+   run on Linux are AUTOMATED/MOCK. Do not claim a platform is supported until its native
+   installation and execution are tested.
+9. **Installation safety.** Never modify the real global OpenCode configuration during development,
+   never register a real startup service without authorization, always back up a configuration
+   before an applied merge, and never remove OpenCode, unrelated plugins, MCP servers or user data.
+   The frozen RC1 firmware and all Phase 5 evidence remain untouched.

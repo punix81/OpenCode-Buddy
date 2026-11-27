@@ -86,3 +86,22 @@ bash firmware/test/host/run.sh # 4 suites + 10 000-case fuzz
 ```
 
 The current bridge coverage is 96.62 % lines / 87.17 % branches / 86.99 % functions.
+
+## 7. Phase 6 Checkpoint A security review (2026-11-27)
+
+- Windows Named Pipes reuse the shared authentication, rate limit, peer ownership and lock logic.
+  The pipe name is per-user/derived, the token is 256-bit and the runtime descriptor is 0600 where
+  supported; `icacls` is best effort. **Native Windows DACL/pipe verification is still required**
+  (Checkpoint B); this review is not a native claim.
+- The plugin installer edits only the plugin array, is dry-run by default, validates JSON/JSONC,
+  makes a timestamped backup before `--apply` and removes only Buddy on uninstall. Tests use
+  isolated fixtures; the real global configuration was not modified.
+- Startup definitions are generated to an explicit output and never enabled or registered in
+  development. No elevation or visible console is required.
+- The portable package contains compiled JavaScript and runtime-only prebuilds, no compiler; the
+  archive checksum and SBOM are generated locally. The Windows installer is unsigned and is not
+  validated in this VM.
+- No firmware flash occurs in Checkpoint A. The RC1 manifest verifier only reads/hashes and prints a
+  plan; the RC1 and Phase 4.1 images are preserved.
+- Vulnerability databases remain unavailable (`npm audit` authentication); status is **NOT
+  VERIFIED**, not zero.

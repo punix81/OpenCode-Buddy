@@ -94,3 +94,37 @@ no internal hostname, and `npm ci` resolves through whatever registry the enviro
 without changing the pinned versions or hashes. Regenerate the lock with the `.npmrc` in place; do not
 commit a lockfile that reintroduces environment-specific URLs. The SBOM under `docs/evidence/` was
 generated with `--omit dev` and references the public registry.
+
+
+## Phase 6 Checkpoint A — packaging and runtime
+
+No new npm package was added for the native compatibility and installation work. The two npm
+devDependencies from Phase 5 (ESLint and typescript-eslint) remain development-only.
+
+| Component | Version / source | Shipped to the user? | Licence |
+| --- | --- | --- | --- |
+| Node.js | 22+ required, not bundled in Checkpoint A | No (prerequisite) | MIT |
+| `serialport` runtime tree | `npm ci --omit=dev`, 21 packages | Yes, in the portable app tree | MIT |
+| SerialPort prebuilds | `@serialport/bindings-cpp` includes linux/win32/darwin prebuilds | Yes, per platform tree | MIT |
+| TypeScript | 5.8.3, build only | No | Apache-2.0 |
+| Inno/PowerShell | PowerShell 5+/7 and optional Inno Setup 6 | No (build tooling) | MIT / Inno Setup licence |
+
+The portable installer never runs `npm install`, never compiles TypeScript and never needs a
+compiler. The build machine runs `tsc` and `npm ci --omit=dev --ignore-scripts`; the user receives
+compiled JavaScript and prebuilt native bindings. Windows packaging requires a native Windows build
+host; a Linux build is not a Windows validation.
+
+## Phase 6 SBOM and vulnerability status
+
+`docs/evidence/phase-6-sbom.json` is the CycloneDX 1.5 runtime SBOM generated from the same lockfile
+with `npm sbom --sbom-format cyclonedx --omit dev` (no new runtime package). The development tree is
+described by `package-lock.json`.
+
+`npm audit` still cannot authenticate to the corporate advisory endpoint. The status remains
+**NOT VERIFIED**, not "zero vulnerabilities". No bypass or unauthenticated workaround was used.
+
+## Unsigned Windows installer
+
+The prepared Windows installer is unsigned. Windows SmartScreen/Defender may warn; the installer
+must document this and must never bypass or disable those protections. Signing is a release decision
+for the Product Owner.

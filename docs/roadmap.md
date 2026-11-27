@@ -163,7 +163,11 @@ Exit criteria: a pilot user completes install, flash, first run and uninstall us
 a native physical host; no blocker; rollback verified; cold boots, reconnections, soak, endurance and
 the six-screen/timing matrix PASS. The detailed plan is [docs/phase-6-plan.md](phase-6-plan.md).
 
-**Status: planned only. Implementation starts only on an explicit Product Owner instruction.**
+**Status (2026-11-27): Checkpoint A in progress — native base, IPC, discovery, plugin installation,
+configuration, startup definitions, portable packaging and firmware manifest implemented and tested
+on Linux (AUTOMATED/MOCK for Windows). Checkpoints B/C/D (native hardware acceptance, cold boots,
+soak/endurance, performance) are **not authorized yet**. See `docs/phase-6-architecture.md` and
+`docs/phase-6-report.md`.
 
 ## Cross-phase rules
 

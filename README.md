@@ -13,9 +13,14 @@ ESP32-C3 over USB.
 > investigations in the VMware/Ubuntu USB-redirection environment: it is **not** the reference
 > environment for hardware acceptance, and **no root cause is claimed** (VMware is not confirmed as
 > the cause). Cold boots, USB reconnections, soak, endurance and the six-screen hardware matrix move
-> to Phase 6 on native physical Windows/Linux. Phase 6 is planned, not implemented. See
+> to Phase 6 on native physical Windows/Linux. Phase 6 Checkpoint A (native compatibility and
+> installation) is in progress: Windows Named Pipes
+> and Linux IPC behind one abstraction, deterministic ESP32 discovery, JSONC-safe plugin
+> installation, user configuration, startup definitions, portable packaging and firmware manifest
+> verification. Checkpoints B/C/D (native hardware acceptance) are not authorized. See
 > [docs/phase-5-report.md](docs/phase-5-report.md),
-> [docs/handover-phase5.md](docs/handover-phase5.md) and
+> [docs/handover-phase5.md](docs/handover-phase5.md),
+> [docs/phase-6-architecture.md](docs/phase-6-architecture.md) and
 > [docs/phase-6-plan.md](docs/phase-6-plan.md).
 
 ## Why
@@ -116,8 +121,10 @@ keeping the complete online/total counts. See [dashboard metrics](docs/dashboard
   [Phase 4 plan](docs/phase-4-plan.md) · [Phase 4 report](docs/phase-4-report.md)
 - [Phase 5 report](docs/phase-5-report.md) · [Phase 5 handover](docs/handover-phase5.md) ·
   [Phase 5 USB diagnostics](docs/evidence/phase-5-usb-diagnostics.md) ·
-  [Preserved artifacts](docs/evidence/phase-5-artifacts.md) ·
-  [Phase 6 plan](docs/phase-6-plan.md)
+  [Preserved artifacts](docs/evidence/phase-5-artifacts.md)
+- [Phase 6 architecture](docs/phase-6-architecture.md) · [Phase 6 plan](docs/phase-6-plan.md) ·
+  [Installation](docs/installation.md) · [Configuration](docs/configuration.md) ·
+  [Firmware management](docs/firmware-management.md)
 
 ## Contributing
 

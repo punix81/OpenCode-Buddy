@@ -46,3 +46,16 @@ document are the reference.
 - `docs/evidence/phase-5-sbom.json` is the machine-readable inventory (CycloneDX 1.5).
 - `npm ls --all` is clean; the PlatformIO package list is pinned in `firmware/platformio.ini`.
 - No dependency was added in Phase 5; the only runtime dependency remains `serialport`.
+
+
+## Phase 6 packaging notes (2026-11-27)
+
+- No new npm runtime dependency was introduced in Checkpoint A. The portable app tree contains the
+  existing MIT-licensed `serialport` runtime and its prebuilds.
+- Node.js 22+ is a prerequisite and is not bundled in Checkpoint A. If a future package bundles the
+  Node runtime, its MIT notice and the Node.js third-party notices must be included.
+- The portable archive should ship `LICENSE`, this notice file and the Phase 6 SBOM. The build script
+  copies them into the staged tree; a native installer must keep them.
+- The prepared Windows installer is unsigned. SmartScreen/Defender warnings must be documented and
+  never bypassed or disabled.
+- The frozen RC1 firmware and the Phase 4.1 rollback retain the notices described in section 2.

@@ -76,3 +76,31 @@ ESP32-C3 firmware (bounded parser, state, six dashboards, touch)
 
 Re-run this model when a trust boundary, a dependency, the IPC framing, the privacy projection or
 the device protocol changes. The P5-00 handshake blocker must be closed before release.
+
+## 7. Phase 6 Checkpoint A addendum (native IPC, installation, packaging)
+
+Scope now includes Windows named pipes, the portable app tree, plugin/startup installation, user
+configuration and the firmware manifest. The historical threats remain; this section adds the new
+boundaries. Windows behaviour is **AUTOMATED/MOCK** until a native physical host verifies it.
+
+| Id | Boundary | Trust direction | Controls |
+| --- | --- | --- | --- |
+| TB7 | plugin ↔ bridge on Windows | Same user, local named pipe | Per-user runtime dir, derived pipe name, 0600 token/descriptor where supported, 256-bit token in the hello, `icacls` best effort, same shared rate/line/lock logic |
+| TB8 | installer ↔ OpenCode configuration | User-owned file | Dry-run default, textual JSONC merge, backup before apply, only the Buddy entry, targeted uninstall |
+| TB9 | startup definition ↔ OS | User session | User-scoped definition, no elevation, hidden Windows script, no real service registered during development |
+| TB10 | package ↔ user | Offline archive | SHA-256 archive checksum, pinned lockfile/runtime tree, SBOM and notices; unsigned Windows installer is documented, never bypassed |
+| TB11 | firmware manager ↔ device | Explicit human approval | Manifest SHA-256/size, app-only offset, bridge stopped, independent read-back, rollback preserved, no automatic flash |
+
+| Id | Threat | Class | Mitigation | Verification | Residual |
+| --- | --- | --- | --- | --- | --- |
+| T18 | Another local Windows user connects to the pipe | Spoofing | Per-user runtime dir, unguessable pipe suffix, 256-bit token, hello timeout, constant-time compare; `icacls` best effort | AUTOMATED/MOCK only | Windows pipe DACL not native-verified; a process in the same user session is inside the trust boundary |
+| T19 | Token/descriptor readable by another user | Information disclosure | 0600 file modes where supported; `icacls /inheritance:r /grant:r <user>:F`; per-run token | AUTOMATED/MOCK | Native ACL verification required; failure is logged but does not fail the bridge |
+| T20 | Installer damages JSONC/providers/MCP/skills | Tampering | Textual plugin-array edit, parse/validate, backup, idempotence, targeted uninstall, fixtures | `scripts/test/plugin-install.test.mjs` | Exotic JSONC formatting may require manual review; the installer refuses invalid input |
+| T21 | Uninstall removes unrelated data | Tampering | Remove only app prefix/launcher/Buddy plugin entry; never OpenCode, Node, other plugins or MCP | Installer tests/demo | User files outside the prefix are untouched by design |
+| T22 | Startup needs elevation or exposes a console | Elevation | User-scoped systemd/Startup definition, hidden VBS, no admin, no real registration in development | Generator tests | Native startup/login behaviour pending B |
+| T23 | Tampered package/archive | Tampering | SHA-256 checksum, pinned runtime tree, SBOM/notices; no remote update check | Build/demo checksum | Archive is unsigned; signature/signing decision pending |
+| T24 | Firmware flashed to the wrong device or automatically | Tampering | Explicit approval, manifest verification, device identity, bridge stopped, app-only offset, read-back, rollback | `scripts/test/firmware-verify.test.mjs`; no flash | Native flash procedure pending B |
+| T25 | `icacls` unavailable/fails | Information disclosure | Log warning, retain token/pipe-name controls, never log the token | ACL helper test | Cannot guarantee DACL hardening without native verification |
+
+Updated out-of-scope: no TCP/HTTP listener, no automatic remote update, no telemetry, no approval or
+execution from the device. A future bundled Node runtime must carry its notices and update process.

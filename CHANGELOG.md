@@ -6,6 +6,29 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Phase 6 Checkpoint A — native base and installation (2026-11-27)
+
+- One bridge/plugin with platform adapters: shared IPC message/auth/lock logic, Unix socket
+  preserved, Windows Named Pipes with a per-user runtime descriptor and 256-bit token. Named-pipe
+  ACLs are best-effort `icacls` and **not native-verified**.
+- Deterministic ESP32 `303a:1001` discovery with explicit `deviceSerial`/`port` selection and a
+  clear multiple-device error; discovery never opens unrelated devices or flashes.
+- Strict cross-platform configuration schema (unknown keys rejected), platform config paths, device
+  selection, MCP aliases, startup/diagnostics fields.
+- JSONC-preserving OpenCode plugin installer: dry-run default, backup, idempotence, targeted
+  uninstall, isolated fixtures; no real global configuration changed.
+- Portable Linux app tree with compiled bridge, runtime-only SerialPort prebuilds, launchers,
+  supervisor with bounded backoff and user-scoped installer; Windows scripts prepared, not
+  native-validated.
+- Startup definitions (systemd --user / hidden Windows Startup) generated only to an explicit
+  output; no real service registered.
+- Firmware manifest `firmware/rc1-manifest.json` and read-only verifier; app-only versus initial
+  full installation documented; **no flash**.
+- Automated tests for IPC paths/endpoint/ACL command, discovery, configuration, JSONC install,
+  autostart, supervisor and firmware manifest; Linux QA remains green.
+- No hardware validation, no cold boots, no soak/endurance, no GitHub operation. Checkpoints B/C/D
+  are not authorized.
+
 ### Phase 5 closure — software accepted, hardware validation deferred (2026-11-27)
 
 - Product Owner verdict: **SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED**. The USB blocker is
