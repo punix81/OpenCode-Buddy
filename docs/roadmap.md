@@ -112,10 +112,17 @@ Tests: bridge **103/103**, plugin **24/24**, protocol 12 valid/14 invalid, firmw
 preview 8/8. Performance: Buddy 47–48 ms / 20 FPS; Session/Tokens ~90–100 ms (Phase 5 optimization);
 heap within 176 B of Phase 3.1; 0 TX drops.
 
-**Reservations:** the 20-cold-boot series, the 10 reboots/bridge restarts/reconnects and the 3600 s
-soak on the installed image were not completed (the owner stopped the hardware session). These are
-the entry gates for Phase 5. See `docs/phase-4-1-report.md`, the four `docs/evidence/phase-4-1-*.md`
-files, `docs/dashboard-metrics.md`, `docs/localization.md` and `docs/device-preferences.md`.
+**Final acceptance (2026-11-27):** installed image read back and matched (`2ff67b71…`); 4.1 suites
+103/103, 24/24, protocol, host 4/4, preview 8/8, simulator PASS; **10/10** software resets, **10/10**
+bridge restarts and a 60 s delayed start all handshook on the first attempt; **3600 s MOCK soak
+PASS** (0 ACK timeout, 0 error, 0 resync, 0 reconnect, RSS stable). The **20 cold boots and 10 USB
+reconnections were skipped** by the Product Owner, and the visual tour was not re-run on this exact
+image; those are the reservations. A partial-ACK weakness found in the review is fixed in
+`c4db0b3` (main) but not deployed in the accepted 4.1 runtime.
+
+Phase 5 is paused; when it resumes it starts from the entry gates in `docs/phase-4-1-report.md` §11
+and the audit in `docs/audit-phase-5.md`. See `docs/evidence/phase-4-1-*.md`,
+`docs/dashboard-metrics.md`, `docs/localization.md` and `docs/device-preferences.md`.
 
 ## Phase 5 — Quality, privacy and stability
 

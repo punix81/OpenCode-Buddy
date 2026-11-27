@@ -1,9 +1,11 @@
 # Phase 4.1 — USB CDC regression investigation and recovery
 
-Date: 2026-11-26
+Date: 2026-11-26 (investigation), 2026-11-27 (final acceptance)
 Verdict: **PASS WITH RESERVATIONS.** The blocker is explained and corrected, the final image is
-installed, verified and LIVE with real OpenCode data; the full physical cold-boot series and the
-one-hour soak were not completed because the Product Owner stopped the hardware session.
+installed and verified, the bridge is LIVE with real OpenCode data, and the 3600 s MOCK soak passed
+(0 ACK timeout, 0 error, 0 resync, 0 reconnect). The reservation is the physical cold-boot series
+(20 cycles) and the USB reconnection series (10 cycles), explicitly skipped by the Product Owner,
+and the visual re-check on this exact image.
 
 ## 1. Summary
 
@@ -131,3 +133,64 @@ Keep image D installed. Resume with a single acceptance session: 20 cold boots w
 bridge (the bridge log must show ACK 1/2 on every boot, with `framingResyncs` observable in a probe
 build), then the 3600 s soak. Do not start Phase 5 before that; the 8 h endurance and renderer
 optimisation remain Phase 5 work.
+
+## 11. Final acceptance session — 2026-11-27
+
+### 11.1 Verified baseline
+
+- Installed image read back independently at `0x10000`: **`2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2`**
+  (411 232 B), identical to the archived release.
+- Bridge used for the series: `58bd386` (Phase 4.1 tree), run from a separate worktree so the later
+  Phase 5 work cannot contaminate the acceptance.
+- Suites at `58bd386`: typecheck PASS; bridge **103/103**; plugin **24/24**; protocol 12 valid /
+  14 invalid; firmware host **4/4**; preview **8/8**; simulator `all-states` PASS.
+
+### 11.2 Executed series (every attempt recorded)
+
+| Series | Cycles | Result |
+| --- | --- | --- |
+| Initial open | 1 | PASS, 0 retry |
+| Software reboot (esptool watchdog reset, not a power cycle) + bridge restart | 10 | **10/10**, 0 retry, 0 error, 0 invalid, 0 resync |
+| Bridge restart (port open resets the board) | 10 | **10/10**, same |
+| Delayed bridge start after 60 s without a host | 1 | PASS, 0 retry |
+| MOCK soak 3600 s | 1 | **PASS** (see below) |
+| Cold boot (genuine power cycle) | 20 | **SKIPPED** at the Product Owner's request |
+| USB reconnection | 10 | **SKIPPED** with the cold boots (same physical action) |
+
+No failed attempt occurred in the executed series. The "0/5" figure of the earlier report meant
+**zero of five executed**, not five failures.
+
+### 11.3 Soak
+
+`docs/evidence/phase-4-1-soak-evidence.md`: 3600 s completed, 5990 TX frames, 5982 RX frames,
+4193 ACKs, **0 ACK expiration, 0 handshake retry, 0 device error, 0 resync, 0 invalid frame,
+0 reconnect**; 3591 state frames, 600 MCP frames; RSS 76.8–87.0 MB with the last sample below the
+first; CPU 9.6 s. The scenario covered 12 MCP servers with 8 details, three sessions, all active
+companion states, permission/question lifecycles, retry, compaction and large tokens.
+
+### 11.4 Review correction
+
+The review found one confirmed weakness: a single ACK (ready) released the snapshot while `config`
+could be lost. It is fixed in `c4db0b3` on the main branch (both ACKs required, regression test,
+124/124). The accepted 4.1 runtime stays on `58bd386` because the 30 handshake cycles and the soak
+were run on it and the device ACKed both frames in every cycle; the fix is ready for the next bridge
+release and does not change the firmware.
+
+### 11.5 Remaining limitations
+
+1. **20 cold boots / 10 USB reconnections not executed** (owner's explicit decision). The 4/4
+   physical cold boots on the probe build, the 10+10 software resets/restarts and the 60 s delayed
+   start remain the available evidence.
+2. **Visual regression not re-run on this image**: the six screens, EN/FR/DE, expressions, tokens,
+   MCP 12/8, OpenCode version, quiet mode, preferences, gestures and auto-return were physically
+   validated on the Phase 4 image (same renderer, no rendering change in 4.1). The owner can confirm
+   at leisure; this is a reservation, not a failure.
+3. Release-side counters (framing recoveries, ACK latency percentiles, TX drops, reset reason) are
+   not exposed; the soak documents this explicitly.
+4. The 8 h endurance and the renderer optimisation are Phase 5 work and were not started.
+
+### 11.6 Final state
+
+Device LIVE on the final image with the 4.1 bridge: hello → ACK 1/2 → `state status=thinking ...
+source=live`, OpenCode 2.4.1, MCP 8/12, real tokens. No diagnostic image installed. No GitHub
+operation. No Phase 5 work in this acceptance.

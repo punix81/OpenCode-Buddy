@@ -3,8 +3,8 @@
 Date: 2026-11-26
 Final local commits: `a68fc1f` (firmware), `2509de8` (bridge), plus this documentation commit.
 Device: **`2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2`** (411 232 B),
-written at `0x10000`, independently verified.
-Bridge: LIVE on `2509de8`, OpenCode 2.4.1, real tokens/tools, 0 device error, 0 resync.
+read back independently on 2026-11-27 and matched.
+Bridge: LIVE on the 4.1 tree `58bd386`, OpenCode 2.4.1, real tokens/MCP, 0 device error, 0 resync.
 
 ## 1. What happened
 
@@ -37,16 +37,22 @@ Corrections:
   quoted excerpts in the report and the diagnostics file are the durable record; re-capture with
   the same commands if a new session must be documented.
 
-## 3. What remains before Phase 5
+## 3. Acceptance status (2026-11-27)
 
-1. **Physical cold-boot series on the installed image**: 20 unplug/replug cycles with the production
-   bridge. Each boot must show `hello` → `ready`/`config` → ACK 1/2, then state; count retries and
-   host-side `E_PARSE`; the goal is zero reopens. A probe build with counters
-   (`26ebecfa…`) can show `framingResyncs` if a boot is disputed.
-2. **10 software reboots, 10 bridge restarts, 10 USB reconnects** on the same image.
-3. **3600 s soak** in MOCK stress with the final bridge, then return to LIVE (plan in the soak file).
-4. Optional: repeat the six-screen EN/FR/DE tour on the installed image; the 4.1 changes do not touch
-   rendering, and the tour was already validated on the Phase 4 image.
+- **Done**: installed image verified; 4.1 suites (103/103, 24/24, protocol, host, preview 8/8,
+  simulator); **10/10 software resets**, **10/10 bridge restarts**, 60 s delayed start, all with
+  hello → ACK 1/2 → state on the first attempt; **3600 s MOCK soak PASS** (0 ACK timeout, 0 error,
+  0 resync, 0 reconnect, RSS stable); review correction `c4db0b3` (partial ACK) tested on main.
+- **Skipped by the Product Owner**: 20 genuine cold boots and 10 USB reconnections. These are the
+  remaining acceptance evidence; run them before relying on cold-boot reliability. The probe build
+  that shows `framingResyncs` must be rebuilt from the 4.1 commits (its temporary tree was removed
+  with `/tmp`).
+- **Not re-run**: the six-screen visual tour on this exact image (the Phase 4 physical validation
+  stands; the 4.1 corrections do not touch rendering, fonts, gestures or preferences).
+- **Next bridge release**: include `c4db0b3` (both handshake ACKs required). It is committed on main
+  but was not part of the accepted 4.1 runtime.
+- **Not started**: Phase 5 (paused at the Product Owner's request after the audit/prep work), the 8 h
+  endurance and the renderer optimisation.
 
 Do not start Phase 5 before these gates. The 8 h endurance and the Session/Tokens renderer
 optimisation (90–100 ms) remain Phase 5 work.

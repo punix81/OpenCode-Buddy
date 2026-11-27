@@ -6,6 +6,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Phase 4.1 final acceptance (2026-11-27)
+
+- Installed image read back at `0x10000` and matched the release
+  `2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2` (411 232 B).
+- 4.1 baseline: bridge **103/103**, plugin **24/24**, protocol 12/14, firmware host 4/4, preview
+  8/8, simulator PASS.
+- **10/10** software resets (esptool watchdog, not power cycles), **10/10** bridge restarts and a
+  60 s delayed bridge start: hello, ACK 1/2 and state on the first attempt, 0 retry, 0 error,
+  0 invalid frame, 0 resync.
+- **3600 s MOCK soak PASS**: 5990 TX / 5982 RX frames, 4193 ACKs, 0 ACK timeout, 0 device error,
+  0 resync, 0 reconnect; 3591 state and 600 MCP frames; 12 MCP servers with 8 details, three
+  sessions, all active states, permission/question lifecycles, large tokens; RSS 76.8–87.0 MB with
+  the last sample below the first. Evidence: `docs/evidence/phase-4-1-soak-evidence.md`.
+- Review of the USB corrections (`docs/evidence/phase-4-1-usb-review.md`): framing recovery bounded
+  and fully re-validated, sequence protected, queues bounded. One weakness found and fixed:
+  a partial handshake ACK (ready only) no longer releases the snapshot (`c4db0b3`, 124/124 tests).
+- **Not executed**: 20 genuine cold boots and 10 USB reconnections (explicit Product Owner
+  decision); the six-screen visual tour was not re-run on this image (no renderer change since the
+  Phase 4 physical validation).
+- Final state: device LIVE with real OpenCode 2.4.1 data, MCP 8/12, no diagnostic image, no GitHub
+  operation, no Phase 5 work in this acceptance.
+
 ### Fixed — Phase 4.1 USB CDC cold-boot handshake
 
 - Root cause of the Phase 4 hardware blocker: a fragment of the device's own USB CDC transmission is
