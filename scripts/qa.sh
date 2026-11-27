@@ -64,6 +64,11 @@ bash "$ROOT/firmware/test/host/run.sh" > /tmp/opencode-qa-host.log 2>&1 || { tai
 grep -E 'firmware .*: PASS' /tmp/opencode-qa-host.log || true
 pass "firmware host"
 
+echo "== preview build"
+(cd "$ROOT/tools/ui-preview" && make -s -j4) > /tmp/opencode-qa-preview-build.log 2>&1 || { tail -n 40 /tmp/opencode-qa-preview-build.log; fail preview; }
+echo "== tick tables"
+(cd "$ROOT/tools/ui-preview" && make -s check-ticks) > /tmp/opencode-qa-ticks.log 2>&1 || { tail -n 20 /tmp/opencode-qa-ticks.log; fail ticks; }
+pass ticks
 echo "== preview tests"
 (cd "$ROOT/tools/ui-preview" && python3 -m unittest -q test_preview.py) > /tmp/opencode-qa-preview.log 2>&1 || { tail -n 40 /tmp/opencode-qa-preview.log; fail preview; }
 tail -n 3 /tmp/opencode-qa-preview.log

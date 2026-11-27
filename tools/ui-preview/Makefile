@@ -29,3 +29,9 @@ ticks: $(BUILD)/gen_ticks
 
 $(BUILD)/gen_ticks: $(BUILD)/gen_ticks.o $(BUILD)/Theme.o $(BUILD)/Format.o $(TICK_LIB)
 	$(CXX) -Wl,--gc-sections $^ -o $@
+
+# Non-regression check for the generated tick tables. It fails when the pinned
+# fillArc would now produce different spans than the committed header.
+check-ticks: $(BUILD)/gen_ticks
+	$(BUILD)/gen_ticks | cmp -s - $(FW)/src/TickTables.h || { \
+		echo "TickTables.h is stale: run 'make ticks' and review the diff" >&2; exit 1; }
