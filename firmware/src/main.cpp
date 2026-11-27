@@ -77,19 +77,18 @@ void flushTx() {
   // Never start a protocol frame while a partial diagnostic line is draining:
   // the two buffers share one sink and must not interleave.
   if (gDiagFlushActive) {
-    if (gSink.availableForWrite() >= static_cast<int>(gDiagTx.pending())) {
-      gDiagTx.flush(gSink);
-    }
+    // Drain in whatever chunks the CDC accepts. The line stays contiguous
+    // because protocol frames wait until the diagnostic buffer is empty.
+    if (gSink.availableForWrite() > 0) gDiagTx.flush(gSink);
     if (gDiagTx.pending() == 0) gDiagFlushActive = false;
     return;
   }
 #endif
   gTx.flush(gSink);
 #if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
-  if (gTx.pending() == 0 && gDiagTx.pending() > 0 &&
-      gSink.availableForWrite() >= static_cast<int>(gDiagTx.pending())) {
+  if (gTx.pending() == 0 && gDiagTx.pending() > 0) {
     gDiagFlushActive = true;
-    gDiagTx.flush(gSink);
+    if (gSink.availableForWrite() > 0) gDiagTx.flush(gSink);
     if (gDiagTx.pending() == 0) gDiagFlushActive = false;
   }
 #endif
@@ -98,7 +97,7 @@ void flushTx() {
 uint32_t gLastLinkCheck = 0;
 uint32_t gLastHeartbeat = 0;
 uint32_t gLastHello = 0;
-bool gLastHostConnected = false;
+bool gHostInputSeen = false;
 uint32_t gSetupStartUs = 0;
 uint32_t gHeapBeforeCanvas = 0;
 uint32_t gHeapAfterCanvas = 0;
@@ -401,10 +400,6 @@ void setup() {
   gState.setState(buddy::BuddyState::Offline, now);
 
   gProtocol.begin(gBootCount, buddy::kFirmwareVersion);
-  gLastHostConnected = gSerial.hostConnected();
-  if (gLastHostConnected) {
-    sendHello(now);
-  }
 
 #if defined(BUDDY_MOCK_MODE) && BUDDY_MOCK_MODE
   gMock.begin(now, gState);
@@ -417,13 +412,6 @@ void setup() {
 
 void loop() {
   const bool hostConnected = gSerial.hostConnected();
-  if (hostConnected != gLastHostConnected) {
-    gLastHostConnected = hostConnected;
-    if (hostConnected) {
-      // A bridge that just opened the port must not wait for the 3 s timer.
-      gLastHello = millis() - buddy::kHelloIntervalMs;
-    }
-  }
 #if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
   // Time between two main-loop iterations: each one services USB RX/TX. It is
   // the observable bound for how long the bridge can wait for a read.
@@ -435,6 +423,14 @@ void loop() {
   gDiagLastServiceUs = serviceUs;
 #endif
   const uint32_t now = millis();
+
+  // `Serial` reports the enumerated USB device, not an open port: it can be
+  // true while no process owns the CDC. Only the first byte actually received
+  // from the host (the bridge primes with a newline) proves an open link.
+  if (!gHostInputSeen && gSerial.bytesRead() > 0) {
+    gHostInputSeen = true;
+    gLastHello = now - buddy::kHelloIntervalMs;
+  }
 
   if (gProtocol.fatalVersion()) {
     gState.tick(now);
@@ -538,7 +534,8 @@ void loop() {
 
   const bool bridgeAbsent =
       !gProtocol.linkReady() || now - gProtocol.lastRxMs() > buddy::kLinkTimeoutMs;
-  if (hostConnected && bridgeAbsent && now - gLastHello >= buddy::kHelloIntervalMs) {
+  if (gHostInputSeen && hostConnected && bridgeAbsent &&
+      now - gLastHello >= buddy::kHelloIntervalMs) {
     sendHello(now);
   }
 
