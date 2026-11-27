@@ -5,7 +5,7 @@ import { Bridge, CLOSE_TIMEOUT_MS, HANDSHAKE_RETRY_MS, HANDSHAKE_TIMEOUT_MS } fr
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { NullLogger } from '../src/logger.js';
 import { Simulator } from '../src/simulator/simulator.js';
-import { LineFramer, encodeMessage } from '../src/protocol/codec.js';
+import { encodeMessage } from '../src/protocol/codec.js';
 import { MemoryTransport } from '../src/transport/memory.js';
 import type { Transport, TransportHandlers } from '../src/transport/types.js';
 

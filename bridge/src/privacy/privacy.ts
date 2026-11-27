@@ -1,4 +1,4 @@
-import { ERROR_CODES, type ErrorCode, type McpStatusData, type StateData } from '../protocol/types.js';
+import { ERROR_CODES, type McpStatusData, type StateData } from '../protocol/types.js';
 
 function cleanText(value: string | null | undefined, maxLength: number): string | null {
   if (value === null || value === undefined) return null;
@@ -12,11 +12,6 @@ function cleanText(value: string | null | undefined, maxLength: number): string 
 
 function clamp(value: number | undefined, min: number, max: number, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback;
-  return Math.min(max, Math.max(min, Math.trunc(value)));
-}
-
-function nullableClamp(value: number | null | undefined, min: number, max: number): number | null {
-  if (value === null || value === undefined || !Number.isFinite(value)) return null;
   return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 

@@ -125,10 +125,6 @@ export default {
     const ownDirectory = typeof ctx.location?.directory === 'string' ? ctx.location.directory : null;
     const ownSessions = new Set();
 
-    const locationOf = (event) => {
-      const directory = event?.location?.directory;
-      return typeof directory === 'string' ? directory : null;
-    };
     const sessionOf = (event) => {
       const data = event?.data;
       if (typeof data?.sessionID === 'string') return data.sessionID;
@@ -183,7 +179,7 @@ export default {
       }
       try {
         socket.write(line);
-      } catch (error) {
+      } catch {
         debug(`write failed type=${String(type)}`);
       }
     };

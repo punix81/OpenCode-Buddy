@@ -167,7 +167,7 @@ export interface StateMessage extends Base<'state'> {
 export interface McpStatusMessage extends Base<'mcp_status'> {
   data: McpStatusData;
 }
-export interface HeartbeatMessage extends Base<'heartbeat'> {}
+export type HeartbeatMessage = Base<'heartbeat'>;
 export interface AckMessage extends Base<'ack'> {
   data: AckData;
 }

@@ -35,6 +35,10 @@ echo "== typecheck"
 npm run typecheck > /tmp/opencode-qa-typecheck.log 2>&1 || { tail -n 40 /tmp/opencode-qa-typecheck.log; fail typecheck; }
 pass typecheck
 
+echo "== lint"
+bash "$ROOT/scripts/lint.sh" > /tmp/opencode-qa-lint.log 2>&1 || { tail -n 60 /tmp/opencode-qa-lint.log; fail lint; }
+pass lint
+
 echo "== bridge tests"
 if [ "$COVERAGE" = 1 ]; then
   node --import tsx --test --experimental-test-coverage test/*.test.ts > /tmp/opencode-qa-bridge.log 2>&1 || { tail -n 60 /tmp/opencode-qa-bridge.log; fail bridge; }

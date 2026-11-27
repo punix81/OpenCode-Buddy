@@ -8,7 +8,6 @@ import { LineFramer, OutboundSequence, SequenceTracker, encodeMessage, negotiate
 import { validateLine } from './protocol/validator.js';
 import { PrivacyFilter } from './privacy/privacy.js';
 import { SessionRegistry } from './state/registry.js';
-import type { NormalizedEvent } from './state/types.js';
 import { normalizeEvent } from './normalize/normalizer.js';
 import type { Transport } from './transport/types.js';
 

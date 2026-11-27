@@ -26,6 +26,11 @@ jobs:
       - name: Typecheck
         working-directory: bridge
         run: npm run typecheck
+      - name: Lint
+        working-directory: bridge
+        run: |
+          npx eslint --config eslint.config.js src test scripts
+          cd ../plugin/opencode-buddy && ../../bridge/node_modules/.bin/eslint --config eslint.config.mjs .
       - name: Tests
         working-directory: bridge
         run: npm test

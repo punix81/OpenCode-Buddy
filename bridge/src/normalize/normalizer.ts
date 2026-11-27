@@ -52,10 +52,6 @@ function integer(value: unknown, min: number, max: number): number {
   return value;
 }
 
-function optionalInteger(value: unknown, min: number, max: number): number | undefined {
-  return value === undefined ? undefined : integer(value, min, max);
-}
-
 // Token counters are cumulative and can exceed the uint32 protocol field. The
 // normalizer must not drop the whole usage event in that case: the reducer keeps
 // the wide value and the privacy projection reports the unrepresentable field as
