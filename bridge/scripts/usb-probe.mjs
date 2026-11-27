@@ -124,30 +124,43 @@ async function main() {
     const start = lines.length;
     send('BUDDY-STATS-RESET');
     await wait(windowMs);
-    const collected = lastForScenario(start).filter((line) => line['render_avg_us'] !== undefined);
-    if (collected.length < 5) {
+    const collected = lastForScenario(start);
+    const windows = collected.filter((line) => line.render_avg_us !== undefined);
+    const pushLines = collected.filter((line) => line.push !== undefined);
+    if (windows.length < 5 || pushLines.length < 5) {
       throw new Error(
-        `scenario ${JSON.stringify(scenario)} got only ${collected.length} diagnostic lines`,
+        `scenario ${JSON.stringify(scenario)} got only ${windows.length} render windows`,
       );
     }
-    const first = collected[0];
-    const last = collected[collected.length - 1];
+    const first = pushLines[0];
+    const last = pushLines[pushLines.length - 1];
     const elapsed = Math.max(1, last.t - first.t);
     const avgFps = ((last.push - first.push) * 1000) / elapsed;
+    const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const median = (values) => {
+      const sorted = [...values].sort((a, b) => a - b);
+      return sorted[Math.floor(sorted.length / 2)];
+    };
+    const avgValues = windows.map((line) => line.render_avg_us);
     const row = {
       ...scenario,
       lines: collected.length,
-      render_avg_us: last.render_avg_us,
-      render_p50_us: last.render_p50_us,
-      render_p95_us: last.render_p95_us,
-      render_p99_us: last.render_p99_us,
-      render_max_us: last.render_max_us,
+      windows: windows.length,
+      // The firmware resets its window every 5 s: report the mean of window
+      // means and the median/worst of the per-window percentiles.
+      render_avg_us: Math.round(mean(avgValues)),
+      render_p50_us: median(windows.map((line) => line.render_p50_us)),
+      render_p95_us: median(windows.map((line) => line.render_p95_us)),
+      render_p99_us: median(windows.map((line) => line.render_p99_us)),
+      render_p95_worst_us: Math.max(...windows.map((line) => line.render_p95_us)),
+      render_p99_worst_us: Math.max(...windows.map((line) => line.render_p99_us)),
+      render_max_us: Math.max(...windows.map((line) => line.render_max_us)),
       fps_avg: Number(avgFps.toFixed(2)),
       fps_window: last.fps,
-      heap: last.heap,
-      min: last.min,
-      maxblk: last.maxblk,
-      usb_gap_max_us: last.usb_gap_max_us,
+      heap_end: last.heap,
+      heap_min: Math.min(...windows.map((line) => line.min)),
+      maxblk_min: Math.min(...windows.map((line) => line.maxblk)),
+      usb_gap_max_us: Math.max(...windows.map((line) => line.usb_gap_max_us)),
       dropped: last.dropped,
       rx_ovf: last.rx_ovf,
       screen_seen: last.screen,
@@ -160,6 +173,13 @@ async function main() {
         `p99=${row.render_p99_us} max=${row.render_max_us} fps=${row.fps_avg}`,
     );
   }
+
+  // Restore the documented defaults (English, no quiet, Buddy) so the device is
+  // not left in a measurement-only state.
+  send('BUDDY-LANG 0');
+  send('BUDDY-QUIET 0');
+  send('BUDDY-SCREEN 0');
+  await wait(500);
 
   writeFileSync(`${outPath}.summary.json`, `${JSON.stringify(report, null, 2)}\n`);
   console.log(`report written to ${outPath}.summary.json`);
