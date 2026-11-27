@@ -1,12 +1,13 @@
 # Phase 5 — hardware validation (P5-00)
 
-Date: 2026-11-27
-Status: **BLOCKED. The 2026-11-27 diagnostic campaign confirmed a USB CDC RX stall after a
-watchdog/flash reset; a real power cycle restores the link. No validated fix; no final RC flash.**
-The pre-link backlog is an aggravating factor, not the proven sole cause. See
-`docs/evidence/phase-5-usb-diagnostics.md` for the full counters and the three diagnostic images. The installed Phase 4.1 image still loses the first
-handshake after the bridge opens the port; the three handshake retries do not recover it, only a
-reopen (device reset) does.
+Date: 2026-11-27. Status: **HARDWARE VALIDATION DEFERRED TO PHASE 6 — Phase 5 software accepted.**
+The USB blocker is **not** resolved and VMware is **not** confirmed as the root cause. The ESP32-C3
+is connected to a Windows host and redirected into a VMware Ubuntu VM; that USB-virtualisation layer
+is not the reference environment for final acceptance. No further USB diagnostics, flashes, cold
+boots, reconnections, benchmarks, soak or endurance run in this environment. The historical evidence
+in this file is preserved unchanged; the remaining gates are Phase 6, on native physical
+Windows/Linux.
+
 
 ## 1. Environment
 
@@ -86,11 +87,13 @@ length, TX drop counts, hello/heartbeat counters) is required to distinguish "re
 TooLong", "ready merged and rejected", and "ready never read". It is a **separate flash** and
 requires the Product Owner's explicit approval. The release binary is preserved.
 
-## 5. Not started
+## 5. Deferred to Phase 6
 
-The 20 cold boots, 10 software reboots, 10 bridge restarts, 10 USB reconnects, the six-screen tour
-and the 3600 s soak were **not** started: running them on an image that fails the first handshake
-would only record known failures. They resume after the correction and a new approval.
+The 20 cold boots, 10 software reboots, 10 bridge restarts, 10 USB reconnects, the six-screen tour,
+the performance matrix and the 3600 s soak were **not** completed in Phase 5. They are **Phase 6
+gates** on a native physical Windows/Linux host without USB virtualisation
+(`docs/phase-6-plan.md`). No further hardware validation runs in the VMware/Ubuntu USB-redirection
+environment; no root cause is claimed.
 
 ## 6. Normal restarts after the failure (VERIFIED, 2026-11-27 08:00)
 
@@ -126,7 +129,7 @@ The Product Owner authorised a controlled diagnostic flash. Summary; full eviden
 | `af390f71` pre-link + diag TxBuffer | no telemetry (flush bug), no ACK |
 | `fix3` `3689b828` | `hb=0` but `hello=26` before open (`hostConnected` is enumeration-based), `rx_bytes=16`, no ACK |
 | `fix4` `0b57ca8c` (host-byte gate) | `hello=0`, `rx_bytes=0`; bridge “no hello received” — gate deadlocks when RX is dead |
-| Final state | 4.1 `2ff67b71…` installed/verified; bridge stopped; power cycle needed to restore LIVE |
+| Final state | 4.1 `2ff67b71…` preserved/verified; bridge stopped; hardware validation deferred to Phase 6 |
 
 The USB RX delivered 0 or 16 host bytes after a watchdog/flash reset while the device TX still
 worked. A real power cycle restored the 4.1 handshake. The root cause (USB peripheral vs HWCDC ring
@@ -134,7 +137,18 @@ vs host CDC state) is **not proven**. The pre-link TX backlog (26 dropped protoc
 the RX service but is not the sole cause: release 4.1 failed without diagnostics, and `fix4` failed
 with no pre-link traffic.
 
-Recommended: power-cycle before the next acceptance run; investigate an explicit USB RX
-re-initialisation on the host edge (or DTR/RTS), with a new approved diagnostic image; do not ship
-the host-byte gate. RC1 `dd7d1d57…` remains the stable software candidate; the host-byte gate and
-the pre-link policy were **reverted** (`d564f48`), so the release source reproduces RC1 code.
+Phase 6 runs this validation on a native physical Windows/Linux host. No further USB diagnosis or
+physical manipulation runs in the VMware/Ubuntu USB-redirection environment; if the RX/handshake
+behaviour reproduces there, investigate with explicit approval. Do not ship the host-byte gate. RC1
+`dd7d1d57…` is frozen; the host-byte gate and the pre-link policy were **reverted** (`d564f48`), so
+the release source reproduces RC1 code.
+
+
+## 8. Product Owner closure (2026-11-27)
+
+The USB investigations are stopped in the current environment. This is **not** a claim that VMware is
+the root cause: the RX/handshake behaviour remains unexplained. Phase 5 is closed on software
+(**SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED**); RC1 `dd7d1d57…` is frozen and the clean rebuild
+`f9cc72ee…` is code/data-identical. The 20 cold boots, 10 USB reconnections, restarts, six-screen and
+performance checks, 3600 s soak and 28 800 s endurance are Phase 6 gates on a native physical host
+(`docs/phase-6-plan.md`). All images and failure evidence are preserved.

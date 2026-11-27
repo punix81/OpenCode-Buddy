@@ -216,8 +216,34 @@ These are hard rules for future changes, established by the independent audit.
    counter `framingResyncs()`), the firmware drains RX while `!hostConnected()`, and the bridge
    replays an unacknowledged `ready`/`config` (ready restarting at seq 1) before the 7 s reopen.
    Never "fix" a handshake by raising timeouts or buffer sizes.
-9. **Phase 4.1 is installed and LIVE.** Image
-   `2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2` is verified on the device and
-   the bridge runs `2509de8`. The cold-boot series and the 3600 s soak on this image remain the
-   Phase 5 entry gates; do not start Phase 5 before them. No diagnostic image may stay installed.
-   The original Phase 4 failure report is historical evidence and is never rewritten.
+9. **Phase 4.1 is the verified device baseline.** Image
+   `2ff67b7180779354d785b07efd758920892cd0f381ab6ed3519c3fffee88caa2` is verified on the device.
+   Phase 5 software is accepted; hardware validation is deferred to Phase 6. RC1 `dd7d1d57…` is
+   frozen; the clean rebuild `f9cc72ee…` is code/data-identical. No diagnostic image may stay
+   installed. The original Phase 4 failure report is historical evidence and is never rewritten.
+
+
+## 13. Phase 5 closure and Phase 6 environment (Product Owner decision, 2026-11-27)
+
+1. **Verdict: SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED.** The Phase 5 software gates are
+   accepted. The USB handshake/RX blocker is **not** declared resolved.
+2. **Environment is not the reference.** The ESP32-C3 is connected to a Windows host and redirected
+   into a VMware Ubuntu VM. This additional USB-virtualisation layer is **not** retained as the
+   reference environment for final hardware acceptance. VM/VMware must **not** be declared the
+   confirmed root cause of the observed USB behaviour: the root cause remains unproven.
+3. **Stop the investigations.** In the current environment, do not run USB diagnostics, experimental
+   HWCDC or USB-driver changes, handshake corrections, cold-boot or USB-reconnection campaigns,
+   hardware benchmarks, soak/endurance tests, or experimental flashes. Do not flash or manipulate
+   the device. The device stays as preserved.
+4. **Freeze the candidate.** RC1 `dd7d1d57…` (413 344 B) is the frozen release candidate; the clean
+   rebuild `f9cc72ee…` is code/data-identical (only the embedded ELF SHA and image validation hash
+   differ). Do not change functional RC1 code without explicit Product Owner justification and
+   authorisation.
+5. **Preserve evidence.** Keep every artifact and report listed in `docs/handover-phase5.md`:
+   Phase 4.1, RC1, the rebuild, both full 4 MiB backups, all diagnostic images and all historical
+   failure evidence. Never delete a proof of a problem encountered.
+6. **Phase 6 hardware validation** happens on a **native physical Windows or Linux computer without
+   USB virtualisation**. The remaining cold boots, USB reconnections, soak, endurance, six-screen
+   measurements and performance validation are Phase 6 gates.
+7. **Plan only.** Phase 6 implementation starts only on a new explicit Product Owner instruction.
+   The approved scope is in `docs/phase-6-plan.md`.

@@ -34,6 +34,12 @@ cd bridge && npm run simulate -- --scenario all-states --duration 5000
 No hardware test is claimed in this table. The RC is not flashed; the six-screen panel check, cold
 boots, USB reconnections and the soak remain Checkpoint D gates.
 
+## 2026-11-27 closure
+
+Phase 5 is **SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED**. The final RC was not flashed; the
+hardware gates (cold boots, USB reconnections, six-screen/performance matrix, 3600 s soak, 28 800 s
+endurance) move to Phase 6 on a native physical host. No hardware PASS is claimed.
+
 ## 2026-11-27 diagnostic campaign
 
 The bridge suite grew to **126/126** (BUDDY-DIAG telemetry filter, safe-integer counters); the

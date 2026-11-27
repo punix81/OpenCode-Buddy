@@ -129,30 +129,41 @@ and the audit in `docs/audit-phase-5.md`. See `docs/evidence/phase-4-1-*.md`,
 **Goal:** evidence that it is safe and stable.
 
 Scope: unit, integration, protocol, reducer, gesture and privacy tests; fuzzing; disconnect storms;
-multi-session stress; memory and CPU profiling; 8-hour hardware run; dependency and licence audit;
-threat-model review.
+multi-session stress; memory and CPU profiling; dependency and licence audit; threat-model review.
+The 8-hour hardware run, cold boots, USB reconnections and the hardware performance matrix are
+deferred to Phase 6.
 
-Exit criteria: coverage targets met on the reducer and privacy filter; fuzz runs clean; soak passes;
-audit findings closed or accepted; security sign-off.
+Exit criteria (software): coverage targets met on the reducer and privacy filter; fuzz runs clean;
+QA PASS; audit findings closed, accepted or transferred; security sign-off. Hardware soak/endurance
+and physical acceptance are Phase 6 gates.
 
-**Status (2026-11-27): in progress — Checkpoint B accepted; Phase 5 NOT accepted.** The software
-gates are green (126/126 bridge, 27/27 plugin, coverage 96.61/87.31, 288/288 pixel equivalence), but
-the USB diagnostic campaign found a CDC RX stall after a watchdog/flash reset: the bridge can send
-ready/config with no ACK until a real power cycle/replug. The pre-link backlog is an aggravating
-factor, not the proven cause. RC1 `dd7d1d57…` remains the stable candidate; no final RC is flashed;
-the 20 cold boots, 10 USB reconnections, 3600 s soak and 28 800 s endurance remain open. See
-`docs/evidence/phase-5-usb-diagnostics.md` and `docs/handover-phase5.md`.
+**Status (2026-11-27): SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED.** Phase 5 is closed on the
+software side: 126/126 bridge, 27/27 plugin, coverage 96.61/87.31, 288/288 pixel equivalence, QA
+PASS. The USB diagnostic campaign found a CDC RX stall after a watchdog/flash reset, but the Product
+Owner stopped the investigations in the Windows-host + VMware Ubuntu USB-redirection setup: it is
+**not** the reference environment and VMware is **not** a confirmed root cause. RC1 `dd7d1d57…` is
+frozen and code-identical to a clean rebuild `f9cc72ee…`; no final RC is flashed. The hardware gates
+(20 cold boots, 10 USB reconnections, restarts, 3600 s soak, 28 800 s endurance, six-screen and
+performance validation) are transferred to Phase 6 on native physical Windows/Linux. See
+`docs/phase-5-report.md`, `docs/handover-phase5.md`, `docs/evidence/phase-5-usb-diagnostics.md` and
+`docs/phase-6-plan.md`.
 
-## Phase 6 — Packaging and team pilot
+## Phase 6 — Native packaging and final hardware acceptance
 
-**Goal:** another developer can install it without help.
+**Goal:** another developer can install it without help, on a native physical Windows or Linux
+computer, and the final hardware acceptance is completed there.
 
-Scope: Windows and Linux installers; flashing guide with restore path; release artefacts with
-checksums; user, admin and troubleshooting docs; optional enclosure; pilot with a small team;
-release notes.
+Scope (planned, not implemented): native Windows and Linux compatibility; Windows Named Pipes IPC;
+simplified bridge and plugin installation; ESP32 auto-detection; bridge auto-start; user
+configuration; packaging; firmware install/update; clean uninstall; user documentation; native
+physical validation; USB quality re-tests; graphical performance validation; 3600 s soak; 28 800 s
+endurance; final product acceptance.
 
-Exit criteria: a pilot user completes install, flash, first run and uninstall using only the docs;
-no blocker reported; rollback verified.
+Exit criteria: a pilot user completes install, flash, first run and uninstall using only the docs on
+a native physical host; no blocker; rollback verified; cold boots, reconnections, soak, endurance and
+the six-screen/timing matrix PASS. The detailed plan is [docs/phase-6-plan.md](phase-6-plan.md).
+
+**Status: planned only. Implementation starts only on an explicit Product Owner instruction.**
 
 ## Cross-phase rules
 

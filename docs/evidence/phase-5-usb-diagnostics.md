@@ -1,9 +1,12 @@
 # Phase 5 — USB diagnostic campaign (2026-11-27)
 
-Status: **BLOCKER NOT RESOLVED.** The device's USB CDC RX path can stop delivering host bytes after a
-watchdog/flash reset; the bridge then sends `ready`/`config` but receives no ACK. A real power cycle
-restores the link. The pre-link TX backlog is a contributing factor, not the proven sole cause. No
-release change from this campaign is validated; RC1 `dd7d1d57…` remains the stable software candidate.
+Status: **CLOSED ON SOFTWARE — HARDWARE VALIDATION DEFERRED (Product Owner, 2026-11-27).** The
+device's USB CDC RX path can stop delivering host bytes after a watchdog/flash reset; the bridge then
+sends `ready`/`config` but receives no ACK. A real power cycle restores the link. The pre-link TX
+backlog is a contributing factor, not the proven sole cause. The Product Owner stopped the
+investigations in the Windows-host + VMware Ubuntu USB-redirection environment: it is **not** the
+reference environment and VMware is **not** a confirmed root cause. No release change from this
+campaign is validated; RC1 `dd7d1d57…` is frozen.
 
 ## 1. Environment and preparation
 
@@ -91,19 +94,24 @@ failed with no pre-link traffic at all.
 ## 8. State after the campaign
 
 - Installed image: `2ff67b71…` (verified read-back), bridge stopped.
-- A **physical power cycle/replug** is required to restore the LIVE bridge after a watchdog reset.
+- No further USB diagnosis or physical manipulation runs in the current VMware/Ubuntu
+  USB-redirection environment; the device stays preserved. Phase 6 validates the LIVE link on a
+  native physical host.
 - No final RC was flashed. RC1 `dd7d1d57…` remains the stable software candidate. The host-byte
   gate was **reverted** (`d564f48`); the release source reproduces RC1 code (fresh build
   `f9cc72ee…`, code/data-identical to `dd7d1d57…`). The experimental `c3468a99…` is historical
   evidence only.
-- 20 cold boots, 10 USB reconnections, the RC soak and the 8 h endurance remain open.
+- 20 cold boots, 10 USB reconnections, the RC soak and the 28 800 s endurance are **transferred to
+  Phase 6** on native physical Windows/Linux.
 
-## 9. Recommended next steps
+## 9. Next steps — Phase 6 only
 
-1. Power-cycle the device and confirm the 4.1 bridge handshake (cold-boot evidence).
-2. Investigate the USB CDC RX reset explicitly: re-initialise the USB peripheral on the host edge,
-   or have the bridge toggle DTR/RTS, or require a power cycle after flashing. This needs a new
-   approved diagnostic image and a repeat of the 60 s/5 min/15 min series.
-3. Do not ship a hello gate that depends on host input while RX may be dead.
-4. Only after the RX recovery is proven, rebuild and flash the final RC and run the cold-boot,
-   reconnect, soak and endurance gates.
+1. No further USB diagnostics, handshake experiments, benchmarks, soak/endurance or flashes in the
+   current VMware/Ubuntu USB-redirection environment.
+2. Phase 6 runs the hardware validation on a native physical Windows/Linux host: auto-detection,
+   installation, 20 cold boots, 10 USB reconnections, restarts, six-screen/gesture/preference checks,
+   performance matrix, 3600 s soak and 28 800 s endurance (`docs/phase-6-plan.md`).
+3. The USB RX/handshake behaviour is a Phase 6 risk. Re-test only on native USB; if it reproduces,
+   investigate and fix with explicit approval. Do not ship a hello gate that depends on host input
+   while RX may be dead.
+4. Preserve every artifact and this evidence. No root-cause claim is made.

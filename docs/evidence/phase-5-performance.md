@@ -2,7 +2,9 @@
 
 Date: 2026-11-27. Software optimizations are implemented and verified for pixels; a **partial ESP32
 measurement** was taken during the diagnostic campaign (Buddy offline only). The six-screen matrix
-was not measured because the MOCK bench image was not flashed. No 50 ms target is claimed.
+was not measured because the MOCK bench image was not flashed. **Phase 5 is closed on software;
+the full hardware matrix is deferred to Phase 6** on a native physical host. No 50 ms target is
+claimed.
 
 ## 1. Baseline (Phase 4 diagnostic image, 45 samples)
 

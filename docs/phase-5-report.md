@@ -1,12 +1,12 @@
 # Phase 5 — report (Checkpoint B)
 
 Date: 2026-11-27
-Status: **Checkpoint B complete; Phase 5 NOT accepted. The 2026-11-27 diagnostic campaign confirmed
-a USB CDC RX stall after a watchdog/flash reset; no validated fix. A real power cycle restores the
-link. RC1 `dd7d1d57…` remains the stable software candidate; the experimental release `c3468a99…` is
-not suitable. No final RC flash.**
-The installed firmware is the verified Phase 4.1 release `2ff67b71…`; the bridge is stopped and needs
-a power cycle/replug to restore the LIVE handshake. No GitHub operation, no Phase 6.
+Status: **CLOSED — SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED (Product Owner, 2026-11-27).**
+The Phase 5 software work is accepted. The USB blocker is **not** declared resolved, and VMware is
+**not** declared the confirmed root cause. The Windows-host + VMware Ubuntu USB-redirection setup is
+not the reference environment for final hardware acceptance; the remaining hardware gates are
+transferred to Phase 6 on native physical Windows/Linux. RC1 `dd7d1d57…` is frozen; the clean
+rebuild `f9cc72ee…` is code/data-identical. No final RC was flashed.
 
 ## 1. Summary
 
@@ -20,7 +20,7 @@ a power cycle/replug to restore the LIVE handshake. No GitHub operation, no Phas
 | Bridge fix `c4db0b3` | Integrated and tested (126/126); diagnostic filter added; not deployed to the running 4.1 bridge |
 | RC firmware | RC1 `dd7d1d57…`, 413 344 B, 22 620 B RAM, 378 782 B flash (stable candidate) |
 | Coverage | 96.61 % lines / 87.31 % branches / 87.63 % functions |
-| Hardware gates | Cold boots, USB reconnections, new-bridge soak and 8 h endurance remain |
+| Hardware gates | Deferred to Phase 6 (native physical Windows/Linux); cold boots, USB reconnections, soak and 8 h endurance |
 
 ## 2. Checkpoint A recap
 
@@ -95,8 +95,8 @@ are documented in `docs/evidence/phase-5-usb-diagnostics.md`; the USB RX stall i
 `docs/evidence/phase-5-rc.md`: RC1 `dd7d1d57…`, 413 344 B, 22 620 B RAM, 378 782 B flash; bridge main
 branch with `c4db0b3` (126/126); plugin 27/27; 288/288 pixel equivalence. The 2026-11-27 diagnostic
 campaign did **not** produce a validated USB fix; the experimental `c3468a99…` host-byte gate
-deadlocks when RX is dead. **The 4.1 soak on `58bd386` does not validate this bridge**; a new soak
-remains required.
+deadlocks when RX is dead. **The 4.1 soak on `58bd386` does not validate this bridge**; the RC soak
+and endurance are Phase 6 gates on a native physical host.
 
 ## 4. Differences vs the Phase 4.1 reference
 
@@ -104,23 +104,28 @@ See `phase-5-rc.md` §5. In short: renderer internals (pixel-identical), `Format
 byte counters, diagnostic env; bridge P1/P2 fixes + the both-ACK requirement. Protocol, UI,
 preferences and gestures unchanged.
 
-## 5. Gates remaining before Phase 5 acceptance
+## 5. Hardware gates transferred to Phase 6
 
-1. **Power-cycle/replug the device** to restore the 4.1 LIVE handshake (the RX stall after a
-   watchdog/flash reset leaves it dead).
-2. Establish and fix the USB CDC RX stall root cause (peripheral vs HWCDC vs host CDC state); the
-   pre-link backlog is only an aggravating factor. Do not ship the host-byte gate.
-3. Explicit flash authorisation for the final RC, then 20 genuine cold boots and 10 USB
-   reconnections on that image.
-4. 3600 s soak on the RC bridge (not the 4.1 one) and the 28 800 s endurance.
-5. Six-screen/EN/FR/DE/gesture/preference confirmation and the full hardware renderer matrix
-   (Session/Tokens p50/p95/p99); the MOCK bench image is not yet authorised/flashed.
-6. Windows named pipes and packaging remain Phase 6.
+Phase 5 is closed on software. These gates are **not** Phase 5 acceptance criteria anymore; they are
+Phase 6 entry/exit criteria on a native physical host:
+
+1. Recover/verify the LIVE link on the physical host; the current virtualised environment is not the
+   reference and no further USB diagnosis runs there.
+2. Native physical Windows/Linux compatibility, Named Pipes, packaging, installation and
+   uninstallation.
+3. 20 genuine cold boots, 10 USB reconnections, 10 software reboots and 10 bridge restarts on the
+   final RC.
+4. 3600 s soak and 28 800 s endurance (MOCK, stable; error injections separated).
+5. Six-screen/EN/FR/DE/gesture/preference confirmation and the full renderer matrix
+   (Session/Tokens p50/p95/p99, heap, USB gap, drops), including graphical performance validation.
+6. Final product acceptance and user documentation. The detailed plan is `docs/phase-6-plan.md`.
 
 ## 6. Constraints respected
 
-No flash, no physical manipulation, no wiring change, no GitHub operation, no Phase 6. The installed
-firmware `2ff67b71…` and the LIVE 4.1 bridge were left untouched. All work is local and reversible.
+At Checkpoint B: no flash, no physical manipulation, no wiring change, no GitHub operation, no
+Phase 6. The installed firmware `2ff67b71…` and the LIVE 4.1 bridge were left untouched. All work is
+local and reversible. The 2026-11-27 closure keeps the no-flash/no-GitHub constraints and prepares
+the Phase 6 plan only.
 
 ## 7. Local commits
 
@@ -167,3 +172,22 @@ Full counters and images: `docs/evidence/phase-5-usb-diagnostics.md`.
 - `cbd9d92` — 288-image equivalence tool
 - `031a9c3` — host-byte hello gate (experimental; not suitable)
 - `d564f48` — revert of the unvalidated USB hello policy; release code returns to RC1
+
+
+## 10. Closure decision (Product Owner, 2026-11-27)
+
+The Product Owner stopped the USB investigations in the current environment. The ESP32-C3 is
+connected to a Windows host and redirected into a VMware Ubuntu VM; this additional USB-virtualisation
+layer is **not** retained as the reference environment for final hardware acceptance. No root cause is
+claimed: the observed RX/handshake behaviour remains unexplained and is not attributed to VMware
+without proof.
+
+- Verdict: **SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED.**
+- RC1 `dd7d1d57…` (413 344 B) is frozen; the clean rebuild `f9cc72ee…` is code/data-identical (only
+  the embedded ELF SHA and image validation hash differ).
+- Phase 4.1 `2ff67b71…` remains the verified device baseline. Both full 4 MiB backups
+  (`c58f4cca…`, `25c1d7ff…`), all diagnostic images and every historical failure report are kept.
+- No more USB diagnostics, experimental HWCDC/driver changes, handshake corrections, cold boots,
+  reconnections, benchmarks, soak/endurance or experimental flashes in this environment.
+- Phase 6 is **planned only**; implementation starts on the next explicit Product Owner instruction.
+  Scope and gates: `docs/phase-6-plan.md`.

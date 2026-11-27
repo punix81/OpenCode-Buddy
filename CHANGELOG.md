@@ -6,6 +6,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Phase 5 closure — software accepted, hardware validation deferred (2026-11-27)
+
+- Product Owner verdict: **SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED**. The USB blocker is
+  **not** declared resolved.
+- The Windows-host + VMware Ubuntu USB-redirection setup is **not** retained as the reference
+  environment for hardware acceptance. VMware is **not** confirmed as the root cause; the cause
+  remains unproven.
+- RC1 `dd7d1d57…` (413 344 B) is frozen. The clean rebuild `f9cc72ee…` is code/data-identical (only
+  the ELF SHA and image validation hash differ). Phase 4.1 `2ff67b71…` remains the verified device
+  baseline.
+- All artifacts are preserved outside the build trees: Phase 4.1, RC1, the rebuild, two full 4 MiB
+  backups (`c58f4cca…`, `25c1d7ff…`) and every diagnostic image. No historical failure evidence was
+  deleted.
+- USB diagnostics, experimental HWCDC/driver changes, cold-boot/reconnection campaigns, hardware
+  benchmarks, soak/endurance and experimental flashes stop in the current environment. Phase 6
+  hardware validation will run on native physical Windows/Linux without USB virtualisation.
+- Phase 5 hardware gates are transferred to Phase 6: 20 cold boots, 10 USB reconnections, 10 software
+  and 10 bridge restarts, 3600 s soak, 28 800 s endurance, six-screen/EN/FR/DE/gesture/preference
+  checks and the Session/Tokens hardware timing matrix.
+- Phase 6 is **planned only** (`docs/phase-6-plan.md`); implementation awaits the next Product Owner
+  instruction. No GitHub operation, no flash, no Phase 6 implementation.
+
 ### Phase 5 — diagnostic campaign (2026-11-27)
 
 - Phase 4.1 baseline before any flash: 60 s / 300 s / 900 s **3/3 PASS**, 0 retry, 0 invalid,

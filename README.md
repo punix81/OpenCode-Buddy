@@ -7,12 +7,16 @@ waiting for a permission, failing, compacting its context, or finishing successf
 animated virtual companion with a compact developer dashboard on a 1.28" round display, driven by an
 ESP32-C3 over USB.
 
-> **Project status: Phase 3.1 accepted and installed. Phase 4 (developer dashboard, localization,
-> preferences) is software-complete and its UI was physically reviewed, but the Phase 4 image
-> failed the USB CDC RX gate; Phase 3.1 was restored and the bridge is LIVE. Phase 5 must isolate the
-> USB regression before retrying Phase 4 acceptance. Phase 5/6 have not started.** See
-> [docs/phase-3-1-report.md](docs/phase-3-1-report.md) and
-> [docs/phase-4-report.md](docs/phase-4-report.md).
+> **Project status (2026-11-27): SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED to
+> Phase 6.** RC1 `dd7d1d57…` is frozen and code-identical to the clean rebuild `f9cc72ee…`; the
+> Phase 4.1 image `2ff67b71…` remains the verified device baseline. The Product Owner stopped USB
+> investigations in the VMware/Ubuntu USB-redirection environment: it is **not** the reference
+> environment for hardware acceptance, and **no root cause is claimed** (VMware is not confirmed as
+> the cause). Cold boots, USB reconnections, soak, endurance and the six-screen hardware matrix move
+> to Phase 6 on native physical Windows/Linux. Phase 6 is planned, not implemented. See
+> [docs/phase-5-report.md](docs/phase-5-report.md),
+> [docs/handover-phase5.md](docs/handover-phase5.md) and
+> [docs/phase-6-plan.md](docs/phase-6-plan.md).
 
 ## Why
 
@@ -74,14 +78,14 @@ transmitted. See [docs/architecture.md](docs/architecture.md).
 
 | Path | Purpose | Status |
 | --- | --- | --- |
-| `docs/` | Requirements, architecture, audits, reports | Phase 0 → 4 |
+| `docs/` | Requirements, architecture, audits, reports, Phase 6 plan | Phase 0 → 6 |
 | `protocol/` | NDJSON protocol v1 specification, schema, examples, vectors | Ratified |
-| `firmware/` | ESP32-C3 firmware (PlatformIO, Arduino, C++), six screens, EN/FR/DE | Phase 4 |
-| `bridge/` | TypeScript/Node.js local bridge, mock adapter and simulator CLI | Phase 4 |
-| `plugin/` | OpenCode v2 server plugin | Phase 3 |
+| `firmware/` | ESP32-C3 firmware (PlatformIO, Arduino, C++), six screens, EN/FR/DE | Phase 5 RC1 |
+| `bridge/` | TypeScript/Node.js local bridge, mock adapter and simulator CLI | Phase 5 |
+| `plugin/` | OpenCode v2 server plugin | Phase 5 |
 | `simulator/` | Hardware-free device simulator (implemented in `bridge/`) | Phase 2 |
 | `hardware/` | Wiring, bill of materials, enclosure notes | Phase 0 |
-| `scripts/` | Reproducible maintenance scripts | Phase 0 |
+| `scripts/` | Reproducible maintenance scripts | Phase 5 |
 
 ## Dashboard and preferences
 
@@ -110,6 +114,10 @@ keeping the complete online/total counts. See [dashboard metrics](docs/dashboard
 - [Phase 0 report](docs/phase-0-report.md) · [Phase 1 report](docs/phase-1-report.md) ·
   [Phase 2 report](docs/phase-2-report.md) · [Phase 3.1 report](docs/phase-3-1-report.md) ·
   [Phase 4 plan](docs/phase-4-plan.md) · [Phase 4 report](docs/phase-4-report.md)
+- [Phase 5 report](docs/phase-5-report.md) · [Phase 5 handover](docs/handover-phase5.md) ·
+  [Phase 5 USB diagnostics](docs/evidence/phase-5-usb-diagnostics.md) ·
+  [Preserved artifacts](docs/evidence/phase-5-artifacts.md) ·
+  [Phase 6 plan](docs/phase-6-plan.md)
 
 ## Contributing
 

@@ -15,7 +15,7 @@ Severity: **P0** critical security/data integrity, **P1** important reliability/
 | Id | Severity | Area | Status |
 | --- | --- | --- | --- |
 | P1-01 | P1 | bridge protocol framer | **fixed** `bb5c527` |
-| P1-02 | P1 | USB CDC RX stall after reset | **confirmed 2026-11-27; root cause open** |
+| P1-02 | P1 | USB CDC RX stall after reset | **confirmed; root cause open; transferred to Phase 6** |
 | P2-01 | P2 | bridge session registry | **fixed** `99de977` |
 | P2-02 | P2 | bridge live input timestamps | **fixed** `99de977` |
 | P2-03 | P2 | protocol string limits (chars vs bytes) | **fixed** `99de977` |
@@ -85,8 +85,10 @@ frames produce exactly one `E_TOO_LONG` (pre-handshake suppression keeps it at 0
 **Impact**: after a flash/watchdog reset the bridge can never complete the handshake until the device
 is physically power-cycled. This blocks the RC acceptance, the 20 cold boots and the soak.
 
-**Status**: confirmed. The root cause (USB peripheral vs Arduino `HWCDC` ring vs host CDC state) is
-**not proven**. The pre-link TX backlog (26 hellos/dropped frames) aggravates RX service but is not
+**Status**: confirmed; **transferred to Phase 6**. Phase 5 is closed on software and hardware
+validation is deferred. The current Windows-host + VMware Ubuntu USB-redirection environment is not
+the reference for acceptance; VMware is **not** a confirmed root cause. The root cause (USB peripheral
+vs Arduino `HWCDC` ring vs host CDC state) is **not proven**. The pre-link TX backlog (26 hellos/dropped frames) aggravates RX service but is not
 the sole cause: release 4.1 failed without diagnostics, and `fix4` failed with no pre-link traffic.
 Do not ship the host-byte gate: it deadlocks when RX is dead. Workaround: real power cycle/replug.
 
@@ -273,5 +275,7 @@ Phase 4.1 commit and this phase's doc pass. Test counts are asserted in one plac
   measured. No formatter was adopted (nothing in the repository enforced one).
 - P5-00 handshake blocker: see `docs/evidence/phase-5-hardware-validation.md`.
 - 2026-11-27 P1-02: USB CDC RX stall confirmed with `3646d4ce`, `af390f71`, `fix3` and `fix4`;
-  root cause open, power-cycle workaround, no validated fix. RC1 remains the stable candidate;
-  the host-byte gate is not suitable. Full counters: `docs/evidence/phase-5-usb-diagnostics.md`.
+  root cause open, power-cycle workaround, no validated fix. Phase 5 closed on software
+  (**SOFTWARE ACCEPTED — HARDWARE VALIDATION DEFERRED**); P1-02 is transferred to Phase 6 for
+  investigation on native physical Windows/Linux. RC1 remains frozen; the host-byte gate is not
+  suitable. Full counters: `docs/evidence/phase-5-usb-diagnostics.md`.
