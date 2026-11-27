@@ -126,6 +126,24 @@ void ScreenManager::render(uint32_t now) {
   if (elapsedUs > renderMaxUs_) {
     renderMaxUs_ = elapsedUs;
   }
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  const uint32_t bin = elapsedUs / 1000u;
+  ++renderHistogram_[bin < kRenderBins ? bin : kRenderBins - 1];
+  ++renderHistogramCount_;
+#endif
 }
+
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+uint32_t ScreenManager::renderPercentileUs(uint8_t percent) const {
+  if (renderHistogramCount_ == 0 || percent == 0) return 0;
+  const uint32_t target = (renderHistogramCount_ * percent + 99u) / 100u;
+  uint32_t cumulative = 0;
+  for (uint16_t bin = 0; bin < kRenderBins; ++bin) {
+    cumulative += renderHistogram_[bin];
+    if (cumulative >= target) return uint32_t(bin) * 1000u;
+  }
+  return uint32_t(kRenderBins - 1) * 1000u;
+}
+#endif
 
 }  // namespace buddy

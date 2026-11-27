@@ -3,6 +3,10 @@
 #include <esp_attr.h>
 #include <esp_system.h>
 
+#if defined(BUDDY_BENCH_COMMANDS) && BUDDY_BENCH_COMMANDS
+#include <cstdlib>
+#endif
+
 #include "AnimationEngine.h"
 #include "BuddyFace.h"
 #include "Config.h"
@@ -80,6 +84,8 @@ uint32_t gDiagLastCode = 255;
 uint16_t gDiagLastLen = 0;
 char gDiagLastHead[9] = {0};
 bool gDiagHost = false;
+uint32_t gDiagMaxUsbGapUs = 0;
+uint32_t gDiagLastServiceUs = 0;
 #endif
 uint32_t gErrorWindowStart = 0;
 uint8_t gErrorCount = 0;
@@ -233,7 +239,7 @@ buddy::InteractionGesture mapGesture(buddy::Gesture gesture) {
 
 void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
 #if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
-  if (Serial.availableForWrite() < 220) {
+  if (Serial.availableForWrite() < 450) {
     return;
   }
   const uint32_t window = now - gLastDiagnosticMs;
@@ -243,7 +249,8 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
   }
   Serial.printf(
       "BUDDY-DIAG boot=%lu reset=%s heap=%lu min=%lu maxblk=%lu fps=%lu push=%lu "
-      "render_avg_us=%lu render_max_us=%lu gesture_ms=%lu touch_edges=%lu screen=%u state=%u "
+      "render_avg_us=%lu render_max_us=%lu render_p50_us=%lu render_p95_us=%lu "
+      "render_p99_us=%lu usb_gap_max_us=%lu gesture_ms=%lu touch_edges=%lu screen=%u state=%u "
       "dropped=%lu sent=%lu maxframe=%lu txfree=%d rxavail=%d\n",
       static_cast<unsigned long>(gBootCount), resetReasonName(esp_reset_reason()),
       static_cast<unsigned long>(ESP.getFreeHeap()),
@@ -252,6 +259,10 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
       static_cast<unsigned long>(gScreens.pushCount()),
       static_cast<unsigned long>(gScreens.renderAvgUs()),
       static_cast<unsigned long>(gScreens.renderMaxUs()),
+      static_cast<unsigned long>(gScreens.renderPercentileUs(50)),
+      static_cast<unsigned long>(gScreens.renderPercentileUs(95)),
+      static_cast<unsigned long>(gScreens.renderPercentileUs(99)),
+      static_cast<unsigned long>(gDiagMaxUsbGapUs),
       static_cast<unsigned long>(gTouch.lastLatencyMs()),
       static_cast<unsigned long>(gTouch.rawEdges()),
       static_cast<unsigned>(gScreens.screen()), static_cast<unsigned>(gState.state()),
@@ -354,6 +365,16 @@ void setup() {
 }
 
 void loop() {
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  // Time between two main-loop iterations: each one services USB RX/TX. It is
+  // the observable bound for how long the bridge can wait for a read.
+  const uint32_t serviceUs = micros();
+  if (gDiagLastServiceUs != 0) {
+    const uint32_t gap = serviceUs - gDiagLastServiceUs;
+    if (gap > gDiagMaxUsbGapUs) gDiagMaxUsbGapUs = gap;
+  }
+  gDiagLastServiceUs = serviceUs;
+#endif
   const uint32_t now = millis();
 
   if (gProtocol.fatalVersion()) {
@@ -384,6 +405,32 @@ void loop() {
     }
     if (strcmp(gLine, "BUDDY-DIAG") == 0) {
       emitDiagnostic(now, true, gBootUs);
+      continue;
+    }
+    if (strncmp(gLine, "BUDDY-SCREEN ", 13) == 0) {
+      const int value = atoi(gLine + 13);
+      if (value >= 0 && value < 6) {
+        gScreens.setScreenForBench(static_cast<uint8_t>(value), now);
+      }
+      continue;
+    }
+    if (strncmp(gLine, "BUDDY-LANG ", 11) == 0) {
+      const int value = atoi(gLine + 11);
+      if (value >= 0 && value <= 2) {
+        gPreferences.setLanguage(static_cast<uint8_t>(value));
+      }
+      continue;
+    }
+    if (strncmp(gLine, "BUDDY-QUIET ", 12) == 0) {
+      gPreferences.setQuietMode(atoi(gLine + 12) != 0);
+      continue;
+    }
+    if (strcmp(gLine, "BUDDY-STATS-RESET") == 0) {
+      gScreens.resetRenderStats();
+      gDiagMaxUsbGapUs = 0;
+      gDiagLastServiceUs = micros();
+      gLastDiagnosticMs = now;
+      gLastPushCount = gScreens.pushCount();
       continue;
     }
 #endif

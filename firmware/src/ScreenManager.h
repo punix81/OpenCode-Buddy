@@ -20,6 +20,18 @@ class ScreenManager {
   void onGesture(Gesture gesture, uint32_t now);
   void update(uint32_t now);
 
+#if defined(BUDDY_BENCH_COMMANDS) && BUDDY_BENCH_COMMANDS
+  // Bench-only navigation for the diagnostic MOCK image: no gesture, no NVS
+  // write, no auto-return side effect beyond the normal timer.
+  void setScreenForBench(uint8_t screen, uint32_t now) {
+    if (screen < static_cast<uint8_t>(ScreenId::Count)) {
+      screen_ = static_cast<ScreenId>(screen);
+      lastInteraction_ = now;
+      dirty_ = true;
+    }
+  }
+#endif
+
   // Host-configurable return to the Buddy screen. The protocol parser clamps the
   // value to 10..600 s; the device keeps 60 s when no host is present.
   void setAutoReturnSeconds(uint16_t seconds) { autoReturnMs_ = uint32_t(seconds) * 1000u; }
@@ -36,7 +48,17 @@ class ScreenManager {
     renderCount_ = 0;
     renderSumUs_ = 0;
     renderMaxUs_ = 0;
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+    for (uint16_t& bin : renderHistogram_) bin = 0;
+    renderHistogramCount_ = 0;
+#endif
   }
+
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  // Exact percentile from a 1 ms histogram (0..255 ms). Diagnostic only: the
+  // release build keeps the mean and max and pays no RAM for the bins.
+  uint32_t renderPercentileUs(uint8_t percent) const;
+#endif
 
  private:
   void render(uint32_t now);
@@ -59,6 +81,11 @@ class ScreenManager {
   uint32_t renderCount_ = 0;
   uint32_t renderSumUs_ = 0;
   uint32_t renderMaxUs_ = 0;
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  static constexpr uint16_t kRenderBins = 256;
+  uint16_t renderHistogram_[kRenderBins] = {0};
+  uint32_t renderHistogramCount_ = 0;
+#endif
 };
 
 }  // namespace buddy
