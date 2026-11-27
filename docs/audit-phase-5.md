@@ -18,14 +18,14 @@ Severity: **P0** critical security/data integrity, **P1** important reliability/
 | P2-01 | P2 | bridge session registry | **fixed** `99de977` |
 | P2-02 | P2 | bridge live input timestamps | **fixed** `99de977` |
 | P2-03 | P2 | protocol string limits (chars vs bytes) | **fixed** `99de977` |
-| P2-04 | P2 | rendering arc cost | confirmed by source + baseline |
-| P2-05 | P2 | text measurement cost | confirmed by source |
+| P2-04 | P2 | rendering arc cost | **fixed** `f92150d` (pixel-identical) |
+| P2-05 | P2 | text measurement cost | **fixed** `f92150d` (pixel-identical) |
 | P2-06 | P2 | plugin snapshot latency | **fixed** `aac8a35` |
 | P2-07 | P2 | MCP totals consistency (normalizer) | **fixed** `99de977` |
 | P2-08 | P2 | running session evicted first | **fixed** `99de977` |
 | P3-01 | P3 | MCP unknown presented as 0/0 | confirmed |
 | P3-02 | P3 | hello drop not retried immediately | confirmed |
-| P3-03 | P3 | no lint/format/coverage/QA entry point | QA + coverage done; lint open |
+| P3-03 | P3 | no lint/format/coverage/QA entry point | QA + coverage + lint done; no formatter |
 | P3-04 | P3 | performance evidence not reproducible from the repo | confirmed |
 | P3-05 | P3 | alias truncation collisions with real names | confirmed (opt-in) |
 | P3-06 | P3 | documentation/test-count drift after 4.1 | confirmed, fixed by this phase |
@@ -239,6 +239,10 @@ Phase 4.1 commit and this phase's doc pass. Test counts are asserted in one plac
   bounds + protocol table, MCP consistency, terminal-first eviction; tests for each.
 - `aac8a35` P2-06: parallel snapshot with bounded per-session permission timeouts.
 - `1660413` / `5becb9f`: fuzz corpora and coverage tests (96.62 % lines, 87.17 % branches).
-- P2-04/P2-05: planned P5-02; measurement requires a diagnostic flash (no approval yet).
+- `f92150d` P2-04/05: tick span tables + one-pass ASCII measurement + binary-search truncation;
+  288/288 preview images pixel-identical. Cumulative timing still requires a diagnostic flash
+  (no approval yet).
 - P3-01/P3-02/P3-04/P3-05: open and documented; no release blocker.
+- `35005b5` P3-03: ESLint gate in `scripts/lint.sh`, wired into `scripts/qa.sh` and CI; coverage
+  measured. No formatter was adopted (nothing in the repository enforced one).
 - P5-00 handshake blocker: see `docs/evidence/phase-5-hardware-validation.md`.

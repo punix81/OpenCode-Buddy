@@ -1,7 +1,7 @@
 # Dependencies
 
 Date: 2026-11-27. Versions verified in this workspace. Lockfile:
-`bridge/package-lock.json`, sha256 `fa60d26e5c8d8b299d5d693b9820274ce3e8a91e9a0d1e46fb1c4eb3830350bb`.
+`bridge/package-lock.json`, sha256 `a00faceadd0b5785bbb8d8950e3aa79dde41d1c2b5aff5f02451f4e9e3e6aa53`.
 
 ## Bridge — runtime
 
@@ -27,6 +27,8 @@ packages.
 | `esbuild` (+ platform binaries) | 0.28.2 | MIT | tsx dependency; optional per-platform packages |
 | `ajv` | 8.20.0 | MIT | Protocol schema validation in `validate:protocol` |
 | `@types/node` | 24.4.0 | MIT | Node types |
+| `eslint` | 10.12.0 | MIT | Static analysis (lint gate) |
+| `typescript-eslint` (+ `@typescript-eslint/*`) | 8.71.0 | MIT | TypeScript rules for ESLint |
 | `fast-uri` | 3.1.9 | BSD-3-Clause | ajv dependency |
 | `fast-deep-equal`, `json-schema-traverse`, `require-from-string` | 3.1.3 / 1.0.0 / 2.0.2 | MIT | ajv dependencies |
 
@@ -86,8 +88,9 @@ and recorded here with its license. The firmware platform and libraries stay pin
 
 ## Publication note
 
-`package-lock.json` records the exact `resolved` URLs produced by this workspace's package-registry
-configuration. They are environment-specific. Before publishing the repository (a Product Owner
-operation), review or regenerate the lockfile against the intended registry **without changing the
-pinned versions or integrity hashes**. The SBOM committed under `docs/evidence/` was generated from
-the same lockfile and sanitized to reference the public registry; it contains no internal hostname.
+`bridge/.npmrc` sets `omit-lockfile-registry-resolved=true`: the committed lockfile records package
+names, versions and integrity hashes but no registry-specific `resolved` URL. It therefore contains
+no internal hostname, and `npm ci` resolves through whatever registry the environment configures
+without changing the pinned versions or hashes. Regenerate the lock with the `.npmrc` in place; do not
+commit a lockfile that reintroduces environment-specific URLs. The SBOM under `docs/evidence/` was
+generated with `--omit dev` and references the public registry.
