@@ -367,7 +367,7 @@ export class Bridge {
       this.deviceBoot = message.data.boot;
       this.deviceCaps = new Set(message.data.caps ?? []);
       this.options.logger.debug(
-        `hello boot=${message.data.boot} caps=${[...this.deviceCaps].join(',') || '-'}`,
+        `hello fw=${message.data.fw} boot=${message.data.boot} caps=${[...this.deviceCaps].join(',') || '-'}`,
       );
       this.lastHandshakeMs = now;
       this.seqOut.reset();
@@ -464,12 +464,13 @@ export class Bridge {
         if (this.handshakeConfigSeq !== null && message.data.ack === this.handshakeConfigSeq) {
           this.handshakeConfigAcked = true;
         }
-        if (this.handshakeReadyAcked && this.handshakeConfigAcked) {
+        if (!this.handshakeAcked && this.handshakeReadyAcked && this.handshakeConfigAcked) {
           // The device has processed ready and config: it is safe to send the
           // snapshot. A device still booting may miss the handshake and
           // re-announce; sending state first used to provoke E_PARSE/resync.
           this.handshakeAcked = true;
           this.handshakeRetryAt = null;
+          this.options.logger.debug('handshake acknowledged ready+config');
         }
         const sentAt = this.pendingAcks.get(message.data.ack);
         if (sentAt !== undefined) {

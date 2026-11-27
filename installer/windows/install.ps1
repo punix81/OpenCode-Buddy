@@ -3,13 +3,12 @@ param(
   [string]$PluginProject = "",
   [switch]$PluginGlobal,
   [switch]$AutoStart,
+  [string]$StartupOutput = "",
   [switch]$Uninstall,
   [switch]$Apply
 )
 
-# User-scoped wrapper around the portable installer. No elevation, no firmware
-# flash, no service registration. This script is prepared for a native Windows
-# host; it has NOT been executed or validated in the Ubuntu VM.
+# User-scoped wrapper around the portable installer.
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $installer = Join-Path $here "install.mjs"
@@ -23,6 +22,10 @@ if ($Uninstall) { $arguments += "--uninstall" }
 if ($AutoStart) {
   $startup = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup\opencode-buddy.vbs"
   $arguments += @("--autostart-output", $startup)
+}
+if ($StartupOutput -ne "") {
+  if ($AutoStart) { throw "Choose either -AutoStart or -StartupOutput." }
+  $arguments += @("--autostart-output", $StartupOutput)
 }
 if ($Apply) { $arguments += "--apply" }
 

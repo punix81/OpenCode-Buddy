@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs';
-import { createServer, type Server, type Socket } from 'node:net';
+import { createServer, type Server } from 'node:net';
+import type { Duplex } from 'node:stream';
 
 import type { Logger } from '../logger.js';
 import type { IpcPaths } from './paths.js';
@@ -28,7 +29,7 @@ export interface IpcServerOptions {
 
 interface Peer {
   id: number;
-  socket: Socket;
+  socket: Duplex;
   authenticated: boolean;
   tokens: number;
   lastRefill: number;
@@ -66,8 +67,15 @@ export class IpcServer {
 
   constructor(private readonly options: IpcServerOptions) {
     this.token = randomBytes(IPC_TOKEN_BYTES).toString('hex');
-    this.endpoint = createIpcEndpoint(this.options.paths, options.logger);
-    this.server = createServer((socket) => this.accept(socket));
+    this.endpoint = createIpcEndpoint(this.options.paths, (error) => {
+      this.options.logger.error(error.message);
+      void this.stop().catch(() => this.options.logger.error('ipc cleanup failed'));
+    });
+    this.server = createServer((socket) => {
+      socket.setNoDelay(true);
+      this.accept(socket);
+    });
+    this.server.on('buddy-connection', (socket: Duplex) => this.accept(socket));
   }
 
   get socketPath(): string {
@@ -122,13 +130,25 @@ export class IpcServer {
 
   async start(): Promise<void> {
     this.endpoint.ensureDirectory();
-    this.acquireLock();
+    const windows = this.options.paths.platform === 'win32';
     try {
+      if (windows) {
+        // Win32 first-instance protection serializes concurrent creation and
+        // binds the protected pipe before publishing any credentials.
+        const pid = readLockOwner(this.options.paths.lockFile);
+        if (pid !== null && pidIsAlive(pid)) throw new Error('another bridge is running (pid ' + pid + ')');
+        await this.endpoint.listen(this.server);
+      }
+      this.acquireLock();
       this.endpoint.prepare(this.token);
-      await this.endpoint.listen(this.server);
+      if (!windows) await this.endpoint.listen(this.server);
     } catch (error) {
-      this.endpoint.cleanup();
-      this.releaseLock();
+      try {
+        await this.endpoint.close(this.server);
+        this.endpoint.cleanup();
+      } finally {
+        this.releaseLock();
+      }
       throw error;
     }
     this.started = true;
@@ -146,12 +166,15 @@ export class IpcServer {
     this.closed = true;
     for (const peer of this.peers.values()) peer.socket.destroy();
     this.peers.clear();
-    await new Promise<void>((resolve) => this.server.close(() => resolve()));
-    this.endpoint.cleanup();
-    this.releaseLock();
+    try {
+      await this.endpoint.close(this.server);
+      this.endpoint.cleanup();
+    } finally {
+      this.releaseLock();
+    }
   }
 
-  private accept(socket: Socket): void {
+  private accept(socket: Duplex): void {
     if (this.closed || this.peers.size >= IPC_MAX_CONNECTIONS) {
       socket.destroy();
       return;
@@ -177,7 +200,6 @@ export class IpcServer {
     }, IPC_HELLO_TIMEOUT_MS);
     helloTimer.unref();
 
-    socket.setNoDelay(true);
     socket.setEncoding('utf8');
 
     socket.on('data', (chunk: string) => {

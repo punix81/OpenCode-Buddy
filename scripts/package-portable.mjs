@@ -31,6 +31,9 @@ const valueOf = (flag) => {
 };
 const outRoot = resolve(valueOf('--out') ?? join(repo, 'release'));
 const platform = valueOf('--platform') ?? process.platform;
+if (!['linux', 'win32'].includes(platform) || platform !== process.platform) {
+  throw new Error('Build the portable package on its target operating system.');
+}
 const archive = !args.includes('--no-archive');
 const version = JSON.parse(readFileSync(join(repo, 'bridge', 'package.json'), 'utf8')).version;
 const name = `opencode-buddy-${version}-${platform}-${process.arch}`;
@@ -51,7 +54,10 @@ console.log('== copy application ==');
 cpSync(join(repo, 'bridge', 'dist'), join(app, 'bridge', 'dist'), { recursive: true });
 cpSync(join(repo, 'bridge', 'package.json'), join(app, 'bridge', 'package.json'));
 cpSync(join(repo, 'bridge', 'package-lock.json'), join(app, 'bridge', 'package-lock.json'));
-cpSync(join(repo, 'plugin', 'opencode-buddy'), join(app, 'plugin', 'opencode-buddy'), { recursive: true });
+cpSync(join(repo, 'plugin', 'opencode-buddy'), join(app, 'plugin', 'opencode-buddy'), {
+  recursive: true,
+  filter: (source) => !source.endsWith('.test.mjs') && basename(source) !== 'eslint.config.mjs',
+});
 cpSync(join(repo, 'scripts', 'lib'), join(app, 'scripts', 'lib'), { recursive: true });
 for (const file of ['install-buddy-plugin.mjs', 'autostart.mjs', 'firmware-verify.mjs']) {
   cpSync(join(repo, 'scripts', file), join(app, 'scripts', file));
@@ -63,7 +69,13 @@ mkdirSync(join(app, 'firmware'), { recursive: true });
 cpSync(join(repo, 'firmware', 'rc1-manifest.json'), join(app, 'firmware', 'rc1-manifest.json'));
 
 console.log('== install runtime dependencies (no dev, no compile at user install) ==');
-run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], join(app, 'bridge'));
+const npmArgs = ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--prefer-offline'];
+// All arguments are fixed. The package directory is passed as cwd, never as shell code.
+if (platform === 'win32') {
+  run(join(process.env.SystemRoot, 'System32', 'cmd.exe'), ['/d', '/c', 'npm.cmd', ...npmArgs], join(app, 'bridge'));
+} else {
+  run('npm', npmArgs, join(app, 'bridge'));
+}
 
 const launcher = `#!/usr/bin/env node
 // Portable launcher: no TypeScript, no npm, no global install.
@@ -85,7 +97,7 @@ writeFileSync(
     '2. Run: node install.mjs --prefix <directory> --plugin-project <project> --apply\n' +
     '   Linux user default: ~/.local/share/opencode-buddy\n' +
     '   Use --plugin-global only if you intend to modify the OpenCode user configuration.\n' +
-    '3. Start: <prefix>/bin/opencode-buddy\n' +
+    `3. Start: <prefix>/bin/opencode-buddy${platform === 'win32' ? '.cmd' : ''}\n` +
     '4. Optional startup: node install.mjs ... --autostart-output <file>\n\n' +
     'Node.js 22+ is required. SerialPort prebuilds are included; no compiler is needed.\n' +
     'No firmware is included or flashed; see firmware/rc1-manifest.json.\n',

@@ -10,9 +10,10 @@
 //   node install.mjs --prefix DIR --plugin-global --apply
 //   node install.mjs --prefix DIR --autostart-output FILE --apply
 //   node install.mjs --prefix DIR --uninstall --plugin-project PROJECT --apply
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { homedir, platform as nodePlatform } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -34,6 +35,27 @@ const prefix = resolve(expand(valueOf('--prefix') ?? (platform === 'win32'
 const pluginProject = valueOf('--plugin-project');
 const pluginGlobal = has('--plugin-global');
 const autostartOutput = valueOf('--autostart-output');
+const app = join(prefix, 'app');
+const manifest = join(prefix, 'install.json');
+const bin = join(prefix, 'bin');
+const launcherNames = platform === 'win32'
+  ? ['opencode-buddy.cmd', 'opencode-buddy-run.cmd']
+  : ['opencode-buddy', 'opencode-buddy-run'];
+
+const sourceRelative = relative(prefix, here);
+if (sourceRelative === '' || (!isAbsolute(sourceRelative) && sourceRelative !== '..' && !sourceRelative.startsWith('..' + sep))) {
+  throw new Error('Installation prefix may not contain the extracted installer.');
+}
+for (const path of [prefix, app, bin, manifest, ...launcherNames.map((name) => join(bin, name))]) {
+  if (existsSync(path) && lstatSync(path).isSymbolicLink()) throw new Error('Installation paths may not be symlinks.');
+}
+const installed = existsSync(manifest) ? JSON.parse(readFileSync(manifest, 'utf8')) : null;
+if (installed !== null && (installed.schema !== 1 || installed.app !== app || installed.platform !== platform)) {
+  throw new Error('Installation marker does not belong to this OpenCode Buddy prefix.');
+}
+if (installed === null && ([app, ...launcherNames.map((name) => join(bin, name))].some(existsSync))) {
+  throw new Error('The prefix contains an unowned app or launcher. Choose another prefix.');
+}
 
 if (!existsSync(appDir)) {
   console.error(`application tree not found at ${appDir}`);
@@ -55,7 +77,7 @@ function nodeBin() {
 }
 
 function pluginArgs(mode) {
-  const result = [];
+  const result = ['--plugin', join(app, 'plugin', 'opencode-buddy')];
   if (pluginProject !== undefined) result.push('--project', resolve(pluginProject));
   if (pluginGlobal) result.push('--global');
   if (mode === 'uninstall') result.push('--uninstall');
@@ -64,7 +86,6 @@ function pluginArgs(mode) {
 }
 
 function writeLauncher() {
-  const bin = join(prefix, 'bin');
   mkdirSync(bin, { recursive: true });
   if (platform === 'win32') {
     const direct = join(bin, 'opencode-buddy.cmd');
@@ -82,6 +103,40 @@ function writeLauncher() {
   return direct;
 }
 
+function checksum(path) {
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function startupTarget(previous) {
+  if (autostartOutput === undefined) return undefined;
+  const path = resolve(autostartOutput);
+  if (previous?.path && previous.path !== path) throw new Error('Remove the previous Buddy startup definition before changing its location.');
+  if (existsSync(path) && (!previous || lstatSync(path).isSymbolicLink() || checksum(path) !== previous.sha256)) {
+    throw new Error('The startup output already exists and is not owned by this installation.');
+  }
+  return path;
+}
+
+function replaceApp() {
+  mkdirSync(prefix, { recursive: true });
+  const work = mkdtempSync(join(prefix, '.install-'));
+  const next = join(work, 'next');
+  const previous = join(work, 'previous');
+  try {
+    cpSync(appDir, next, { recursive: true });
+    if (existsSync(app)) renameSync(app, previous);
+    try {
+      renameSync(next, app);
+    } catch (error) {
+      if (existsSync(previous)) renameSync(previous, app);
+      throw error;
+    }
+  } finally {
+    // Preserve the previous copy if it could not be restored.
+    if (existsSync(app) || !existsSync(previous)) rmSync(work, { recursive: true, force: true });
+  }
+}
+
 if (uninstall) {
   if (pluginProject !== undefined || pluginGlobal) {
     run(nodeBin(), [join(appDir, 'scripts', 'install-buddy-plugin.mjs'), ...pluginArgs('uninstall')]);
@@ -90,8 +145,17 @@ if (uninstall) {
     console.log(`DRY-RUN would remove ${prefix} (only OpenCode Buddy's own app/launcher)`);
     process.exit(0);
   }
-  rmSync(prefix, { recursive: true, force: true });
-  console.log(`removed ${prefix}`);
+  if (installed !== null) {
+    const startup = installed.startup;
+    if (typeof startup?.path === 'string' && existsSync(startup.path)) {
+      if (!lstatSync(startup.path).isSymbolicLink() && checksum(startup.path) === startup.sha256) rmSync(startup.path);
+      else console.warn('The startup definition was modified and was preserved.');
+    }
+    rmSync(app, { recursive: true, force: true });
+    for (const name of launcherNames) rmSync(join(bin, name), { force: true });
+    rmSync(manifest);
+  }
+  console.log('Removed the owned app and launchers, if installed.');
   console.log('OpenCode itself, unrelated plugins, MCP servers and user configuration are untouched.');
   process.exit(0);
 }
@@ -110,18 +174,21 @@ if (!apply) {
   process.exit(0);
 }
 
-cpSync(appDir, join(prefix, 'app'), { recursive: true });
+const startupPath = startupTarget(installed?.startup);
+replaceApp();
 const launcher = writeLauncher();
+let startup = installed?.startup;
+if (startupPath !== undefined) {
+  run(nodeBin(), [join(appDir, 'scripts', 'autostart.mjs'), '--platform', platform, '--app-dir', prefix, '--output', startupPath, '--apply']);
+  startup = { path: startupPath, sha256: checksum(startupPath) };
+}
 writeFileSync(
   join(prefix, 'install.json'),
-  `${JSON.stringify({ schema: 1, version: JSON.parse(readFileSync(join(appDir, 'bridge', 'package.json'), 'utf8')).version, platform, app: join(prefix, 'app'), installedAt: new Date().toISOString() }, null, 2)}\n`,
+  `${JSON.stringify({ schema: 1, version: JSON.parse(readFileSync(join(appDir, 'bridge', 'package.json'), 'utf8')).version, platform, app, startup, installedAt: new Date().toISOString() }, null, 2)}\n`,
 );
 console.log(`installed ${prefix}`);
 console.log(`launcher ${launcher}`);
 if (pluginProject !== undefined || pluginGlobal) {
   run(nodeBin(), [join(appDir, 'scripts', 'install-buddy-plugin.mjs'), ...pluginArgs('install')]);
-}
-if (autostartOutput !== undefined) {
-  run(nodeBin(), [join(appDir, 'scripts', 'autostart.mjs'), '--platform', platform, '--app-dir', prefix, '--output', resolve(autostartOutput), '--apply']);
 }
 console.log('No firmware was flashed. Start the bridge with the launcher when a compatible device is present.');

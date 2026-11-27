@@ -1,8 +1,8 @@
 # Installation
 
-Date: 2026-11-27. Phase 6 Checkpoint A provides a portable installation path. Linux has been built
-and demonstrated locally from an isolated fixture; Windows scripts are prepared but **not
-native-validated**. No firmware is flashed by any installer.
+Date: 2026-11-27. Phase 6 provides a portable installation path. Windows x64 ZIP creation and
+user-scope install, reinstall, fixture upgrade and uninstall were exercised on native Windows 11.
+See [Checkpoint B evidence](evidence/phase-6-checkpoint-b.md).
 
 > The hardware acceptance (cold boots, USB reconnections, soak, endurance, six-screen and
 > performance validation) remains deferred to Phase 6 Checkpoints B/C/D on a native physical
@@ -13,7 +13,7 @@ native-validated**. No firmware is flashed by any installer.
 | Item | Requirement |
 | --- | --- |
 | Node.js | 22 or newer on the user computer (runtime, not a compiler) |
-| OpenCode | v2, verified 2.4.1; the plugin stays dependency-free |
+| OpenCode | v2; plugin verified with 2.4.1 on the earlier baseline and 2.4.2 on Windows |
 | Device | ESP32-C3 with a compatible OpenCode Buddy firmware and the documented wiring |
 | OS | Native Linux (Ubuntu/Debian first) or native Windows 10/11; no VMware USB passthrough |
 | Firmware | RC1 `dd7d1d57…` is an application-only image; a blank device needs a separately approved initial full installation |
@@ -65,30 +65,40 @@ node install.mjs --prefix ~/.local/share/opencode-buddy \
   `$XDG_CONFIG_HOME/opencode-buddy/config.json` / `~/.config/opencode-buddy/config.json`. See
   [configuration](configuration.md).
 
-## 4. Install (Windows, prepared)
+## 4. Install (Windows x64)
 
-The archive includes `windows/install.ps1` and a README. On a native Windows host:
+The portable ZIP includes compiled bridge JavaScript, the Windows named-pipe host, SerialPort
+prebuilds, the plugin and a PowerShell wrapper. Node.js is a runtime prerequisite. Building from
+source also uses the Windows .NET Framework C# compiler. After verifying the ZIP SHA-256, extract it
+and run the wrapper from Windows PowerShell.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File windows\install.ps1 -PluginProject C:\path\to\project
-# preview; then add -Apply
+.\windows\install.ps1 -PluginProject C:\path\to\project
+# review the preview, then run the same command with -Apply
+& "$env:LOCALAPPDATA\opencode-buddy\bin\opencode-buddy.cmd"
 ```
 
 User scope only (`%LOCALAPPDATA%\opencode-buddy`), no elevation, no visible console for startup, no
-firmware flash. The installer is unsigned; SmartScreen warnings must be documented, never bypassed.
-Native validation is a Checkpoint B requirement.
+firmware flash. This is an unsigned portable ZIP with a wrapper. Follow the host's normal script
+execution and SmartScreen policies. Use `-StartupOutput` with an isolated filename to inspect the
+generated definition. `-AutoStart -Apply` writes into the real user Startup folder and changes
+startup behavior at the next login.
+On the verified OpenCode version, `opencode debug paths config` reports the
+profile's `.config\opencode` directory by default. Buddy stores its own
+settings separately in `%APPDATA%\opencode-buddy`.
 
 ## 5. Update and uninstall
 
-- Update: replace the app tree/prefix with the new portable archive; preserve configuration and the
-  plugin entry. Offline updates are the priority.
+- Update: stop the bridge and run the new archive's installer using the same prefix and project.
+  Existing configuration, files outside the owned app, and plugin backups are preserved.
 - Uninstall:
   ```sh
   node install.mjs --prefix ~/.local/share/opencode-buddy \
     --plugin-project /path/to/project --uninstall --apply
   ```
-  This removes only the app prefix, launcher and Buddy plugin entry. OpenCode, unrelated plugins,
-  MCP servers, user settings and firmware are untouched. Configuration and backups are preserved.
+  On Windows use `-Uninstall -Apply` with the same prefix and project. The installer removes the
+  manifest-owned app, Buddy launchers, the matching Buddy plugin entry and any unchanged startup
+  definition it recorded. It retains the rest of the prefix, settings and backups.
 - Firmware is never erased by an uninstall; rollback follows
   [firmware management](firmware-management.md).
 
@@ -106,8 +116,10 @@ node ../scripts/install-buddy-plugin.mjs --project <dir>   # dry-run
 ## 7. Verification and limitations
 
 - `scripts/qa.sh --coverage` runs the bridge/plugin/script/firmware host/preview gates.
+- `scripts/qa.ps1 -Coverage` runs the compatible bridge/plugin/script/protocol/configuration gates on
+  native Windows. Build the Windows pipe host before running a development LIVE bridge.
 - `node scripts/firmware-verify.mjs --manifest firmware/rc1-manifest.json --image <rc1.bin> --plan`
   verifies the frozen firmware and prints the plan; it never flashes.
-- Windows Named Pipes, real COM discovery, Windows ACLs, native installers, real USB reconnections,
-  cold boots, soak/endurance and the six-screen matrix are **not yet native-verified**. They are
-  Checkpoint B/C/D gates.
+- Windows pipe, ACL, archive and COM discovery evidence is in
+  [Checkpoint B](evidence/phase-6-checkpoint-b.md). USB handshake, physical reconnection,
+  cold boots, panel matrix and endurance remain hardware gates.

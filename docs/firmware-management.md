@@ -65,3 +65,27 @@ remote server automatically. A firmware update is disabled while the bridge owns
 - No flash, no initial full installation artifact, no hardware verification.
 - No automatic update, no remote update check, no rollback button beyond the documented commands.
 - Native Windows/Linux serial-port and esptool execution is a Checkpoint B/D validation.
+
+## 8. Phase 6B native Windows campaign preparation
+
+**NOT VERIFIED** The frozen RC1, Phase 4.1 application and both 4 MiB Phase 5
+backups are not present in this Windows checkout. Copy the original evidence into
+the declared backup paths and compare the sizes and full SHA-256 digests against
+[the artifact ledger](evidence/phase-5-artifacts.md) before any hardware update.
+
+Once the selected board has passed the existing-firmware USB smoke test, record
+its COM port, USB parent serial, protocol hello, current flash layout and own
+verified full backup and application backup. Agree the exact rollback image for
+that board and obtain approval for the specific board and RC1 digest. Confirm
+the native esptool version, readback command, reset behavior and compatible
+application slot before use. Flash only the verified RC1 application at
+`0x10000`. Verify on readback and then verify version, both handshake ACKs and
+state on the rebooted device. Use the board-specific application backup for
+rollback. No historical USB result counts toward the native acceptance totals.
+
+The proposed matrix includes 20 genuine cold boots, 10 physical USB
+reconnections, 10 software resets, 10 bridge restarts, delayed bridge startup,
+six dashboards, EN/FR/DE, four gestures, preference persistence, auto-return,
+renderer timing, a one-hour soak and an eight-hour endurance run. Record board
+and image identity, elapsed time, retry counters, dropped frames and observed
+panel behavior per run.

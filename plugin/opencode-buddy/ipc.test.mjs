@@ -3,7 +3,7 @@
 // Windows named pipe. Platform-specific behaviour is AUTOMATED/MOCK, not NATIVE
 // VERIFIED.
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -13,7 +13,7 @@ import { ipcPaths, readEndpoint } from './index.js';
 test('the Unix plugin reads the socket and token', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'buddy-plugin-'));
   try {
-    const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+    const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir }, 'linux');
     assert.equal(paths.platform, 'unix');
     await writeFile(paths.tokenFile, `${'a'.repeat(64)}\n`);
     assert.deepEqual(readEndpoint(paths), {
@@ -28,7 +28,7 @@ test('the Unix plugin reads the socket and token', async () => {
 test('a missing Unix token means bridge unavailable', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'buddy-plugin-'));
   try {
-    const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
+    const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir }, 'linux');
     assert.equal(readEndpoint(paths), null);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -37,21 +37,21 @@ test('a missing Unix token means bridge unavailable', async () => {
 
 test('the Windows plugin reads a valid descriptor and rejects malformed ones', async () => {
   const base = await mkdtemp(join(tmpdir(), 'buddy-plugin-win-'));
-  const paths = ipcPaths({ LOCALAPPDATA: base }, 'win32');
+  const paths = ipcPaths({ LOCALAPPDATA: 'C:\\Example' }, 'win32');
+  paths.descriptorFile = join(base, 'bridge.json');
   const token = 'b'.repeat(64);
   try {
-    await mkdir(paths.dir, { recursive: true });
     await writeFile(
       paths.descriptorFile,
       `${JSON.stringify({
         v: 1,
         platform: 'win32',
-        address: '\\\\.\\pipe\\opencode-buddy-0123456789abcdef',
+        address: paths.socket,
         token,
       })}\n`,
     );
     assert.deepEqual(readEndpoint(paths), {
-      address: '\\\\.\\pipe\\opencode-buddy-0123456789abcdef',
+      address: paths.socket,
       token,
     });
 

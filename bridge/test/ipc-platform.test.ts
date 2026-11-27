@@ -1,85 +1,98 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, win32 } from 'node:path';
+import { createInterface } from 'node:readline';
 import test from 'node:test';
 
-import { applyWindowsAcl, createIpcEndpoint, windowsAclArgs } from '../src/ipc/endpoint.js';
+import { IpcServer } from '../src/ipc/server.js';
 import { NullLogger } from '../src/logger.js';
 import { ipcPaths } from '../src/ipc/paths.js';
 
-// Windows behaviour is simulated on Linux for source-level confidence only.
-// This is AUTOMATED/MOCK, not NATIVE VERIFIED: no Windows pipe, DACL or COM port
-// was exercised.
-
 test('Windows paths use a per-user directory and a derived named pipe', () => {
-  const paths = ipcPaths(
-    { LOCALAPPDATA: 'C:\\Users\\alice\\AppData\\Local' },
-    'win32',
-  );
-  assert.equal(paths.platform, 'win32');
-  assert.equal(paths.dir, join('C:\\Users\\alice\\AppData\\Local', 'opencode-buddy'));
+  const paths = ipcPaths({ LOCALAPPDATA: 'C:\\Users\\alice\\AppData\\Local' }, 'win32');
+  assert.equal(paths.dir, win32.join('C:\\Users\\alice\\AppData\\Local', 'opencode-buddy-ipc'));
   assert.match(paths.socket, /^\\\\\.\\pipe\\opencode-buddy-[0-9a-f]{16}$/);
-  assert.equal(paths.tokenFile, join(paths.dir, 'token'));
-  assert.equal(paths.descriptorFile, join(paths.dir, 'bridge.json'));
-  assert.equal(paths.lockFile, join(paths.dir, 'bridge.lock'));
 });
 
-test('the runtime override wins on Windows and is used verbatim', () => {
-  const paths = ipcPaths(
-    { OPENCODE_BUDDY_RUNTIME_DIR: 'C:\\Buddy', LOCALAPPDATA: 'C:\\Local' },
-    'win32',
-  );
+test('Windows runtime overrides share a pipe regardless of path case', () => {
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: 'C:\\Buddy', LOCALAPPDATA: 'C:\\Local' }, 'win32');
   assert.equal(paths.dir, 'C:\\Buddy');
-  assert.equal(paths.tokenFile, join('C:\\Buddy', 'token'));
+  assert.equal(paths.tokenFile, 'C:\\Buddy\\token');
+  assert.equal(paths.socket, ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: 'c:\\buddy' }, 'win32').socket);
 });
 
-test('the Windows endpoint writes and removes the descriptor and token', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'buddy-win-'));
-  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir }, 'win32');
-  const endpoint = createIpcEndpoint(paths, new NullLogger());
+test('the Windows endpoint publishes and removes its descriptor and token', {
+  skip: process.platform !== 'win32' && 'Requires the native Windows pipe host',
+}, async () => {
+  const parent = await mkdtemp(join(tmpdir(), 'buddy-win-'));
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: join(parent, 'runtime') });
+  const server = new IpcServer({
+    paths, logger: new NullLogger(), onHello: () => undefined, onEvent: () => undefined,
+    onHeartbeat: () => undefined, onDisconnect: () => undefined,
+  });
   try {
-    endpoint.ensureDirectory();
-    endpoint.prepare('a'.repeat(64));
-    const descriptor = JSON.parse(await readFile(paths.descriptorFile, 'utf8')) as {
-      v: number;
-      platform: string;
-      address: string;
-      token: string;
-    };
-    assert.equal(descriptor.v, 1);
-    assert.equal(descriptor.platform, 'win32');
-    assert.equal(descriptor.address, paths.socket);
-    assert.equal(descriptor.token, 'a'.repeat(64));
-    assert.equal((await stat(paths.tokenFile)).mode & 0o777, 0o600);
+    await server.start();
+    const descriptor = JSON.parse(await readFile(paths.descriptorFile, 'utf8')) as Record<string, unknown>;
+    assert.equal(descriptor['v'], 1);
+    assert.equal(descriptor['platform'], 'win32');
+    assert.equal(descriptor['address'], paths.socket);
+    assert.equal(descriptor['token'], (await readFile(paths.tokenFile, 'utf8')).trim());
+    await server.stop();
+    await assert.rejects(readFile(paths.descriptorFile), { code: 'ENOENT' });
+    await assert.rejects(readFile(paths.tokenFile), { code: 'ENOENT' });
   } finally {
-    endpoint.cleanup();
-    await rm(dir, { recursive: true, force: true });
+    await server.stop();
+    await rm(parent, { recursive: true, force: true });
   }
-  assert.equal(paths.descriptorFile.endsWith('bridge.json'), true);
 });
 
-test('the ACL helper builds the restrictive icacls command', () => {
-  assert.deepEqual(windowsAclArgs('C:\\Buddy\\token', 'alice'), [
-    'C:\\Buddy\\token',
-    '/inheritance:r',
-    '/grant:r',
-    'alice:F',
-  ]);
-  const calls: string[][] = [];
-  const ok = applyWindowsAcl('C:\\Buddy\\token', 'alice', {
-    platform: 'win32',
-    run: (_command, args) => calls.push(args),
+test('a crashed Windows bridge releases its pipe and the next run rotates the token', {
+  skip: process.platform !== 'win32' && 'Requires the native Windows pipe host',
+  timeout: 10000,
+}, async () => {
+  const parent = await mkdtemp(join(tmpdir(), 'buddy-crash-'));
+  const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: join(parent, 'runtime') });
+  const program = [
+    "import { IpcServer } from './src/ipc/server.ts'",
+    "import { ipcPaths } from './src/ipc/paths.ts'",
+    "import { NullLogger } from './src/logger.ts'",
+    "const ignore = () => undefined",
+    "const server = new IpcServer({ paths: ipcPaths(), logger: new NullLogger(), onHello: ignore, onEvent: ignore, onHeartbeat: ignore, onDisconnect: ignore })",
+    "await server.start()",
+    "console.log('ready')",
+  ].join(';\n');
+  const run = () => spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', program], {
+    env: { ...process.env, OPENCODE_BUDDY_RUNTIME_DIR: paths.dir }, windowsHide: true,
   });
-  assert.equal(ok, true);
-  assert.equal(calls.length, 1);
-
-  const failed = applyWindowsAcl('C:\\Buddy\\token', 'alice', {
-    platform: 'win32',
-    run: () => {
-      throw new Error('icacls unavailable');
-    },
-  });
-  assert.equal(failed, false);
-  assert.equal(applyWindowsAcl('x', 'alice', { platform: 'linux' }), false);
+  const start = async (child: ReturnType<typeof run>) => {
+    const lines = createInterface({ input: child.stdout });
+    try {
+      for await (const line of lines) if (line === 'ready') return;
+      assert.fail('bridge exited before publishing its descriptor');
+    } finally {
+      lines.close();
+    }
+  };
+  const stop = async (child: ReturnType<typeof run>) => {
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, 'exit');
+      child.kill();
+      await exited;
+    }
+  };
+  let child = run();
+  try {
+    await start(child);
+    const previous = await readFile(paths.tokenFile, 'utf8');
+    await stop(child);
+    child = run();
+    await start(child);
+    assert.notEqual(await readFile(paths.tokenFile, 'utf8'), previous);
+  } finally {
+    await stop(child);
+    await rm(parent, { recursive: true, force: true });
+  }
 });

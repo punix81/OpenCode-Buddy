@@ -195,3 +195,28 @@ to Checkpoint B only on a **native physical Windows or Linux host**, with an exp
 for the firmware/device steps; keep RC1 frozen and the Phase 4.1 rollback available. The immediate
 next software action is a real native Windows run of `installer/windows/build.ps1` and
 `install.ps1`, because that is the largest remaining unverified surface introduced here.
+
+## 12. Checkpoint B progress on native Windows
+
+The Checkpoint A report above is retained as historical evidence. The Product
+Owner authorized Checkpoint B on the physical Windows host on 2026-11-27.
+
+**NATIVE VERIFIED** Windows x64 package build, SHA-256, native SerialPort load
+and enumeration, isolated install, reinstall, fixture upgrade/uninstall,
+startup definition generation, actual pipe/runtime DACLs and real OpenCode
+2.4.2 data to the bridge.
+
+**AUTOMATED** Native PowerShell quality gate for the bridge, plugin, installer,
+protocol, configuration and TypeScript distribution build. It complements
+the Linux gate.
+
+**BLOCKER** Windows denied the selected port's exclusive open while the
+pre-existing bridge runtime was active. The real board handshake, data on
+the panel and comparison with the historical USB RX condition remain open.
+The frozen binary and per-device backups must be available and verified on
+the native host before an approved flash. The application layout and
+renderer source remain at the starting baseline.
+
+The [independent audit](audit-phase-6-windows.md) lists findings and corrections.
+The [Checkpoint B evidence](evidence/phase-6-checkpoint-b.md) links the native
+IPC and USB observations. Remote publication is handled by the Product Owner.

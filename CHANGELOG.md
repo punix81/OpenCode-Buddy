@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) from its first rel
 
 ## [Unreleased]
 
+### Phase 6 Checkpoint B — native Windows integration (2026-11-27)
+
+- Create a current-user-only Win32 pipe with remote clients rejected and publish credentials
+  inside a validated private runtime directory after binding.
+- Build the Windows x64 portable ZIP and point project configuration at the installed plugin.
+  Reinstall and uninstall target owned files and preserve project backups.
+- Resolve the native Espressif USB parent's serial and add a PowerShell QA gate.
+- Verify real OpenCode 2.4.2 data through Windows IPC. The selected device's exclusive
+  COM open is blocked. Hardware acceptance remains open.
+
 ### Phase 6 Checkpoint A — native base and installation (2026-11-27)
 
 - One bridge/plugin with platform adapters: shared IPC message/auth/lock logic, Unix socket

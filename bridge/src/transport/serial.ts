@@ -34,6 +34,9 @@ export class SerialTransport implements Transport {
       baudRate: this.options.baudRate,
       autoOpen: false,
       lock: true,
+      // The Windows SerialPort binding uses hupcl to enable DTR on open.
+      // Keep DTR disabled on native USB; leave the Unix line policy intact.
+      ...(process.platform === 'win32' ? { hupcl: false } : {}),
     });
     this.port = port;
     port.on('data', (data: Buffer) => this.handlers.onData?.(data));

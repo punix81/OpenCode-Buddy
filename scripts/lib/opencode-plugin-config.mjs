@@ -6,6 +6,7 @@
 // Everything here is pure, so the installer and the tests share it.
 
 import { dirname, isAbsolute, resolve } from 'node:path';
+import { homedir } from 'node:os';
 
 export class ConfigEditError extends Error {}
 
@@ -323,14 +324,10 @@ export function configFileForProject(projectDir) {
   return resolve(projectDir, 'opencode.json');
 }
 
-export function configFileForGlobal(env = process.env, platform = process.platform, home = process.env.HOME) {
+export function configFileForGlobal(env = process.env, home = homedir()) {
   const explicit = env.OPENCODE_CONFIG;
   if (explicit) return resolve(explicit);
-  if (platform === 'win32') {
-    const base = env.APPDATA ?? (home ? resolve(home, 'AppData', 'Roaming') : '.');
-    return resolve(base, 'opencode', 'opencode.json');
-  }
-  const base = env.XDG_CONFIG_HOME ?? (home ? resolve(home, '.config') : '.');
+  const base = env.XDG_CONFIG_HOME ?? resolve(home, '.config');
   return resolve(base, 'opencode', 'opencode.json');
 }
 

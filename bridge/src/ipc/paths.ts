@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { tmpdir, userInfo } from 'node:os';
-import { join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { join, win32 } from 'node:path';
 
 // The bridge and the OpenCode plugin must resolve the same endpoint without
 // sharing code (the plugin stays dependency-free and runs inside OpenCode).
@@ -32,19 +32,7 @@ export function ipcPlatform(platform: NodeJS.Platform = process.platform): IpcPl
 }
 
 function windowsBase(env: NodeJS.ProcessEnv): string {
-  const local = env['LOCALAPPDATA'];
-  if (local !== undefined && local.length > 0) return local;
-  const roaming = env['APPDATA'];
-  if (roaming !== undefined && roaming.length > 0) return roaming;
-  // Last resort: a per-user directory under the system temp. The username is
-  // sanitized so it can never introduce a path separator.
-  let user = 'user';
-  try {
-    user = userInfo().username.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 32) || 'user';
-  } catch {
-    // Keep the generic name.
-  }
-  return join(tmpdir(), `${IPC_DIR_NAME}-${user}`);
+  return env['LOCALAPPDATA'] || env['APPDATA'] || homedir();
 }
 
 export function ipcPaths(
@@ -55,19 +43,18 @@ export function ipcPaths(
   const override = env['OPENCODE_BUDDY_RUNTIME_DIR'];
 
   if (kind === 'win32') {
-    const base = override ?? windowsBase(env);
-    const dir = override ?? join(base, IPC_DIR_NAME);
+    const dir = win32.resolve(override ?? win32.join(windowsBase(env), 'opencode-buddy-ipc'));
     // Stable per-user/per-directory pipe name; the runtime descriptor remains
     // the discovery mechanism. The 16-hex suffix is not a secret: the 256-bit
     // token is the authentication layer.
-    const suffix = createHash('sha256').update(dir).digest('hex').slice(0, 16);
+    const suffix = createHash('sha256').update(dir.toLowerCase()).digest('hex').slice(0, 16);
     return {
       platform: kind,
       dir,
       socket: `\\\\.\\pipe\\${IPC_DIR_NAME}-${suffix}`,
-      tokenFile: join(dir, 'token'),
-      descriptorFile: join(dir, 'bridge.json'),
-      lockFile: join(dir, 'bridge.lock'),
+      tokenFile: win32.join(dir, 'token'),
+      descriptorFile: win32.join(dir, 'bridge.json'),
+      lockFile: win32.join(dir, 'bridge.lock'),
     };
   }
 

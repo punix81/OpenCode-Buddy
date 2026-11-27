@@ -32,7 +32,7 @@ function checkOpenCode(): void {
 
 function checkConfig(): void {
   const globalFile =
-    process.env['OPENCODE_CONFIG'] ?? join(homedir(), '.config', 'opencode', 'opencode.json');
+    process.env['OPENCODE_CONFIG'] ?? join(process.env['XDG_CONFIG_HOME'] ?? join(homedir(), '.config'), 'opencode', 'opencode.json');
   const files = applicableConfigFiles(globalFile, process.cwd());
   if (files.length === 0) {
     fail(
@@ -68,10 +68,12 @@ function checkConfig(): void {
 async function checkIpc(): Promise<void> {
   const paths = ipcPaths();
   try {
-    const mode = statSync(paths.dir).mode & 0o777;
-    if (mode === 0o700) ok(`ipc directory ${paths.dir} mode 0700`);
-    else warn(`ipc directory ${paths.dir} mode ${mode.toString(8)} (expected 700)`);
-    statSync(paths.socket);
+    if (paths.platform === 'unix') {
+      const mode = statSync(paths.dir).mode & 0o777;
+      if (mode === 0o700) ok(`ipc directory ${paths.dir} mode 0700`);
+      else warn(`ipc directory ${paths.dir} mode ${mode.toString(8)} (expected 700)`);
+      statSync(paths.socket);
+    }
   } catch {
     fail(`no IPC socket at ${paths.socket} — is the bridge running in live mode?`);
     return;

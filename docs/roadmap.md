@@ -163,11 +163,13 @@ Exit criteria: a pilot user completes install, flash, first run and uninstall us
 a native physical host; no blocker; rollback verified; cold boots, reconnections, soak, endurance and
 the six-screen/timing matrix PASS. The detailed plan is [docs/phase-6-plan.md](phase-6-plan.md).
 
-**Status (2026-11-27): Checkpoint A in progress — native base, IPC, discovery, plugin installation,
-configuration, startup definitions, portable packaging and firmware manifest implemented and tested
-on Linux (AUTOMATED/MOCK for Windows). Checkpoints B/C/D (native hardware acceptance, cold boots,
-soak/endurance, performance) are **not authorized yet**. See `docs/phase-6-architecture.md` and
-`docs/phase-6-report.md`.
+**Status (2026-11-27): Checkpoint A accepted; Checkpoint B underway on native Windows.**
+Native Windows package installation, secure IPC, COM enumeration and isolated
+OpenCode 2.4.2 integration reached the software gates. The selected COM port
+denied access, and hardware communication remains open. RC1 flash requires
+explicit per-board approval. Checkpoints C/D require later authorization.
+See [Checkpoint B evidence](evidence/phase-6-checkpoint-b.md) and the
+[Phase 6 report](phase-6-report.md).
 
 ## Cross-phase rules
 

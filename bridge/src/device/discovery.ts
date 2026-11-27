@@ -1,4 +1,8 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
 import type { BridgeConfig } from '../config.js';
+import { pipeHostPath } from '../ipc/windows-pipe.js';
 import { TransportError } from '../transport/types.js';
 
 export interface DeviceCandidate {
@@ -8,6 +12,16 @@ export interface DeviceCandidate {
   serialNumber?: string;
 }
 
+const execFileAsync = promisify(execFile);
+
+async function windowsSerial(port: SerialPortInfoLike): Promise<string | undefined> {
+  if (!port.pnpId?.includes('&MI_')) return port.serialNumber;
+  const { stdout } = await execFileAsync(pipeHostPath(), ['usb-serial', port.pnpId], {
+    windowsHide: true, timeout: 3000,
+  });
+  return stdout.trim() || undefined;
+}
+
 // Only the fields the discovery uses. The real SerialPort.list() returns more;
 // tests inject this shape and never open a port.
 export interface SerialPortInfoLike {
@@ -15,6 +29,7 @@ export interface SerialPortInfoLike {
   vendorId?: string;
   productId?: string;
   serialNumber?: string;
+  pnpId?: string;
 }
 
 function normalizeHex(value: string | undefined): string {
@@ -52,13 +67,14 @@ export class DeviceDiscovery {
       const vendor = normalizeHex(port.vendorId);
       const product = normalizeHex(port.productId);
       if (vendor !== '303a' || product !== '1001') continue;
+      const serial = process.platform === 'win32' && this.listPorts === undefined
+        ? await windowsSerial(port)
+        : port.serialNumber;
       candidates.push({
         path: port.path,
         vendorId: vendor,
         productId: product,
-        ...(port.serialNumber !== undefined && port.serialNumber.length > 0
-          ? { serialNumber: port.serialNumber }
-          : {}),
+        ...(serial ? { serialNumber: serial } : {}),
       });
     }
     // Stable order independent of the OS enumeration order. Selection still

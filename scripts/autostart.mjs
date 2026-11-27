@@ -9,7 +9,7 @@
 //   node scripts/autostart.mjs --platform win32 --app-dir DIR --output FILE --apply
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, posix, resolve, win32 } from 'node:path';
 
 const args = process.argv.slice(2);
 const valueOf = (flag) => {
@@ -18,7 +18,7 @@ const valueOf = (flag) => {
 };
 const platform = valueOf('--platform') ?? process.platform;
 const apply = args.includes('--apply');
-const appDir = resolve(valueOf('--app-dir') ?? '.');
+const appDir = valueOf('--app-dir') ?? process.cwd();
 const output = valueOf('--output');
 
 if (platform !== 'linux' && platform !== 'win32') {
@@ -31,7 +31,7 @@ if (apply && output === undefined) {
 }
 
 export function linuxUnit(directory) {
-  const launcher = resolve(directory, 'bin', 'opencode-buddy-run');
+  const launcher = posix.resolve(directory, 'bin', 'opencode-buddy-run');
   return `[Unit]
 Description=OpenCode Buddy bridge (user)
 After=default.target
@@ -50,7 +50,7 @@ WantedBy=default.target
 }
 
 export function windowsStartupScript(directory) {
-  const launcher = resolve(directory, 'bin', 'opencode-buddy-run.cmd');
+  const launcher = win32.resolve(directory, 'bin', 'opencode-buddy-run.cmd');
   // Hidden window, current user, no elevation. The caller decides whether to
   // place this file in the user's Startup folder.
   return `' OpenCode Buddy user startup (generated; no elevation)

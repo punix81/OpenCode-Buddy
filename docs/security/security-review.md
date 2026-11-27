@@ -105,3 +105,21 @@ The current bridge coverage is 96.62 % lines / 87.17 % branches / 86.99 % functi
   plan; the RC1 and Phase 4.1 images are preserved.
 - Vulnerability databases remain unavailable (`npm audit` authentication); status is **NOT
   VERIFIED**, not zero.
+
+## 8. Phase 6B native Windows review
+
+The original Node pipe's Windows DACL granted anonymous and Everyone read access.
+The new Win32 pipe uses a current-user SID DACL, first-instance protection and
+the remote-client rejection flag. Native tests inspected the actual pipe and
+the runtime directory, token and descriptor. Runtime ACL enforcement fails
+closed and rejects paths that allow an unrelated principal to replace the
+runtime directory. The plugin derives the expected local pipe address and
+checks the descriptor against it before connecting.
+
+The portable installer checks its ownership marker and removes only the owned
+components. Its plugin dry run prints the intended change without displaying
+the configuration. Isolated tests preserve existing configuration and backups.
+
+**PARTIALLY VERIFIED** A second Windows account and remote SMB client have not
+been exercised. Dependency advisory status remains open. See
+[Windows IPC evidence](../evidence/phase-6-windows-ipc.md).

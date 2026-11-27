@@ -14,6 +14,15 @@ invalid value is an error, never a silent default. No secret belongs in this fil
 
 `bridge/config.example.json` is the reference example; copy it to the platform path, not into the
 repository. The file is read at bridge start; restart the bridge after an edit.
+An explicit `BUDDY_CONFIG` must be readable. A missing implicit file uses the defaults.
+
+The Windows IPC runtime uses `%LOCALAPPDATA%\opencode-buddy-ipc` by default. Local bridge and
+plugin must use matching runtime paths. For a test use `OPENCODE_BUDDY_RUNTIME_DIR` on both
+processes with an absolute local path under a private existing parent. The bridge creates the
+runtime child directory with a current-user-only ACL. Keep the two installed versions paired when
+migrating from Checkpoint A.
+Opt-in Windows plugin diagnostics wait for a runtime descriptor and inherit
+the runtime directory ACL. Their file is `plugin-debug.log` in that directory.
 
 ## 2. Schema
 
@@ -50,6 +59,9 @@ They apply only when `allowRealMcpNames` is false; the device still receives onl
 
 Discovery never opens unrelated serial ports and never flashes a discovered device. The firmware
 hello confirms compatibility after the selected port is opened. See `docs/phase-6-architecture.md`.
+On Windows, use the Espressif USB composite parent's serial for `deviceSerial`. The Windows
+interface instance tail is an enumeration identifier. If the parent serial is unavailable, use a
+physically confirmed `port`.
 
 ## 4. Host overrides versus device preferences
 

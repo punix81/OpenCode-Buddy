@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createConnection, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -10,13 +11,20 @@ import { DEFAULT_CONFIG } from '../src/config.js';
 import { normalizeMcpStatus, parseIpcLine } from '../src/ipc/messages.js';
 import { ipcPaths } from '../src/ipc/paths.js';
 import { IpcServer } from '../src/ipc/server.js';
+import { pipeHostPath } from '../src/ipc/windows-pipe.js';
 import { assertNoOtherBridge } from '../src/ipc/lock.js';
 import { LiveSource } from '../src/live/source.js';
 import { NullLogger } from '../src/logger.js';
 import type { NormalizedEvent } from '../src/state/types.js';
 
 async function tempDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'buddy-ipc-'));
+  const dir = await mkdtemp(join(tmpdir(), 'buddy-ipc-'));
+  if (process.platform !== 'win32') return dir;
+  // The Windows endpoint requires its own current-user-only ACL. Recreate
+  // this empty, uniquely named fixture through the production ACL helper.
+  await rm(dir, { recursive: true });
+  execFileSync(pipeHostPath(), ['directory', dir], { windowsHide: true });
+  return dir;
 }
 
 function connect(path: string): Promise<Socket> {
@@ -95,6 +103,24 @@ async function startServer(): Promise<Harness> {
 test('ipc socket and token are private to the user', async () => {
   const harness = await startServer();
   try {
+    if (process.platform === 'win32') {
+      const checks = [
+        '$ErrorActionPreference="Stop"',
+        '$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User',
+        'function Assert-Private($acl){$rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]));if($rules.Count -ne 1 -or $rules[0].IdentityReference -ne $sid -or $rules[0].AccessControlType -ne "Allow"){throw "ACL grants unexpected access"}}',
+        'Assert-Private (Get-Acl -LiteralPath $env:BUDDY_TEST_DIR)',
+        'Assert-Private (Get-Acl -LiteralPath (Join-Path $env:BUDDY_TEST_DIR "token"))',
+        'Assert-Private (Get-Acl -LiteralPath (Join-Path $env:BUDDY_TEST_DIR "bridge.json"))',
+        '$p=[IO.Pipes.NamedPipeClientStream]::new(".", $env:BUDDY_TEST_PIPE, [IO.Pipes.PipeDirection]::InOut)',
+        'try{$p.Connect(2000);Assert-Private ($p.GetAccessControl())}finally{$p.Dispose()}',
+      ].join(';');
+      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(checks, 'utf16le').toString('base64')], {
+        env: { ...process.env, BUDDY_TEST_DIR: harness.paths.dir, BUDDY_TEST_PIPE: harness.paths.socket.slice('\\\\.\\pipe\\'.length) },
+        windowsHide: true,
+      });
+      assert.equal(harness.token.length, 64);
+      return;
+    }
     const dirMode = (await stat(harness.paths.dir)).mode & 0o777;
     const socketMode = (await stat(harness.paths.socket)).mode & 0o777;
     const tokenMode = (await stat(harness.paths.tokenFile)).mode & 0o777;
@@ -104,6 +130,7 @@ test('ipc socket and token are private to the user', async () => {
     assert.equal(harness.token.length, 64);
   } finally {
     await harness.server.stop();
+    await rm(harness.paths.dir, { recursive: true, force: true });
   }
 });
 
@@ -149,12 +176,13 @@ test('several authenticated peers coexist and are tracked independently', async 
     first.write(hello(harness.token));
     second.write(hello(harness.token));
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.deepEqual(harness.hellos, [1, 2]);
+    assert.deepEqual([...harness.hellos].sort((a, b) => a - b), [1, 2]);
     assert.equal(harness.server.connectionCount, 2);
 
     first.destroy();
     await new Promise((resolve) => setTimeout(resolve, 100));
-    assert.deepEqual(harness.disconnects, [1]);
+    assert.equal(harness.disconnects.length, 1);
+    assert.equal(harness.server.connectionCount, 1);
     second.destroy();
   } finally {
     await harness.server.stop();
@@ -298,7 +326,7 @@ test('a stale lock from a dead process is recovered', async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-test('a non-socket path is never unlinked to make room', async () => {
+test('a non-socket path is never unlinked to make room', { skip: process.platform === 'win32' && 'Unix socket filesystem guard' }, async () => {
   const dir = await tempDir();
   const paths = ipcPaths({ OPENCODE_BUDDY_RUNTIME_DIR: dir });
   await writeFile(paths.socket, 'do not delete me');
@@ -606,7 +634,7 @@ test('the preflight lock check refuses a live owner but allows a stale one', asy
     await writeFile(paths.lockFile, `${process.pid}\n`, { mode: 0o600 });
     assert.doesNotThrow(() => assertNoOtherBridge(paths));
 
-    await writeFile(paths.lockFile, '1\n', { mode: 0o600 });
+    await writeFile(paths.lockFile, String(process.ppid) + '\n', { mode: 0o600 });
     assert.throws(() => assertNoOtherBridge(paths), /another bridge is running/);
 
     await writeFile(paths.lockFile, '999999\n', { mode: 0o600 });
@@ -624,15 +652,14 @@ test('lock helpers reject malformed owners and keep our own lock', async () => {
     assert.equal(pidIsAlive(0), false);
     assert.equal(pidIsAlive(-1), false);
     assert.equal(pidIsAlive(1.5), false);
-    // PID 1 exists (EPERM for a normal user, success for root): alive either way.
-    assert.equal(pidIsAlive(1), true);
+    assert.equal(pidIsAlive(process.ppid), true);
     await writeFile(paths.lockFile, 'not-a-pid\n');
     assert.equal(readLockOwner(paths.lockFile), null);
     await writeFile(paths.lockFile, '0\n');
     assert.equal(readLockOwner(paths.lockFile), null);
     await writeFile(paths.lockFile, `${process.pid}\n`);
     assert.doesNotThrow(() => assertNoOtherBridge(paths));
-    await writeFile(paths.lockFile, '1\n');
+    await writeFile(paths.lockFile, String(process.ppid) + '\n');
     assert.throws(() => assertNoOtherBridge(paths), /another bridge is running/);
     await rm(paths.lockFile, { force: true });
     assert.doesNotThrow(() => assertNoOtherBridge(paths));

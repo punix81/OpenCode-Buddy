@@ -11,16 +11,17 @@
 // never blocked by us.
 
 import { createConnection } from 'node:net';
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   chmodSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
-  statSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, join, win32 } from 'node:path';
 
 import { createProjector, projectSessionSnapshot } from './map.js';
 import { eventOwnership } from './isolation.js';
@@ -53,14 +54,15 @@ let debugDisabled = false;
 export function ipcPaths(env = process.env, platform = process.platform) {
   const override = env['OPENCODE_BUDDY_RUNTIME_DIR'];
   if (platform === 'win32') {
-    const base = env['LOCALAPPDATA'] ?? env['APPDATA'] ?? tmpdir();
-    const dir = override ?? join(base, 'opencode-buddy');
+    const base = env['LOCALAPPDATA'] || env['APPDATA'] || homedir();
+    const dir = win32.resolve(override ?? win32.join(base, 'opencode-buddy-ipc'));
+    const suffix = createHash('sha256').update(dir.toLowerCase()).digest('hex').slice(0, 16);
     return {
       platform: 'win32',
       dir,
-      socket: null,
+      socket: '\\\\.\\pipe\\opencode-buddy-' + suffix,
       tokenFile: null,
-      descriptorFile: join(dir, 'bridge.json'),
+      descriptorFile: win32.join(dir, 'bridge.json'),
     };
   }
   const runtime = env['XDG_RUNTIME_DIR'];
@@ -93,8 +95,8 @@ export function readEndpoint(paths) {
   try {
     const raw = JSON.parse(readFileSync(paths.descriptorFile, 'utf8'));
     if (raw?.v !== 1 || raw?.platform !== 'win32') return null;
-    if (typeof raw.address !== 'string' || !raw.address.startsWith('\\\\.\\pipe\\')) return null;
-    if (typeof raw.token !== 'string' || raw.token.length !== 64) return null;
+    if (raw.address !== paths.socket) return null;
+    if (typeof raw.token !== 'string' || !/^[a-f0-9]{64}$/.test(raw.token)) return null;
     return { address: raw.address, token: raw.token };
   } catch {
     return null;
@@ -112,17 +114,22 @@ export function sanitize(message) {
 function debug(message) {
   if (!DEBUG || debugDisabled) return;
   try {
-    const file = DEBUG_FILE ?? join(ipcPaths().dir, 'plugin-debug.log');
-    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    const paths = ipcPaths();
+    const windows = paths.platform === 'win32';
+    if (windows && readEndpoint(paths) === null) return;
+    const file = (windows ? null : DEBUG_FILE) ?? join(paths.dir, 'plugin-debug.log');
+    if (!windows) mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     if (!existsSync(file)) {
-      appendFileSync(file, '', { mode: 0o600 });
-      chmodSync(file, 0o600);
+      appendFileSync(file, '', { mode: 0o600, flag: 'wx' });
+      if (!windows) chmodSync(file, 0o600);
     }
-    if (statSync(file).size > MAX_DEBUG_BYTES) {
+    const stat = lstatSync(file);
+    const line = new Date().toISOString() + ' ' + sanitize(message) + '\n';
+    if (!stat.isFile() || stat.size + Buffer.byteLength(line) > MAX_DEBUG_BYTES) {
       debugDisabled = true;
       return;
     }
-    appendFileSync(file, `${new Date().toISOString()} ${sanitize(message)}\n`);
+    appendFileSync(file, line);
   } catch {
     // Diagnostics must never disturb OpenCode.
     debugDisabled = true;

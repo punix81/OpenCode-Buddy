@@ -193,18 +193,22 @@ export function defaultConfigFile(
   return join(base, 'opencode-buddy', 'config.json');
 }
 
-export function loadConfig(file = defaultConfigFile()): BridgeConfig {
+export function loadConfig(file?: string): BridgeConfig {
+  const target = file ?? defaultConfigFile();
   let text: string;
   try {
-    text = readFileSync(file, 'utf8');
-  } catch {
-    return { ...DEFAULT_CONFIG };
+    text = readFileSync(target, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' && file === undefined && !process.env['BUDDY_CONFIG']) {
+      return { ...DEFAULT_CONFIG };
+    }
+    throw new ConfigError('configuration file could not be read: ' + target);
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new ConfigError(`configuration file is not valid JSON: ${file}`);
+    throw new ConfigError(`configuration file is not valid JSON: ${target}`);
   }
   return parseConfig(parsed);
 }

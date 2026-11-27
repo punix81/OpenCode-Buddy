@@ -57,7 +57,7 @@ if (!globalMode && projectDir === undefined) {
   console.error('specify --project DIR or --global (dry-run unless --apply is given)');
   process.exit(2);
 }
-if (!existsSync(join(pluginDir, 'index.js'))) {
+if (apply && !uninstall && !existsSync(join(pluginDir, 'index.js'))) {
   console.error(`plugin not found at ${pluginDir}`);
   process.exit(2);
 }
@@ -70,7 +70,7 @@ function projectConfigFile(directory) {
   return json;
 }
 
-const target = globalMode ? configFileForGlobal(process.env, process.platform, process.env.HOME) : projectConfigFile(projectDir);
+const target = globalMode ? configFileForGlobal() : projectConfigFile(projectDir);
 const exists = existsSync(target);
 const source = exists ? readFileSync(target, 'utf8') : '';
 
@@ -87,8 +87,7 @@ function printResult(changed, next) {
     console.log(`DRY-RUN target=${target}`);
     console.log(`plugin=${normalizePluginPath(pluginDir)}`);
     console.log('');
-    console.log(next);
-    console.log('');
+    console.log((uninstall ? 'Would remove ' : 'Would add ') + 'the displayed path in the plugin array.');
     console.log('Nothing modified. Re-run with --apply to write (a backup is created first).');
     return;
   }

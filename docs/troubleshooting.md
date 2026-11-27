@@ -58,6 +58,20 @@ same race.
   adding the group.
 - Do not permanently disable the other bridge. Stop it for the test, restart it afterwards.
 
+On native Windows, first enumerate using `pnputil /enum-devices /connected /class Ports`.
+For composite devices use `pnputil /enum-devices /instanceid "<interface-id>" /relations`
+to distinguish the parent's USB serial from the interface identifier. An exclusive open returning
+Windows error 5 can indicate another owner or a permissions problem. Check whether the old Buddy
+bridge is running and stop it gracefully before trying the selected COM port.
+
+### Windows plugin does not see the bridge
+
+Build the Windows host using `installer/windows/build-pipe-host.ps1` before a
+source run, or use the matching plugin and bridge from the same portable ZIP.
+The runtime is `%LOCALAPPDATA%\opencode-buddy-ipc`. A test override must be identical
+in both processes and use a trusted local path. A rejected runtime ACL is a
+startup error and should be resolved by choosing a suitable runtime directory.
+
 ### Device not listed
 
 - Expect an Espressif USB JTAG/serial debug unit (vendor `303a`). If it is absent, the cable may be
