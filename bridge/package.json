@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "validate:protocol": "tsx scripts/validate-protocol.ts",
@@ -19,7 +19,9 @@
     "live": "tsx src/cli/live.ts",
     "diagnose:opencode": "tsx src/cli/diagnose-opencode.ts",
     "test:plugin": "node --test ../plugin/opencode-buddy/*.test.mjs",
-    "lint": "eslint src test scripts"
+    "lint": "eslint src test scripts",
+    "build:all": "tsc -p tsconfig.json",
+    "test:scripts": "node --test ../scripts/test/*.test.mjs"
   },
   "dependencies": {
     "serialport": "13.0.0"
