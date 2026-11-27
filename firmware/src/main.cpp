@@ -58,9 +58,42 @@ char gTxStorage[kTxCapacity];
 buddy::TxBuffer gTx(gTxStorage, sizeof(gTxStorage));
 buddy::FrameWriter gWriter(gTx);
 
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+// Diagnostic telemetry has its own bounded buffer. It is only flushed when the
+// protocol buffer is empty and the sink can take the whole line, so a BUDDY-DIAG
+// line can never land inside an NDJSON frame (which would corrupt the frame the
+// bridge is trying to observe).
+constexpr size_t kDiagTxCapacity = 1024;
+char gDiagTxStorage[kDiagTxCapacity];
+buddy::TxBuffer gDiagTx(gDiagTxStorage, sizeof(gDiagTxStorage));
+buddy::FrameWriter gDiagWriter(gDiagTx);
+bool gDiagFlushActive = false;
+#endif
+
 // Retries the bytes a previous partial Serial.write could not accept. One call
 // per loop, bounded by Serial.availableForWrite(): never blocking.
-void flushTx() { gTx.flush(gSink); }
+void flushTx() {
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  // Never start a protocol frame while a partial diagnostic line is draining:
+  // the two buffers share one sink and must not interleave.
+  if (gDiagFlushActive) {
+    if (gSink.availableForWrite() >= static_cast<int>(gDiagTx.pending())) {
+      gDiagTx.flush(gSink);
+    }
+    if (gDiagTx.pending() == 0) gDiagFlushActive = false;
+    return;
+  }
+#endif
+  gTx.flush(gSink);
+#if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
+  if (gTx.pending() == 0 && gDiagTx.pending() > 0 &&
+      gSink.availableForWrite() >= static_cast<int>(gDiagTx.pending())) {
+    gDiagFlushActive = true;
+    gDiagTx.flush(gSink);
+    if (gDiagTx.pending() == 0) gDiagFlushActive = false;
+  }
+#endif
+}
 
 uint32_t gLastLinkCheck = 0;
 uint32_t gLastHeartbeat = 0;
@@ -239,19 +272,21 @@ buddy::InteractionGesture mapGesture(buddy::Gesture gesture) {
 
 void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
 #if defined(BUDDY_DIAGNOSTICS) && BUDDY_DIAGNOSTICS
-  if (Serial.availableForWrite() < 450) {
-    return;
-  }
   const uint32_t window = now - gLastDiagnosticMs;
   uint32_t fps = 0;
   if (!boot && window > 0) {
     fps = (gScreens.pushCount() - gLastPushCount) * 1000u / window;
   }
-  Serial.printf(
+  // Build into a bounded line and queue it on the diagnostic TxBuffer. The
+  // FrameWriter adds the newline and drops the line when its buffer is full;
+  // nothing here blocks the main loop or touches a protocol frame.
+  char line[512];
+  int len = snprintf(
+      line, sizeof(line),
       "BUDDY-DIAG boot=%lu reset=%s heap=%lu min=%lu maxblk=%lu fps=%lu push=%lu "
       "render_avg_us=%lu render_max_us=%lu render_p50_us=%lu render_p95_us=%lu "
       "render_p99_us=%lu usb_gap_max_us=%lu gesture_ms=%lu touch_edges=%lu screen=%u state=%u "
-      "dropped=%lu sent=%lu maxframe=%lu txfree=%d rxavail=%d\n",
+      "dropped=%lu sent=%lu maxframe=%lu txfree=%d rxavail=%d",
       static_cast<unsigned long>(gBootCount), resetReasonName(esp_reset_reason()),
       static_cast<unsigned long>(ESP.getFreeHeap()),
       static_cast<unsigned long>(ESP.getMinFreeHeap()),
@@ -270,10 +305,14 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
                                    gWriter.droppedTooLong()),
       static_cast<unsigned long>(gWriter.sent()), static_cast<unsigned long>(gWriter.maxFrame()),
       Serial.availableForWrite(), Serial.available());
-  Serial.printf(
+  if (len > 0 && len < static_cast<int>(sizeof(line))) {
+    gDiagWriter.send(line, static_cast<size_t>(len), sizeof(line));
+  }
+  len = snprintf(
+      line, sizeof(line),
       "BUDDY-DIAG2 framing=%lu rx_bytes=%lu rx_lines=%lu rx_drop=%lu rx_ovf=%lu "
       "ok=%lu err=%lu gap=%lu dup=%lu hello=%lu hb=%lu host_edges=%lu host=%d "
-      "last=%lu len=%u head=%s\n",
+      "last=%lu len=%u head=%s",
       static_cast<unsigned long>(gProtocol.framingResyncs()),
       static_cast<unsigned long>(gSerial.bytesRead()),
       static_cast<unsigned long>(gSerial.linesReceived()),
@@ -289,12 +328,20 @@ void emitDiagnostic(uint32_t now, bool boot, uint32_t bootUs) {
       static_cast<unsigned long>(gDiagHostEdges), gDiagHost ? 1 : 0,
       static_cast<unsigned long>(gDiagLastCode), static_cast<unsigned>(gDiagLastLen),
       gDiagLastHead);
+  if (len > 0 && len < static_cast<int>(sizeof(line))) {
+    gDiagWriter.send(line, static_cast<size_t>(len), sizeof(line));
+  }
   if (boot) {
-    Serial.printf("BUDDY-DIAG stage=canvas heap_before=%lu heap_after=%lu canvas_delta=%lu boot_us=%lu\n",
-                  static_cast<unsigned long>(gHeapBeforeCanvas),
-                  static_cast<unsigned long>(gHeapAfterCanvas),
-                  static_cast<unsigned long>(gHeapBeforeCanvas - gHeapAfterCanvas),
-                  static_cast<unsigned long>(bootUs));
+    len = snprintf(line, sizeof(line),
+                   "BUDDY-DIAG stage=canvas heap_before=%lu heap_after=%lu canvas_delta=%lu "
+                   "boot_us=%lu",
+                   static_cast<unsigned long>(gHeapBeforeCanvas),
+                   static_cast<unsigned long>(gHeapAfterCanvas),
+                   static_cast<unsigned long>(gHeapBeforeCanvas - gHeapAfterCanvas),
+                   static_cast<unsigned long>(bootUs));
+    if (len > 0 && len < static_cast<int>(sizeof(line))) {
+      gDiagWriter.send(line, static_cast<size_t>(len), sizeof(line));
+    }
   }
   gScreens.resetRenderStats();
   gLastPushCount = gScreens.pushCount();
